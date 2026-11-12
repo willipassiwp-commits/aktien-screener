@@ -11,9 +11,14 @@ TH = {
     "Fast Grower": dict(revH=15, revE=15, ebitH=15, epsE=20, eq=30, roe=15, debt=1.5, margin=20, pe5=30, cap=28),
     "Zykliker": dict(revH=4, revE=4, ebitH=4, epsE=6, eq=30, roe=12, debt=2.5, margin=10, pe5=15, cap=15),
 }
-CYC_SECTORS = {"Energy", "Basic Materials"}
+CYC_SECTORS = {"Energy"}
 CYC_INDUSTRIES = {"Auto Manufacturers", "Auto Parts", "Airlines", "Residential Construction", "Marine Shipping",
-                  "Farm & Heavy Construction Machinery", "Building Materials", "Steel"}
+                  "Farm & Heavy Construction Machinery", "Building Materials", "Steel", "Aluminum", "Copper", "Gold",
+                  "Silver", "Other Industrial Metals & Mining", "Other Precious Metals & Mining", "Coking Coal",
+                  "Thermal Coal", "Chemicals", "Agricultural Inputs", "Paper & Paper Products",
+                  "Lumber & Wood Production"}
+G_CAP = {"Slow Grower": 0.08, "Average Grower": 0.15, "Fast Grower": 0.20, "Zykliker": 0.08}
+SUBUNIT = {"GBp": 0.01, "GBX": 0.01, "ZAc": 0.01, "ILA": 0.01}
 
 
 def num(x):
@@ -33,7 +38,19 @@ def r1(x, d=1):
 
 
 def first(lst):
-    return lst[0] if lst else None
+    """Jüngster vorhandener Wert (Yahoo liefert das neueste Jahr manchmal leer)."""
+    for x in lst or []:
+        if x is not None:
+            return x
+    return None
+
+
+def pair(a, b):
+    """Jüngstes Jahr, für das beide Reihen einen Wert haben."""
+    for x, y in zip(a or [], b or []):
+        if x is not None and y is not None:
+            return x, y
+    return None, None
 
 
 def hist_growth(lst):
@@ -146,36 +163,64 @@ def steps(v, cuts, higher=True):
     return sum(1 for c in cuts if (v >= c if higher else v <= c))
 
 
-def score(fund, pm, mcap_usd=None):
-    """Bewertet eine Aktie. fund: Fundamentaldaten aus dem Cache, pm: Ergebnis von price_metrics."""
+def score(fund, pm, mcap_usd=None, fx_fin=None):
+    """Bewertet eine Aktie. fund: Fundamentaldaten aus dem Cache, pm: Ergebnis von price_metrics.
+
+    fx_fin: Umrechnung von der Kurswährung (Haupteinheit) in die Bilanzwährung, None wenn unbekannt.
+    Yahoo liefert trailingEps/forwardEps in der Kurswährung, die Abschlüsse in der Bilanzwährung.
+    """
     rev, ebit, ni = fund.get("revenue") or [], fund.get("ebit") or [], fund.get("netIncome") or []
     fin = fund.get("sector") == "Financial Services"
     rev_h = hist_growth(rev)
+    # Unplausible Umsatzschätzung (Yahoo-Fehler, z. B. +100 % bei japanischen Werten) verwerfen
+    rg = fund.get("revGrowthEst")
+    if rg is not None and (rg > 0.5 and (rev_h is None or rev_h < 0.25) or rg < -0.5):
+        fund = dict(fund, revGrowthEst=None)
     cat = lynch(fund, rev_h)
     if cat is None or pm is None:
         return None
     T = TH[cat]
+    unit = SUBUNIT.get(fund.get("currency"), 1.0)
     price = pm["last"]
+    price_m = price * unit  # Kurs in der Haupteinheit (Pfund statt Pence)
+    if fx_fin is None and fund.get("finCurrency") and fund.get("finCurrency") == fund.get("currency"):
+        fx_fin = 1.0
 
     # --- Fundamental: zehn Kriterien, je ein Punkt ---
     ebit_h = hist_growth(ebit)
     rev_e, eps_e = fund.get("revGrowthEst"), fund.get("epsGrowthEst")
     dec = declines(ni)
-    eq, assets, ni0 = first(fund.get("equity")), first(fund.get("assets")), first(ni)
-    eq_ratio = eq / assets if eq is not None and assets else None
-    roe = ni0 / eq if eq and eq > 0 and ni0 is not None else None
+    eq = first(fund.get("equity"))
+    eq_a, assets = pair(fund.get("equity"), fund.get("assets"))
+    eq_ratio = eq_a / assets if eq_a is not None and assets else None
+    ni0, eq_n = pair(ni, fund.get("equity"))
+    roe = ni0 / eq_n if eq_n and eq_n > 0 and ni0 is not None else None
     debt, cash, ebitda = first(fund.get("totalDebt")), first(fund.get("cash")), first(fund.get("ebitda"))
     nd = None
     if debt is not None and ebitda is not None:
         net = debt - (cash or 0)
         nd = net / ebitda if ebitda > 0 else (0.0 if net <= 0 else 99.0)
-    rev0, ebit0 = first(rev), first(ebit)
+    ebit0, rev0 = pair(ebit, rev)
     margin = ebit0 / rev0 if ebit0 is not None and rev0 and rev0 > 0 else None
     eps_t, eps_f = fund.get("trailingEps"), fund.get("forwardEps")
-    eps = eps_t if eps_t and eps_t > 0 else (eps_f if eps_f and eps_f > 0 else None)
-    pe = price / eps if eps else None
-    g_raw = eps_e if eps_e is not None else (rev_e if rev_e is not None else rev_h)
-    g = clamp(g_raw, 0.0, 0.20) if g_raw is not None else None
+    # Yahoo-Ausreißer beim Gewinn je Aktie (z. B. nach Aktiensplit): gegen den letzten Abschluss prüfen
+    ref = first(fund.get("dilutedEps"))
+    ref = ref / fx_fin if ref and ref > 0 and fx_fin else None
+
+    def sane(e):
+        return e is not None and e > 0 and (ref is None or ref / 4 <= e <= ref * 4)
+
+    eps = eps_t if sane(eps_t) else (eps_f if sane(eps_f) else None)
+    if eps is None and ref is None:
+        eps = eps_t if eps_t and eps_t > 0 else (eps_f if eps_f and eps_f > 0 else None)
+    pe = price_m / eps if eps else None
+    # Dauerhaft angesetztes Gewinnwachstum: Analystenschätzung, aber höchstens Umsatzwachstum + 5 Punkte
+    # und gedeckelt je Kategorie. Ein Erholungsjahr mit +50 % Gewinn wird so nicht fünf Jahre fortgeschrieben.
+    rev_ref = rev_e if rev_e is not None else rev_h
+    g_raw = eps_e if eps_e is not None else rev_ref
+    if g_raw is not None and rev_ref is not None:
+        g_raw = min(g_raw, rev_ref + 0.05)
+    g = clamp(g_raw, 0.0, G_CAP[cat]) if g_raw is not None else None
     pe5 = pe / (1 + g) ** 5 if pe is not None and g is not None else None
 
     def pct(v):
@@ -208,18 +253,32 @@ def score(fund, pm, mcap_usd=None):
     m_std = float(np.std(margins)) * 100 if len(margins) >= 3 else None
     roic = None
     if ebit0 is not None and eq is not None and debt is not None and eq + debt > 0:
-        roic = ebit0 * 0.75 / (eq + debt)
+        roic = first(ebit) * 0.75 / (eq + debt)
     rev_dec = declines(rev)
-    M = [
-        [pct(gross), None if fin else steps(gross, [0.2, 0.3, 0.4, 0.5, 0.6])],
-        [pct(margin), None if fin else steps(margin, [0.10, 0.15, 0.20, 0.25, 0.30])],
-        [r1(m_std), None if fin else steps(m_std, [12, 8, 5, 3, 1.5], higher=False)],
-        [pct(roe if fin else roic), steps(roe, [0.06, 0.09, 0.12, 0.15, 0.18]) if fin
-         else steps(roic, [0.06, 0.10, 0.15, 0.20, 0.25])],
-        [rev_dec, None if rev_dec is None else {0: 5, 1: 3, 2: 1}.get(rev_dec, 0)],
-    ]
+    dec_pts = {0: 5, 1: 3, 2: 1}
+    if fin:
+        # Finanzwerte: Margen und Kapitalrendite auf das Gesamtkapital sagen dort nichts aus
+        roes = [n / e for n, e in zip(ni, fund.get("equity") or []) if n is not None and e and e > 0]
+        roe_min = min(roes) if len(roes) >= 3 else None
+        n0, r0 = pair(ni, rev)
+        net_margin = n0 / r0 if n0 is not None and r0 and r0 > 0 else None
+        M = [
+            [pct(roe), steps(roe, [0.06, 0.09, 0.12, 0.15, 0.18])],
+            [pct(roe_min), steps(roe_min, [0.04, 0.06, 0.09, 0.12, 0.15])],
+            [pct(net_margin), steps(net_margin, [0.05, 0.10, 0.15, 0.20, 0.25])],
+            [dec, None if dec is None else dec_pts.get(dec, 0)],
+            [rev_dec, None if rev_dec is None else dec_pts.get(rev_dec, 0)],
+        ]
+    else:
+        M = [
+            [pct(gross), steps(gross, [0.2, 0.3, 0.4, 0.5, 0.6])],
+            [pct(margin), steps(margin, [0.10, 0.15, 0.20, 0.25, 0.30])],
+            [r1(m_std), steps(m_std, [12, 8, 5, 3, 1.5], higher=False)],
+            [pct(roic), steps(roic, [0.06, 0.10, 0.15, 0.20, 0.25])],
+            [rev_dec, None if rev_dec is None else dec_pts.get(rev_dec, 0)],
+        ]
     mv = [x[1] for x in M if x[1] is not None]
-    if len(mv) < 2:
+    if len(mv) < 3:
         return None
     moat25 = round(sum(mv) / (len(mv) * 5) * 25, 1)
 
@@ -244,22 +303,27 @@ def score(fund, pm, mcap_usd=None):
 
     # --- Renditeerwartung: Exit-KGV über fünf Jahre ---
     hist_pe = None
-    if fund.get("finCurrency") and fund.get("finCurrency") == fund.get("currency"):
+    if fx_fin:
         pes = []
         for d, e in zip(fund.get("incDates") or [], fund.get("dilutedEps") or []):
             p = price_on(pm["series"], d)
             if e and e > 0 and p:
-                pes.append(p / e)
+                pes.append(p * unit * fx_fin / e)
+        pes = [x for x in pes if 1 < x < 300]
         if len(pes) >= 2:
             hist_pe = float(np.median(pes))
     dy = pm["div_ttm"] / price
-    kgve = min(hist_pe or T["cap"], T["cap"])
+    if dy > 0.15:  # unplausibel, meist ein nicht bereinigter Aktiensplit
+        dy = 0.0
+    # Ziel-KGV: historischer Median, gedeckelt je Kategorie und nie über dem heutigen KGV.
+    # Die Rendite soll aus Gewinnwachstum und Dividende kommen, nicht aus einer höheren Bewertung.
+    kgve = min(x for x in (hist_pe, T["cap"], pe) if x is not None)
     rend = lo = hi = None
     if pe is not None and g is not None:
         rend = ((1 + g) ** 5 * kgve / pe) ** 0.2 - 1 + dy
         rend = min(rend, 0.25)  # Deckel gegen Ausreißer durch fehlerhafte Gewinnangaben
         lo = (1 + 0.6 * g) ** 5 * 0.85 * kgve / pe - 1
-        hi = (1 + g) ** 5 * min(hist_pe or T["cap"], T["cap"] * 1.2) / pe - 1
+        hi = (1 + g) ** 5 * min(hist_pe or pe, T["cap"] * 1.2) / pe - 1
     rs = 0.0 if rend is None else clamp(rend / 0.12, 0, 1) * 100
 
     # --- Risikoklasse 1 (defensiv) bis 5 (offensiv) ---

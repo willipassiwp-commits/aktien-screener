@@ -172,13 +172,29 @@ def main():
         except Exception:
             old = {}
 
-    rates = fx_rates({(cache.get(s) or {}).get("currency") for s in symbols})
+    rates = fx_rates({(cache.get(s) or {}).get(k) for s in symbols for k in ("currency", "finCurrency")})
+
+    # Doppelnotierungen desselben Unternehmens: nur die Notiz in der Bilanzwährung behalten, sonst die erste
+    by_name, dupes = {}, set()
+    for s in symbols:
+        f = cache.get(s) or {}
+        if f.get("name"):
+            by_name.setdefault(f["name"], []).append(s)
+    for name, syms in by_name.items():
+        if len(syms) > 1:
+            home = [s for s in syms if SUBUNIT.get(cache[s].get("currency"), (cache[s].get("currency"), 1))[0]
+                    == cache[s].get("finCurrency")]
+            keep = (home or syms)[0]
+            dupes.update(s for s in syms if s != keep)
+    print("Doppelnotierungen entfernt:", len(dupes), flush=True)
     stocks, priced, skipped = [], 0, 0
     for s, df in download_prices(symbols):
+        if s in dupes:
+            continue
         fund = cache.get(s)
         pm = price_metrics(df)
         if pm is None or not fund:
-            if s in old:  # alten Stand weiterzeigen, die Seite markiert ihn über das Kursdatum als veraltet
+            if s in old and fund:  # alten Stand weiterzeigen, die Seite markiert ihn über das Kursdatum als veraltet
                 stocks.append(old[s])
             else:
                 skipped += 1
@@ -191,7 +207,9 @@ def main():
             mcap_usd = fund["mcap"] * pm["last"] / fund["priceAtFetch"] * rates[base]
         if mcap_usd is None:
             mcap_usd = meta[s].get("mcap_usd")
-        rec = score(fund, pm, mcap_usd)
+        fin_cur = fund.get("finCurrency")
+        fx_fin = rates[base] / rates[fin_cur] if base in rates and fin_cur in rates else None
+        rec = score(fund, pm, mcap_usd, fx_fin)
         if rec is None:
             skipped += 1
             continue

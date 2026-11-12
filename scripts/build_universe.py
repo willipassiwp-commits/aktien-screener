@@ -68,6 +68,9 @@ def candidates(fd_dir):
     df = df[df["rank"] < 999]
     df["len"] = df["symbol"].str.len()
     df = df.sort_values(["key", "rank", "len", "symbol"]).drop_duplicates("key", keep="first")
+    # Dasselbe Papier unter zwei Namen (gleiche ISIN): nur die Heimatnotiz behalten
+    df = df.sort_values(["rank", "len", "symbol"])
+    df = pd.concat([df[df["isin"].isna()], df[df["isin"].notna()].drop_duplicates("isin", keep="first")])
     out = []
     for r in df.itertuples():
         out.append({"symbol": r.symbol, "name": r.name, "country": r.country if isinstance(r.country, str) else "",
