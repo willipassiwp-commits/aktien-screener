@@ -1,0 +1,66 @@
+name: Daten aktualisieren
+
+on:
+  schedule:
+    - cron: "17 4 * * *"   # täglich 04:17 UTC, also 05:17 bzw. 06:17 Uhr deutscher Zeit
+  workflow_dispatch:
+    inputs:
+      fund_limit:
+        description: "Fundamentaldaten für so viele Aktien neu laden (leer = automatisch)"
+        default: ""
+      rebuild_universe:
+        description: "Universum neu bestimmen (true/false)"
+        default: "false"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Prüfen, ob das Universum neu gebaut wird
+        id: uni
+        run: |
+          if [ ! -f data/universe.json ] || [ "${{ inputs.rebuild_universe }}" = "true" ] || [ "$(date -u +%d)" = "01" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Aktiendatenbank laden
+        if: steps.uni.outputs.build == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: JerBouma/FinanceDatabase
+          path: _fd
+          sparse-checkout: database/equities
+
+      - name: Universum bauen (größte 1000 nach Marktkapitalisierung)
+        if: steps.uni.outputs.build == 'true'
+        run: python scripts/build_universe.py _fd/database/equities
+
+      - name: Kurse und Fundamentaldaten laden, bewerten
+        env:
+          FUND_LIMIT: ${{ inputs.fund_limit }}
+        run: python scripts/update.py
+
+      - name: Ergebnis speichern
+        if: always()
+        run: |
+          rm -rf _fd
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data docs/data.json 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "Daten aktualisiert $(date -u +%F)"
+          git push
