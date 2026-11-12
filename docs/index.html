@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aktien-Qualitätsscreener</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: Analyseblatt. Links die Rangliste als dichte Tabelle, rechts der Steckbrief mit Punkt-für-Punkt-Herleitung. */
+:root{
+  --bg:#eef1f5; --surface:#ffffff; --sunken:#e4e8ee; --line:#cfd6e0; --fg:#141c28; --muted:#586374;
+  --accent:#1d4f91; --accent-soft:#dbe6f5;
+  --good:#17754a; --good-soft:#d9efe3; --mid:#8a6a00; --mid-soft:#f6ebc4; --bad:#b03a2e; --bad-soft:#f7dcd8;
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --text:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root{
+  --bg:#10151d; --surface:#18202b; --sunken:#212b38; --line:#33404f; --fg:#e6ebf2; --muted:#9aa6b6;
+  --accent:#7fb0ee; --accent-soft:#223850;
+  --good:#5ac28f; --good-soft:#173527; --mid:#e0bd4f; --mid-soft:#3a3115; --bad:#f08a7e; --bad-soft:#42211d;
+  color-scheme:dark } }
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--text);font-size:14px;line-height:1.45;padding:20px 16px 48px}
+.wrap{max-width:1560px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+h1{font-size:28px;font-weight:700;letter-spacing:-.01em}
+h2{font-size:18px;font-weight:600}
+h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+p{margin:0}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+header.top{display:flex;flex-wrap:wrap;gap:8px 24px;align-items:flex-end;justify-content:space-between}
+header.top p{max-width:72ch;color:var(--muted)}
+.stand{font-size:13px;text-align:right}
+.stand b{font-weight:600}
+.notice{border-left:3px solid var(--mid);background:var(--mid-soft);padding:10px 14px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:4px}
+.controls{padding:14px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
+label.f.grow{flex:1 1 200px}
+input,select,button{font:inherit;color:var(--fg)}
+input[type=search],select{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:6px 8px;min-width:0;width:100%}
+label.chk{display:flex;gap:6px;align-items:center;font-size:13px;padding-bottom:6px}
+button{background:var(--sunken);border:1px solid var(--line);border-radius:3px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.weights{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 18px}
+.weights label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+.weights span.v{color:var(--fg)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.main{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+@media (min-width:1200px){ .main{grid-template-columns:minmax(0,1fr) 440px} #detail{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto} }
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+#grid th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none;background:var(--sunken)}
+#grid th.r,#grid td.r{text-align:right}
+#grid th[aria-sort]{color:var(--fg)}
+#grid td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+#grid tbody tr{cursor:pointer}
+#grid tbody tr:hover{background:var(--sunken)}
+#grid tbody tr.sel{background:var(--accent-soft)}
+.co{display:flex;flex-direction:column;max-width:260px}
+.co b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.co small{color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis}
+.total{display:flex;align-items:center;gap:8px;min-width:110px}
+.total .bar{flex:1;height:6px;background:var(--sunken);border-radius:3px;overflow:hidden}
+.total .bar i{display:block;height:100%}
+.b4 i{background:var(--good)} .b3 i{background:var(--good);opacity:.6} .b2 i{background:var(--mid)} .b1 i{background:var(--bad)}
+.pill{display:inline-block;font-size:11.5px;font-weight:500;padding:2px 8px;border-radius:10px}
+.pill.good{background:var(--good-soft);color:var(--good)} .pill.mid{background:var(--mid-soft);color:var(--mid)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.neutral{background:var(--sunken);color:var(--fg)}
+.risk{display:inline-flex;gap:3px;vertical-align:middle}
+.risk i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.risk i.on{background:var(--fg)}
+.summary{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--muted);font-size:13px}
+.summary b{color:var(--fg);font-weight:600}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.more{padding:12px;text-align:center}
+#detail{padding:16px}
+.dwrap{display:flex;flex-direction:column;gap:16px}
+.dhead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.dhead .big{font-family:var(--display);font-size:40px;font-weight:700;line-height:1;white-space:nowrap}
+.dhead .big small{font-size:14px;color:var(--muted);font-weight:500}
+.subs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.subs div{background:var(--sunken);padding:8px;border-radius:3px;min-width:0}
+.subs span{display:block;font-size:11px;color:var(--muted)}
+.subs b{font-family:var(--mono);font-weight:500;font-size:15px}
+.sec{display:flex;flex-direction:column;gap:6px}
+.crit{width:100%;font-size:13px}
+.crit td{padding:4px 6px 4px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.crit td:last-child{text-align:right;padding-right:0;white-space:nowrap}
+.crit .ok{color:var(--good);font-weight:600} .crit .no{color:var(--bad);font-weight:600} .crit .na{color:var(--muted)}
+.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;font-size:13px}
+.kv span:nth-child(odd){color:var(--muted)}
+details.meth{padding:0 14px}
+details.meth summary{cursor:pointer;padding:12px 0;font-family:var(--display);font-weight:600;font-size:15px}
+details.meth .body{padding-bottom:16px;display:flex;flex-direction:column;gap:10px;max-width:82ch}
+details.meth + details.meth{border-top:1px solid var(--line)}
+.thr{font-size:13px}
+.thr th,.thr td{padding:5px 10px 5px 0;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.thr th{color:var(--muted);font-weight:500;font-size:12px}
+footer{color:var(--muted);font-size:12.5px;max-width:95ch}
+@media (max-width:520px){ h1{font-size:23px} .subs{grid-template-columns:repeat(2,minmax(0,1fr))} .stand{text-align:left} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Aktien-Qualitätsscreener</h1>
+      <p>Die rund 1000 größten börsennotierten Unternehmen der Welt, täglich neu bewertet nach festen Regeln: Fundamentaldaten je Lynch-Kategorie, Burggraben-Kennzahlen, Trendbild und Renditeerwartung. Die Rangliste zeigt, wer in diesem Raster gerade am stärksten dasteht. Sie gibt keine Kauf- oder Verkaufsempfehlung.</p>
+    </div>
+    <div class="stand" id="stand"></div>
+  </header>
+
+  <p class="notice" id="msg" hidden></p>
+
+  <section class="panel controls" aria-label="Filter und Gewichtung">
+    <div class="row">
+      <label class="f grow">Suche (Name oder Kürzel)<input type="search" id="q" placeholder="z. B. Linde oder MSFT"></label>
+      <label class="f">Region<select id="f-reg"><option value="">Alle</option></select></label>
+      <label class="f">Land<select id="f-land"><option value="">Alle</option></select></label>
+      <label class="f">Sektor<select id="f-sec"><option value="">Alle</option></select></label>
+      <label class="f">Lynch-Kategorie<select id="f-cat"><option value="">Alle</option><option>Slow Grower</option><option>Average Grower</option><option>Fast Grower</option><option>Zykliker</option></select></label>
+      <label class="f">Strategie<select id="f-strat"><option value="">Alle</option><option>Wachstum</option><option>Dividende</option><option>Cashflow</option></select></label>
+      <label class="f">Gesamtscore<select id="f-min"><option value="0">Alle</option><option value="48">ab 48 (solide)</option><option value="62">ab 62 (stark)</option><option value="75">ab 75 (sehr stark)</option></select></label>
+      <label class="f">Risikoklasse<select id="f-risk"><option value="5">Alle</option><option value="2">bis 2</option><option value="3">bis 3</option><option value="4">bis 4</option></select></label>
+      <label class="chk"><input type="checkbox" id="f-up"> nur intakter Aufwärtstrend</label>
+    </div>
+    <div>
+      <h3 style="margin-bottom:8px">Gewichtung des Gesamtscores</h3>
+      <div class="weights">
+        <label>Fundamental <span class="v num" id="wv-f"></span><input type="range" id="w-f" min="0" max="50" step="5"></label>
+        <label>Burggraben <span class="v num" id="wv-m"></span><input type="range" id="w-m" min="0" max="50" step="5"></label>
+        <label>Technik <span class="v num" id="wv-t"></span><input type="range" id="w-t" min="0" max="50" step="5"></label>
+        <label>Renditeerwartung <span class="v num" id="wv-r"></span><input type="range" id="w-r" min="0" max="50" step="5"></label>
+      </div>
+    </div>
+  </section>
+
+  <div class="main">
+    <section class="panel" aria-label="Rangliste">
+      <div class="summary" id="summary">Daten werden geladen …</div>
+      <div class="tablewrap">
+        <table id="grid">
+          <thead><tr>
+            <th data-s="rank" class="r">#</th>
+            <th data-s="n">Unternehmen</th>
+            <th data-s="total">Gesamt</th>
+            <th data-s="total">Bild</th>
+            <th data-s="cat">Lynch</th>
+            <th data-s="f" class="r">Fund.</th>
+            <th data-s="m" class="r">Burggr.</th>
+            <th data-s="t" class="r">Technik</th>
+            <th data-s="r" class="r">Rendite p. a.</th>
+            <th data-s="risk">Risiko</th>
+            <th data-s="st">Trendstatus</th>
+            <th data-s="dy" class="r">Div.</th>
+            <th data-s="mc" class="r">Börsenwert</th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="empty" hidden>Kein Treffer. Lockere die Filter oder lösche die Suche.</div>
+      <div class="more" id="more" hidden><button id="btn-more">Weitere 100 anzeigen</button></div>
+    </section>
+    <aside class="panel" id="detail" aria-label="Steckbrief"><p class="muted">Wähle eine Aktie aus der Rangliste.</p></aside>
+  </div>
+
+  <section class="panel" aria-label="Methodik">
+    <details class="meth"><summary>Woher die Daten kommen</summary><div class="body">
+      <p>Ein Programm lädt jeden Morgen die Kurse aller Aktien von Yahoo Finance und rechnet die Bewertung neu. Bilanz- und Schätzdaten werden reihum aufgefrischt, jede Aktie etwa einmal pro Woche. Das Universum wird am Monatsersten neu bestimmt: die 1000 größten Unternehmen nach Börsenwert in US-Dollar, je Unternehmen nur die Notiz an der Heimatbörse. Yahoo Finance ist keine offizielle Schnittstelle. Einzelne Werte können fehlen oder falsch sein, Aktien mit zu vielen Lücken werden nicht bewertet.</p>
+    </div></details>
+    <details class="meth"><summary>Fundamental-Score (0–10)</summary><div class="body">
+      <p>Zuerst die Einordnung nach Peter Lynch über das erwartete Umsatzwachstum (Analystenschätzung für das laufende und das nächste Jahr): unter 5,5 % Slow Grower, bis unter 15 % Average Grower, darüber Fast Grower. Energie, Grundstoffe, Auto, Airlines, Bau und Schifffahrt gelten als Zykliker. Je Kategorie gelten andere Schwellen für zehn Kriterien. Der Score ist der Anteil der erfüllten Kriterien, auf zehn Punkte gerechnet. Bei Finanzwerten entfallen Eigenkapitalquote, Verschuldung und EBIT-Marge, weil sie dort nichts aussagen.</p>
+      <div class="tablewrap"><table class="thr" id="thr"></table></div>
+      <p class="muted">Historisches Wachstum wird aus den vorliegenden Jahresabschlüssen gerechnet, meist vier Jahre. Bei Slow Growern ersetzt das Dividendenwachstum über fünf Jahre das EBIT-Wachstum. Das erwartete KGV in fünf Jahren ist das heutige KGV geteilt durch das erwartete Gewinnwachstum über fünf Jahre, das Wachstum ist dabei auf 20 % p. a. begrenzt.</p>
+    </div></details>
+    <details class="meth"><summary>Burggraben (0–25)</summary><div class="body">
+      <p>Ein Burggraben nach Porter ist ein Ermessensurteil. Damit die Bewertung für alle Aktien gleich abläuft, misst der Screener stattdessen die Spuren, die ein Burggraben in den Zahlen hinterlässt: hohe Bruttomarge, hohe EBIT-Marge, geringe Schwankung der Marge, hohe Kapitalrendite und Umsätze ohne Rückgänge. Jede Größe gibt 0 bis 5 Punkte. Ab 18 gilt der Burggraben als stark, ab 14 als solide.</p>
+    </div></details>
+    <details class="meth"><summary>Technik-Score (0–10)</summary><div class="body">
+      <p>Kursentwicklung über fünf Jahre (ab 5 % p. a. 2 Punkte, positiv 1), Kurs über der 200-Tage-Linie (1), kein Einbruch über 30 % in fünf Jahren (1), Länge der Kurshistorie (ab 20 Jahren 2, ab 10 Jahren 1), Handelsvolumen über dem aktuellen Kurs in den letzten drei Jahren (bis 15 % 2 Punkte, bis 35 % 1) und Trendqualität (1 Punkt, wenn die 50-Tage-Linie über einer steigenden 200-Tage-Linie liegt, 1 Punkt für einen gleichmäßigen Aufwärtstrend mit R² ab 0,7).</p>
+      <p class="muted">Viel Volumen über dem Kurs heißt: Viele haben teurer gekauft und könnten beim Erreichen ihres Einstands verkaufen. Das wirkt als Widerstand.</p>
+    </div></details>
+    <details class="meth"><summary>Renditeerwartung, Gesamtscore, Risiko</summary><div class="body">
+      <p>Renditeerwartung nach der Multiple-Methode über fünf Jahre: Der Gewinn je Aktie wächst mit der Analystenschätzung, am Ende steht ein Ziel-KGV. Das ist der Median der KGVs zu den letzten Jahresabschlüssen, gedeckelt je Kategorie (Slow 18, Average 22, Fast 28, Zykliker 15). Dazu kommt die Dividendenrendite. Ab 12 % p. a. gibt es die volle Punktzahl, bei 0 % keine. Die Szenario-Spanne rechnet vorsichtig mit 60 % des Wachstums und 15 % Abschlag, zuversichtlich mit vollem Wachstum. Das sind Rechenbeispiele und keine Kursziele.</p>
+      <p>Der Gesamtscore (0–100) ist der gewichtete Mittelwert der vier Bausteine. Ab 75 „sehr stark“, ab 62 „stark“, ab 48 „solide“, darunter „schwach“. Grundregel aus der Vorlage: Stark ist nur, was im Aufwärtstrend liegt. Aktien mit Trendbruch oder im Abwärtstrend kommen deshalb höchstens auf 61 Punkte, also „solide“. Die Renditeerwartung ist bei 25 % p. a. gedeckelt, damit fehlerhafte Gewinnangaben die Rangliste nicht verzerren. Die Risikoklasse 1 bis 5 steigt mit Kursschwankung (ab 25 % und ab 40 % pro Jahr), einem Einbruch über 40 % in fünf Jahren, hoher Verschuldung und mehreren Gewinnrückgängen.</p>
+    </div></details>
+  </section>
+
+  <footer>Keine Anlageberatung und keine Aufforderung zum Kauf oder Verkauf von Wertpapieren. Ein hoher Score beschreibt nur, wie gut eine Aktie die Kriterien dieses Rasters erfüllt. Datenquelle: Yahoo Finance über das offene Projekt yfinance, Unternehmensliste aus der offenen FinanceDatabase. Alle Angaben ohne Gewähr.</footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+var KEY="screener-gewichte-v1";
+var S={all:[],w:{f:30,m:20,t:20,r:30},sel:null,sort:"total",dir:-1,shown:100,updated:null,th:null};
+try{var sw=JSON.parse(localStorage.getItem(KEY)||"null");if(sw&&typeof sw.f==="number")S.w=sw}catch(e){}
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function fmt(v,d){return v==null?"–":Number(v).toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function pct(v,d){return v==null?"–":fmt(v,d==null?1:d)+" %"}
+function sg(v){return v==null?"–":(v>=0?"+":"−")+fmt(Math.abs(v),0)+" %"}
+function dat(s){if(!s)return"–";var p=s.slice(0,10).split("-");return p[2]+"."+p[1]+"."+p[0]}
+var LAND={"United States":"USA","Germany":"Deutschland","United Kingdom":"Großbritannien","France":"Frankreich","Switzerland":"Schweiz","Netherlands":"Niederlande","Japan":"Japan","China":"China","Hong Kong":"Hongkong","Taiwan":"Taiwan","South Korea":"Südkorea","India":"Indien","Canada":"Kanada","Australia":"Australien","Italy":"Italien","Spain":"Spanien","Sweden":"Schweden","Denmark":"Dänemark","Norway":"Norwegen","Finland":"Finnland","Belgium":"Belgien","Austria":"Österreich","Ireland":"Irland","Brazil":"Brasilien","Mexico":"Mexiko","Saudi Arabia":"Saudi-Arabien","South Africa":"Südafrika","Singapore":"Singapur","Indonesia":"Indonesien","Thailand":"Thailand","Israel":"Israel","Luxembourg":"Luxemburg","Portugal":"Portugal","Poland":"Polen","United Arab Emirates":"VAE","Malaysia":"Malaysia","Bermuda":"Bermuda","Turkey":"Türkei","Chile":"Chile","New Zealand":"Neuseeland"};
+var EU=["Germany","United Kingdom","France","Switzerland","Netherlands","Italy","Spain","Sweden","Denmark","Norway","Finland","Belgium","Austria","Ireland","Luxembourg","Portugal","Poland","Greece","Czech Republic","Hungary","Jersey","Guernsey","Isle of Man"];
+var AS=["Japan","China","Hong Kong","Taiwan","South Korea","India","Australia","Singapore","Indonesia","Thailand","Malaysia","New Zealand","Philippines","Vietnam","Macau"];
+function region(c){return c==="United States"||c==="Canada"?"Nordamerika":EU.indexOf(c)>=0?"Europa":AS.indexOf(c)>=0?"Asien-Pazifik":"Übrige Welt"}
+function land(c){return LAND[c]||c||"–"}
+var SEK={"Technology":"Technologie","Financial Services":"Finanzen","Healthcare":"Gesundheit","Consumer Cyclical":"Zyklischer Konsum","Consumer Defensive":"Basiskonsum","Industrials":"Industrie","Energy":"Energie","Basic Materials":"Grundstoffe","Utilities":"Versorger","Real Estate":"Immobilien","Communication Services":"Kommunikation"};
+function sek(s){return SEK[s]||s||"–"}
+var BAND=["","Schwach","Solide","Stark","Sehr stark"],BCLS=["","bad","mid","good","good"];
+var STC={"Aufwärtstrend":"good","Erholung":"neutral","Korrektur":"mid","Bodenbildung":"mid","Trendbruch":"bad","Abwärtstrend":"bad"};
+function total(x){var w=S.w,ws=w.f+w.m+w.t+w.r||1,t=(w.f*x.f*10+w.m*x.m*4+w.t*x.t*10+w.r*x.rs)/ws;return(x.st==="Abwärtstrend"||x.st==="Trendbruch")?Math.min(t,61):t}
+function band(t){return t>=75?4:t>=62?3:t>=48?2:1}
+function dots(r){var h='<span class="risk" role="img" aria-label="Risikoklasse '+r+' von 5">';for(var i=1;i<=5;i++)h+='<i class="'+(i<=r?"on":"")+'"></i>';return h+"</span>"}
+function stale(x){if(!S.updated||!x.d)return false;return (new Date(S.updated)-new Date(x.d))/864e5>6}
+
+function filtered(){
+  var q=$("q").value.trim().toLowerCase(),fr=$("f-reg").value,fl=$("f-land").value,fs=$("f-sec").value,fc=$("f-cat").value,fst=$("f-strat").value,fm=+$("f-min").value,fk=+$("f-risk").value,fu=$("f-up").checked;
+  var list=S.all.filter(function(x){
+    if(q&&(x.n+" "+x.s).toLowerCase().indexOf(q)<0)return false;
+    if(fr&&region(x.c)!==fr)return false; if(fl&&x.c!==fl)return false; if(fs&&x.sec!==fs)return false;
+    if(fc&&x.cat!==fc)return false; if(fst&&x.strat!==fst)return false; if(x.total<fm)return false; if(x.risk>fk)return false;
+    if(fu&&x.st!=="Aufwärtstrend")return false; return true});
+  var k=S.sort,d=S.dir;
+  list.sort(function(a,b){var A=k==="n"?a.n.toLowerCase():a[k],B=k==="n"?b.n.toLowerCase():b[k];if(A==null)A=-1e9;if(B==null)B=-1e9;return(A<B?-1:A>B?1:0)*d||b.total-a.total});
+  return list;
+}
+function recompute(){S.all.forEach(function(x){x.total=total(x)});var o=S.all.slice().sort(function(a,b){return b.total-a.total});o.forEach(function(x,i){x.rank=i+1})}
+function renderTable(){
+  var list=filtered();
+  if(!S.sel&&list.length)S.sel=list[0].s;
+  $("rows").innerHTML=list.slice(0,S.shown).map(function(x){var b=band(x.total);
+    return'<tr data-id="'+esc(x.s)+'" tabindex="0" class="'+(x.s===S.sel?"sel":"")+'">'+
+    '<td class="r num muted">'+x.rank+"</td>"+
+    '<td><span class="co"><b>'+esc(x.n)+"</b><small>"+esc(x.s)+" · "+esc(land(x.c))+" · "+esc(sek(x.sec))+"</small></span></td>"+
+    '<td><span class="total b'+b+'"><span class="num">'+fmt(x.total,0)+'</span><span class="bar"><i style="width:'+x.total.toFixed(0)+'%"></i></span></span></td>'+
+    '<td><span class="pill '+BCLS[b]+'">'+BAND[b]+"</span></td><td>"+x.cat+"</td>"+
+    '<td class="r num">'+fmt(x.f,1)+'</td><td class="r num">'+fmt(x.m,1)+'</td><td class="r num">'+x.t+"</td>"+
+    '<td class="r num">'+pct(x.r)+"</td><td>"+dots(x.risk)+"</td>"+
+    '<td><span class="pill '+(STC[x.st]||"neutral")+'">'+x.st+"</span>"+(stale(x)?' <span class="pill bad">veraltet</span>':"")+"</td>"+
+    '<td class="r num">'+pct(x.dy)+'</td><td class="r num">'+(x.mc==null?"–":fmt(x.mc,0)+" Mrd. $")+"</td></tr>"}).join("");
+  $("empty").hidden=list.length>0||!S.all.length;
+  $("more").hidden=list.length<=S.shown;
+  var cnt=[0,0,0,0,0];list.forEach(function(x){cnt[band(x.total)]++});
+  if(S.all.length)$("summary").innerHTML="<span><b>"+list.length+"</b> von "+S.all.length+" Aktien</span><span><b>"+cnt[4]+"</b> sehr stark</span><span><b>"+cnt[3]+"</b> stark</span><span><b>"+cnt[2]+"</b> solide</span><span><b>"+cnt[1]+"</b> schwach</span>";
+  [].forEach.call(document.querySelectorAll("#grid th"),function(th){if(th.dataset.s===S.sort)th.setAttribute("aria-sort",S.dir<0?"descending":"ascending");else th.removeAttribute("aria-sort")});
+}
+var FL=["Umsatzwachstum p. a. (Jahresabschlüsse)","Umsatzwachstum erwartet (Analysten)","EBIT-Wachstum p. a. (Jahresabschlüsse)","Gewinnwachstum erwartet (Analysten)","Gewinnrückgänge in den Abschlüssen","Eigenkapitalquote","Eigenkapitalrendite","Nettoverschuldung / EBITDA","EBIT-Marge","Erwartetes KGV in 5 J."];
+var FU=[1,1,1,1,0,1,1,0,1,0],FLE=[0,0,0,0,1,0,0,1,0,1];
+var ML=["Bruttomarge","EBIT-Marge","Schwankung der EBIT-Marge","Kapitalrendite","Umsatzrückgänge in den Abschlüssen"],MU=[" %"," %"," Pp."," %",""];
+var TL=[["Kursentwicklung 5 J. p. a.",2],["Kurs über 200-Tage-Linie",1],["Größter Einbruch in 5 J.",1],["Kurshistorie",2],["Handelsvolumen über dem Kurs (3 J.)",2],["Trendqualität",2]];
+function renderDetail(){
+  var x=null;for(var i=0;i<S.all.length;i++)if(S.all[i].s===S.sel){x=S.all[i];break}
+  if(!x)return;
+  var b=band(x.total),w=S.w,ws=w.f+w.m+w.t+w.r||1;function wp(k){return fmt(w[k]/ws*100,0)+" %"}
+  var h='<div class="dwrap"><div class="dhead"><div><h2>'+esc(x.n)+'</h2><p class="muted">'+esc(x.s)+" · "+esc(land(x.c))+" · "+esc(sek(x.sec))+(x.ind?" · "+esc(x.ind):"")+'</p><p style="margin-top:6px"><span class="pill '+BCLS[b]+'">'+BAND[b]+'</span> <span class="pill neutral">'+x.cat+'</span> <span class="pill neutral">'+x.strat+'</span> <span class="pill neutral">Rang '+x.rank+'</span></p></div><div class="big">'+fmt(x.total,0)+"<small> /100</small></div></div>"+
+   '<div class="subs"><div><span>Fundamental · '+wp("f")+"</span><b>"+fmt(x.f,1)+"/10</b></div><div><span>Burggraben · "+wp("m")+"</span><b>"+fmt(x.m,1)+"/25</b></div><div><span>Technik · "+wp("t")+"</span><b>"+x.t+"/10</b></div><div><span>Rendite · "+wp("r")+"</span><b>"+pct(x.r)+"</b></div></div>"+
+   '<div class="kv"><span>Risikoklasse (1 defensiv, 5 offensiv)</span><span>'+dots(x.risk)+' <span class="num">'+x.risk+'</span></span><span>Trendstatus</span><span><span class="pill '+(STC[x.st]||"neutral")+'">'+x.st+'</span></span><span>Abstand zum Hoch (20 J.)</span><span class="num">'+pct(x.dist)+'</span><span>Kurs vom '+dat(x.d)+'</span><span class="num">'+fmt(x.p,2)+" "+esc(x.cur)+'</span><span>Börsenwert</span><span class="num">'+(x.mc==null?"–":fmt(x.mc,1)+" Mrd. $")+'</span><span>Fundamentaldaten vom</span><span class="num">'+dat(x.fd)+"</span></div>";
+  h+='<div class="sec"><h3>Fundamental · Kriterien für '+x.cat+" · "+x.fa+' von 10 auswertbar</h3><table class="crit">'+x.F.map(function(c,i){
+    var lab=i===2&&x.cat==="Slow Grower"?"Dividendenwachstum 5 J. p. a.":FL[i],u=FU[i]?" %":"";
+    var st=c[2]==null?'<span class="na">nicht auswertbar</span>':c[2]?'<span class="ok">✓ erfüllt</span>':'<span class="no">✗ verfehlt</span>';
+    return"<tr><td>"+lab+'<br><span class="muted">Schwelle '+(FLE[i]?"≤ ":"≥ ")+fmt(c[1],c[1]%1?1:0)+u+'</span></td><td class="num">'+(c[0]==null?"–":fmt(c[0],FU[i]||i!==4?1:0)+u)+" "+st+"</td></tr>"}).join("")+"</table></div>";
+  h+='<div class="sec"><h3>Burggraben-Kennzahlen · '+(x.m>=18?"stark":x.m>=14?"solide":"schwach")+'</h3><table class="crit">'+x.M.map(function(c,i){
+    var lab=i===3&&x.fin?"Eigenkapitalrendite":ML[i];
+    return"<tr><td>"+lab+'</td><td class="num">'+(c[0]==null?"–":fmt(c[0],i===4?0:1)+MU[i])+" · "+(c[1]==null?'<span class="na">entfällt</span>':c[1]+"/5")+"</td></tr>"}).join("")+"</table></div>";
+  h+='<div class="sec"><h3>Technik</h3><table class="crit">'+x.T.map(function(c,i){
+    var v=i===1?(c[0]?"ja":"nein"):i===3?fmt(c[0],0)+" Jahre":i===5?(c[0]==null?"–":"R² "+fmt(c[0],2)):c[0]==null?"keine Volumendaten":pct(c[0]);
+    return"<tr><td>"+TL[i][0]+'<br><span class="muted">'+v+'</span></td><td class="num">'+c[1]+"/"+TL[i][1]+"</td></tr>"}).join("")+"</table></div>";
+  h+='<div class="sec"><h3>Bewertung</h3><div class="kv num"><span>KGV aktuell</span><span>'+fmt(x.pe,1)+"</span><span>KGV zu den letzten Abschlüssen (Median)</span><span>"+fmt(x.hpe,1)+"</span><span>Ziel-KGV in 5 J. (gedeckelt)</span><span>"+fmt(x.kgve,1)+"</span><span>Angesetztes Gewinnwachstum p. a.</span><span>"+pct(x.g)+"</span><span>Dividendenrendite</span><span>"+pct(x.dy,2)+"</span><span>Renditeerwartung p. a.</span><span>"+pct(x.r)+"</span><span>Szenario-Spanne Kurs in 5 J.</span><span>"+(x.lo==null?"–":sg(x.lo)+" bis "+sg(x.hi))+"</span></div></div></div>";
+  $("detail").innerHTML=h;
+}
+function renderWeights(){var w=S.w,ws=w.f+w.m+w.t+w.r||1;["f","m","t","r"].forEach(function(k){$("w-"+k).value=w[k];$("wv-"+k).textContent=fmt(w[k]/ws*100,0)+" %"})}
+function renderThr(){var th=S.th;if(!th)return;var cs=Object.keys(th),R=[["Umsatzwachstum (Abschlüsse)","revH","≥"," %"],["Umsatzwachstum erwartet","revE","≥"," %"],["EBIT-Wachstum (Abschlüsse)","ebitH","≥"," %"],["Gewinnwachstum erwartet","epsE","≥"," %"],["Eigenkapitalquote","eq","≥"," %"],["Eigenkapitalrendite","roe","≥"," %"],["Nettoverschuldung / EBITDA","debt","≤",""],["EBIT-Marge","margin","≥"," %"],["Erwartetes KGV in 5 J.","pe5","≤",""]];
+  $("thr").innerHTML="<tr><th>Kriterium</th>"+cs.map(function(c){return"<th>"+c+"</th>"}).join("")+"</tr>"+R.map(function(r){return"<tr><td>"+r[0]+"</td>"+cs.map(function(c){var v=th[c][r[1]];return'<td class="num">'+r[2]+" "+fmt(v,v%1?1:0)+r[3]+"</td>"}).join("")+"</tr>"}).join("")+'<tr><td>Gewinnstabilität</td><td colspan="'+cs.length+'">höchstens ein Gewinnrückgang in den Jahresabschlüssen</td></tr>'}
+function fill(id,vals,lab){var s=$(id);s.innerHTML='<option value="">Alle</option>'+vals.map(function(v){return'<option value="'+esc(v)+'">'+esc(lab?lab(v):v)+"</option>"}).join("")}
+function uniq(k){var o={};S.all.forEach(function(x){if(x[k])o[x[k]]=1});return Object.keys(o)}
+function all(){renderTable();renderDetail()}
+
+$("rows").addEventListener("click",function(e){var tr=e.target.closest("tr");if(!tr)return;S.sel=tr.dataset.id;all();
+  if(window.matchMedia("(max-width:1199px)").matches)$("detail").scrollIntoView({behavior:"smooth",block:"start"})});
+$("rows").addEventListener("keydown",function(e){if(e.key==="Enter"){var tr=e.target.closest("tr");if(tr){S.sel=tr.dataset.id;all()}}});
+document.querySelector("#grid thead").addEventListener("click",function(e){var th=e.target.closest("th");if(!th)return;var k=th.dataset.s;
+  if(S.sort===k)S.dir=-S.dir;else{S.sort=k;S.dir=(k==="n"||k==="cat"||k==="st"||k==="rank"||k==="risk")?1:-1}renderTable()});
+["q","f-reg","f-land","f-sec","f-cat","f-strat","f-min","f-risk","f-up"].forEach(function(id){$(id).addEventListener("input",function(){S.shown=100;renderTable()})});
+["f","m","t","r"].forEach(function(k){$("w-"+k).addEventListener("input",function(){S.w[k]=+this.value;try{localStorage.setItem(KEY,JSON.stringify(S.w))}catch(e){}renderWeights();recompute();all()})});
+$("btn-more").addEventListener("click",function(){S.shown+=100;renderTable()});
+renderWeights();
+
+fetch("data.json?t="+Date.now()).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()}).then(function(d){
+  S.all=d.stocks||[];S.updated=d.updated;S.th=d.th;
+  recompute();
+  var reg={};S.all.forEach(function(x){reg[region(x.c)]=1});
+  fill("f-reg",Object.keys(reg).sort());
+  fill("f-land",uniq("c").sort(function(a,b){return land(a).localeCompare(land(b),"de")}),land);
+  fill("f-sec",uniq("sec").sort(function(a,b){return sek(a).localeCompare(sek(b),"de")}),sek);
+  var up=new Date(d.updated),age=(Date.now()-up)/864e5;
+  $("stand").innerHTML="Datenstand <b>"+up.toLocaleString("de-DE",{dateStyle:"medium",timeStyle:"short"})+" Uhr</b><br><span class=\"muted\">"+S.all.length+" von "+d.universe+" Aktien bewertet</span>";
+  if(age>3){$("msg").hidden=false;$("msg").textContent="Der letzte erfolgreiche Datenabruf ist "+Math.floor(age)+" Tage her. Die Rangliste zeigt den alten Stand."}
+  renderThr();all();
+}).catch(function(){
+  $("summary").textContent="Keine Daten";
+  $("msg").hidden=false;$("msg").textContent="Es liegen noch keine Daten vor. Der erste Datenlauf ist noch nicht abgeschlossen oder fehlgeschlagen.";
+});
+})();
+</script>
+</body>
+</html>
