@@ -97,6 +97,13 @@ def to_usd(value, cur, rates, subunit_value=True):
     return value * rates[base] * (f if subunit_value else 1.0)
 
 
+def universe_ok():
+    try:
+        return len(json.load(open(os.path.join(DATA, "universe.json")))["stocks"]) >= 500
+    except Exception:
+        return False
+
+
 def main():
     fd_dir = sys.argv[1]
     cands = candidates(fd_dir)
@@ -115,11 +122,11 @@ def main():
     limits = 0
     for i, c in enumerate(cands):
         s = c["symbol"]
-        if s in cache and now - cache[s].get("ts", 0) < 25 * 86400:
+        if s in cache and cache[s].get("mc") and now - cache[s].get("ts", 0) < 25 * 86400:
             continue
         try:
             fi = yf.Ticker(s).fast_info
-            mc, cur = fi.get("market_cap"), fi.get("currency")
+            mc, cur = fi["marketCap"], fi["currency"]
             cache[s] = {"mc": float(mc) if mc else None, "cur": cur, "ts": now}
         except YFRateLimitError:
             limits += 1
@@ -144,9 +151,10 @@ def main():
             rows.append(dict(c, mcap_usd=usd))
     rows.sort(key=lambda r: -r["mcap_usd"])
     have = len(rows)
-    if have < TOP_N * 0.8 and os.path.exists(os.path.join(DATA, "universe.json")):
-        print("Zu wenige Marktkapitalisierungen (%d), altes Universum bleibt." % have)
-        return
+    print("Marktkapitalisierungen gefunden:", have, "von", len(cands))
+    if have < TOP_N * 0.8:
+        print("Zu wenige Marktkapitalisierungen. Das Universum wird nicht überschrieben.")
+        sys.exit(0 if universe_ok() else 1)
     top = rows[:TOP_N]
     with open(os.path.join(DATA, "universe.json"), "w") as f:
         json.dump({"built": datetime.now(timezone.utc).isoformat(timespec="seconds"), "stocks": top}, f, ensure_ascii=False)

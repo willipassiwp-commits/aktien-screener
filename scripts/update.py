@@ -157,6 +157,9 @@ def download_prices(symbols):
 def main():
     uni = json.load(open(os.path.join(DATA, "universe.json")))["stocks"]
     symbols = [u["symbol"] for u in uni]
+    if len(symbols) < 500:
+        print("Universum unvollständig (%d Aktien). Abbruch." % len(symbols))
+        sys.exit(1)
     meta = {u["symbol"]: u for u in uni}
     cache = json.load(open(FUND_PATH)) if os.path.exists(FUND_PATH) else {}
     print("Universum:", len(symbols), "| Fundamentaldaten im Cache:", len(cache), flush=True)
