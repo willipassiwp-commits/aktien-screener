@@ -34,7 +34,8 @@ jobs:
       - name: Prüfen, ob das Universum neu gebaut wird
         id: uni
         run: |
-          if [ ! -f data/universe.json ] || [ "${{ inputs.rebuild_universe }}" = "true" ] || [ "$(date -u +%d)" = "01" ]; then
+          OK=$(python -c "import json;print(len(json.load(open('data/universe.json'))['stocks'])>=500)" 2>/dev/null || echo False)
+          if [ "$OK" != "True" ] || [ "${{ inputs.rebuild_universe }}" = "true" ] || [ "$(date -u +%d)" = "01" ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
           fi
 
