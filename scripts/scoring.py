@@ -17,12 +17,13 @@ Ergebnis je Aktie (kurze Schlüssel, weil die Website die Datei lädt):
 """
 import math
 import re
+import unicodedata
 from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
 
-VERSION = 4
+VERSION = 5
 
 # Schwellen je Lynch-Kategorie. Belegt aus öffentlichen Analysen: Average 6/6/6/10 und Verschuldung 3,0,
 # Fast Grower EBIT-Marge 20. Die übrigen Werte sind Annahmen.
@@ -430,20 +431,80 @@ NAME_SKIP = {"the", "inc", "corp", "corporation", "company", "co", "ltd", "plc",
              "ag", "se", "sa", "nv", "and"}
 
 
-def news_view(items, name, today):
-    """Schlagzeilen der letzten 30 Tage mit Stichwort-Einordnung. Gewertet werden nur Schlagzeilen, die das
-    Unternehmen beim Namen nennen. Eine Stichwortsuche erkennt den Ton einer Überschrift, nicht den Inhalt des
-    Artikels. Rückgabe: Liste [Titel, Quelle, Datum, Link, Wertung], Zusammenfassung, Score 0-10 oder None."""
-    words = [w for w in re.sub(r"[^a-z0-9 ]", " ", name.lower()).split() if w not in NAME_SKIP and len(w) >= 3]
-    key = words[0] if words else None
+NAME_GENERIC = {"bank", "china", "taiwan", "american", "united", "general", "national", "first", "international",
+                "royal", "new", "japan", "tokyo", "hong", "deutsche", "british", "canadian", "pacific", "global",
+                "advanced", "applied", "western", "southern", "northern", "union", "standard", "industrial",
+                "home", "target", "progressive", "public", "analog", "digital", "realty", "crown", "dollar", "capital",
+                "enterprise", "energy", "constellation", "carrier", "delta", "sea", "trade", "sun", "mitsubishi",
+                "sumitomo", "mitsui", "tata", "ping", "banco", "nippon", "east", "west", "central", "siemens",
+                "republic", "waste", "best", "block", "service", "samsung", "hyundai", "williams", "simon"}
+LEGAL = {"inc", "corp", "corporation", "company", "co", "ltd", "limited", "plc", "ag", "se", "sa", "nv", "holdings",
+         "holding", "group", "the", "kgaa", "spa", "asa", "ab", "oyj", "class", "incorporated", "aktiengesellschaft", "publ"}
+NAME_ALIAS = {"alphabet": ["google"], "meta": ["facebook", "instagram"], "walt": ["disney"], "eli": ["lilly"]}
+NAME_RISKY = {"target", "block", "public", "best", "service", "trade", "energy", "capital", "home", "general"}
+NAME_SHORT = {"taiwan semiconductor": ["TSMC"], "international business": ["IBM"], "advanced micro": ["AMD"],
+              "industrial and": ["ICBC"], "royal bank": ["RBC"], "canadian imperial": ["CIBC"],
+              "united overseas": ["UOB"], "british american": ["BAT"], "lvmh moet": ["LVMH"],
+              "hong kong": ["HKEX"], "united parcel": ["UPS"], "at": ["AT&T"], "bp": ["BP"], "s": ["S&P Global"]}
+TICKER_WORDS = {"NOW", "ALL", "KEY", "CAT", "LOW", "ARE", "BIG", "COST", "REAL", "WELL", "FAST", "TECH", "PLAY", "SNOW",
+                "TEAM", "OPEN", "LIFE", "GOLD", "HAS", "FOR", "CAN", "ANY", "ONE", "TWO", "DAY", "MAN", "AIR", "CAR"}
+
+
+def _plain(t):
+    t = unicodedata.normalize("NFKD", t)
+    t = "".join(ch for ch in t if not unicodedata.combining(ch)).lower()
+    return " " + " ".join(re.sub(r"[^a-z0-9 ]", " ", t).split()) + " "
+
+
+def name_keys(name, symbol=None):
+    """Woran eine Schlagzeile als Nachricht zu diesem Unternehmen erkannt wird: am Namen (bei Allerweltswörtern
+    wie „Bank“ oder „Taiwan“ und bei Zwei-Buchstaben-Namen an den ersten Wörtern zusammen), an einem gängigen
+    Kurznamen (TSMC, IBM) oder am Börsenkürzel. Rückgabe: (Namensteile klein, Kürzel in Großbuchstaben)."""
+    toks = _plain(name).split()
+    while toks and (toks[-1] in LEGAL or len(toks[-1]) == 1) and len(toks) > 1:
+        toks.pop()
+    while len(toks) > 1 and toks[0] in LEGAL:
+        toks = toks[1:]
+    low, caps = [], []
+    if toks:
+        if toks[0] in NAME_GENERIC or len(toks[0]) < 3:
+            k = 1
+            while k < len(toks) - 1 and toks[k] in ("of", "and", "de", "the"):
+                k += 1
+            if k < len(toks) and max(len(t_) for t_ in toks[:k + 1]) >= 3:
+                low.append(" ".join(toks[:k + 1]))
+            elif k < len(toks):
+                low += [t_ for t_ in toks[k + 1:k + 2] if len(t_) >= 5 and t_ not in NAME_GENERIC]  # U.S. Bancorp
+            elif toks[0] not in NAME_RISKY and (len(toks[0]) >= 3 or any(ch.isdigit() for ch in toks[0])):
+                low.append(toks[0])
+        else:
+            low.append(toks[0])
+        low += NAME_ALIAS.get(toks[0], [])
+        caps += NAME_SHORT.get(" ".join(toks[:2]), []) + NAME_SHORT.get(toks[0], [])
+    root = (symbol or "").split(".")[0]
+    if root.isalpha() and len(root) >= 3 and root not in TICKER_WORDS and root not in caps:
+        caps.append(root)
+    return low, caps
+
+
+def news_view(items, name, today, symbol=None):
+    """Schlagzeilen mit Stichwort-Einordnung. Behalten werden nur Schlagzeilen, die das Unternehmen im Titel nennen
+    (Name, Kürzel oder Börsenkürzel); Branchen- und Konkurrenzmeldungen fallen weg. Gewertet werden die der letzten
+    30 Tage. Eine Stichwortsuche erkennt den Ton einer Überschrift, nicht den Inhalt des Artikels.
+    Rückgabe: Liste [Titel, Quelle, Datum, Link, Wertung], Zusammenfassung, Score 0-10 oder None."""
+    keys_low, keys_cap = name_keys(name, symbol)
     cutoff = (today - timedelta(days=30)).strftime("%Y-%m-%d")
     out, pos, neg, n = [], 0, 0, 0
     for it in items:
         if len(it) < 4:
             continue
         title, low = it[0], " " + it[0].lower() + " "
+        pl = _plain(title)
+        if not (any(" " + k + " " in pl for k in keys_low)
+                or any(re.search(r"(?<![A-Za-z])" + re.escape(k) + r"(?![A-Za-z])", title) for k in keys_cap)):
+            continue
         flag = None
-        if key and key in low and it[2] >= cutoff:
+        if it[2] >= cutoff:
             p_ = any(w in low for w in POS_WORDS)
             n_ = any(w in low for w in NEG_WORDS)
             flag = 1 if p_ and not n_ else -1 if n_ and not p_ else 0
@@ -466,7 +527,7 @@ def rec_word(mean):
 # Bewertung einer Aktie
 # ----------------------------------------------------------------------------------------------------------------
 
-def score(fund, pm, mcap_usd=None, fx_fin=None, today=None):
+def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
     """Bewertet eine Aktie. fund: Fundamentaldaten aus dem Cache, pm: Ergebnis von price_metrics.
 
     fx_fin: Umrechnung von der Kurswährung (Haupteinheit) in die Bilanzwährung, None wenn unbekannt.
@@ -507,6 +568,11 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None):
     ebit_h = bounded(hist_growth(ebit), -1, 5)
     ni_h = bounded(hist_growth(ni), -1, 5)
     rev_e, eps_e = fund.get("revGrowthEst"), bounded(fund.get("epsGrowthEst"), -1, 10)
+    # Gegenprobe: Wachstum aus den Gewinnschätzungen für das laufende und das nächste Jahr. Gilt der niedrigere Wert.
+    et = fund.get("epsTrend") or {}
+    e0, e1 = (et.get("0y") or {}).get("cur"), (et.get("+1y") or {}).get("cur")
+    if eps_e is not None and e0 and e1 and e0 > 0 and e1 > 0:
+        eps_e = min(eps_e, e1 / e0 - 1)
     dec = declines(ni)
     eq = first(equity)
     eq_a, assets = pair(equity, fund.get("assets"))
@@ -793,7 +859,7 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None):
         a10 = float(sum(x[2] for x in An))
 
     # ---------- Nachrichtenlage (0-10) ----------
-    news, nz, ns10 = news_view(fund.get("news") or [], fund.get("name") or "", today)
+    news, nz, ns10 = news_view(fund.get("news") or [], fund.get("name") or "", today, symbol)
 
     # ---------- Risikoklasse 1 (defensiv) bis 5 (offensiv) ----------
     risk = 1
@@ -813,7 +879,7 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None):
     # ---------- Trendstatus ----------
     dist = pm["dist"]
     if above and dist52 <= 0.10:
-        status = "Aufwärtstrend"
+        status = "Aufwärtstrend" if price > pm["sma50"] else "Aufwärtstrend (Konsolidierung)"
     elif above:
         status = "Erholung"
     elif dist52 <= 0.20:
@@ -880,6 +946,7 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None):
                      upside=upside, rmean=rmean, rev90=rev90, ups=ups, downs=downs, margin=margin, roic=roic,
                      roe=roe, fcf_y=fcf_y, payout=payout, cov=cov, nd=nd, rev_e=rev_e,
                      net_cash=(debt is not None and cash is not None and cash > debt), fin=fin, dec=dec,
+                     ocf_ok=bool((ni_first or 0) > 0) if fin else bool((first(ocf) or 0) > 0),
                      pe=pe, hist_pe=hist_pe, g=g, dy=dy, cap=cap, since_low=pm["since_low"],
                      days200=pm["days200"], capped200=pm["capped200"], lo52=pm["lo52"])
     return rec
@@ -908,6 +975,9 @@ def finalize(recs):
         rs_row[1] = r["rs12"]
         rs_row[2] = 1 if r["pf"][3] is not None and med12 is not None and r["pf"][3] > med12 else 0
         r["t"] = round(sum(t[2] for t in r["T"]) / T_MAX * 10, 1)
+        r["tc"] = bool(not x["over50"] and r["t"] > 8.0)   # Kurs unter der 50-Tage-Linie: Chart-Note höchstens 8,0
+        if r["tc"]:
+            r["t"] = 8.0
         r["tot"] = round(total(r), 1)
         r["ql"] = round(quality(r), 1)
 
@@ -1006,23 +1076,39 @@ def finalize(recs):
                        % (an["n"], de(an["lo"], 2)), None, None])
         r["ez"] = ez
 
-        # Einordnung
-        ql, st = r["ql"], r["st"]
-        weak_chart = st in ("Korrektur", "Trendbruch", "Abwärtstrend", "Bodenbildung")
+        # Einordnung: feste Reihenfolge, die erste zutreffende Regel gilt
+        d52, ph, an_ = r["d52"], r["ph"], r["an"]
+        ql_nn = _parts(dict(r, ns=None), WEIGHTS, False)      # Qualität ohne Nachrichtenlage
+        floor_ok = x["above"] or x["since_low"] >= 10
+        D = [["ql", round(ql_nn, 1), ql_nn >= 85], ["moat", r["m"], r["m"] >= 20],
+             ["dd", d52, d52 is not None and 12 <= d52 <= 35],
+             ["rev", an_.get("rev90"), an_.get("rev90") is not None and an_["rev90"] >= 0],
+             ["cash", None, x["ocf_ok"]], ["floor", x["since_low"], floor_ok]]
+        D = [[c[0], c[1], bool(c[2])] for c in D]
+        dip = all(c[2] for c in D)
+        r["D"] = D if (d52 is not None and 12 <= d52 <= 35 and ql_nn >= 70) else None
+        early = ph is not None and ph[0] <= 3
         if (rsi_v is not None and rsi_v >= 78) or x["ext"] >= 0.40:
             setup = "Überhitzt"
-        elif r["hot"] >= HOT_MIN:
+        elif r["hot"] >= HOT_MIN and d52 <= 10:
             setup = "Anlauf"
-        elif U and r["tu"] >= 5 and r["d52"] >= 25:
-            setup = "Turnaround-Kandidat"
-        elif ql >= 70 and weak_chart and r["d52"] >= 15:
-            setup = "Qualität im Rücksetzer"
-        elif ql >= 65 and st == "Aufwärtstrend":
+        elif r["ql"] >= 65 and x["above"] and x["over50"] and d52 <= 10:
             setup = "Trendstark"
-        elif ql < 45 and st in ("Trendbruch", "Abwärtstrend"):
+        elif dip:
+            setup = "Qualitäts-Dip"
+        elif U and r["tu"] >= 5 and 15 <= d52 <= 50 and early:
+            setup = "Turnaround-Kandidat"
+        elif r["ql"] >= 70 and 15 <= d52 <= 40 and early:
+            setup = "Qualität im Rücksetzer"
+        elif r["ql"] < 45 and not x["above"]:
             setup = "Schwach"
         else:
             setup = "Neutral"
+        # Im Qualitäts-Dip zählen negative Schlagzeilen nicht gegen die Aktie: Sie sind dort der Anlass des Rücksetzers.
+        r["nsx"] = None
+        if setup == "Qualitäts-Dip" and r.get("ns") is not None and r["ns"] < 5:
+            r["nsx"], r["ns"] = r["ns"], None
+            r["tot"], r["ql"] = round(total(r), 1), round(quality(r), 1)
         r["su"] = setup
         r["pro"], r["con"], r["txt"] = texts(r, x)
 
@@ -1101,7 +1187,7 @@ def texts(r, x):
     nz0 = r.get("nz") or {}
     if nz0.get("neg", 0) >= 3 and nz0["neg"] > nz0.get("pos", 0):
         con.append("%d von %d Schlagzeilen der letzten 30 Tage mit negativem Ton" % (nz0["neg"], nz0["n"]))
-    if r.get("tm") == "reif" and r["st"] == "Aufwärtstrend" and x["ext"] >= 0.25:
+    if r.get("tm") == "reif" and r["st"].startswith("Aufwärtstrend") and x["ext"] >= 0.25:
         con.append("Kurs %s %% über der 200-Tage-Linie: Rücksetzer sind nach so einem Anstieg üblich"
                    % de(x["ext"] * 100, 0))
     if r["q"] == "C":
@@ -1124,6 +1210,8 @@ def texts(r, x):
     tail = {
         "Anlauf": "Einordnung: Anlauf. %d von 8 Anlauf-Signalen sind erfüllt." % r["hot"],
         "Trendstark": "Einordnung: trendstark. Kennzahlen und Kursbild zeigen in dieselbe Richtung.",
+        "Qualitäts-Dip": "Einordnung: Qualitäts-Dip. Sehr starke Kennzahlen, Rücksetzer von %s %%, die Gewinnschätzungen "
+                         "wurden in 90 Tagen nicht gesenkt und der Kurs fällt nicht mehr frei." % de(r["d52"], 0),
         "Qualität im Rücksetzer": "Einordnung: Qualität im Rücksetzer. Die Kennzahlen sind stark, das Kursbild "
                                   "ist es derzeit nicht.",
         "Turnaround-Kandidat": "Einordnung: Turnaround-Kandidat. %d von 7 Turnaround-Prüfungen sind erfüllt."
@@ -1133,14 +1221,16 @@ def texts(r, x):
         "Neutral": "Einordnung: neutral. Kein klares Bild aus Kennzahlen und Kurs.",
     }[su]
     sym = r["sym"]
-    if su in ("Qualität im Rücksetzer", "Turnaround-Kandidat") and sym[2] is not None:
+    if su in ("Qualität im Rücksetzer", "Turnaround-Kandidat", "Qualitäts-Dip") and sym[2] is not None:
         tail += (" Der laufende Rückgang beträgt bis zu %s %%, frühere Korrekturen lagen im Mittel bei %s %% "
                  "und höchstens bei %s %%." % (de(sym[1], 0), de(sym[2], 0), de(sym[3], 0)))
     s.append(tail)
-    if r.get("ph") and su in ("Qualität im Rücksetzer", "Turnaround-Kandidat"):
+    if su == "Qualitäts-Dip" and r.get("nsx") is not None:
+        s.append("Die Nachrichtenlage (%s von 10) geht hier nicht in den Score ein." % de(r["nsx"]))
+    if r.get("ph") and su in ("Qualität im Rücksetzer", "Turnaround-Kandidat", "Qualitäts-Dip"):
         ph = r["ph"]
         s.append("Stand der Wende: Phase %d von 4 (%s). %s %s" % (ph[0], ph[1], ph[2], ph[3]))
-    if r.get("tm") and r["st"] == "Aufwärtstrend":
+    if r.get("tm") and r["st"].startswith("Aufwärtstrend"):
         mon = "über zwei Jahren" if x["capped200"] else "%d Handelstagen" % r["d200"]
         if r["tm"] == "reif":
             s.append("Der Trend ist reif: Der Kurs liegt seit %s über der 200-Tage-Linie und %s %% darüber. "

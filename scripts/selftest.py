@@ -162,7 +162,7 @@ def main():
          ["Markets mixed ahead of data", "Q", "2026-11-08", "u"],
          ["Testfirma posts record quarter", "Q", "2026-09-01", "u"]], "Testfirma AG", date(2026, 11, 13))
     ok &= check("Schlagzeilen: nur aktuelle mit Firmennamen gewertet", nz == dict(n=3, pos=2, neg=1) and ns == 6.2
-                and [v[4] for v in nv] == [1, -1, 1, None, None], (nz, ns, [v[4] for v in nv]))
+                and [v[4] for v in nv] == [1, -1, 1, None], (nz, ns, [v[4] for v in nv]))
     ok &= check("Unter drei Schlagzeilen keine Note",
                 scoring.news_view([["Testfirma beats", "Q", "2026-11-10", "u"]], "Testfirma AG", date(2026, 11, 13))[2] is None)
     ok &= check("Stand der Wende nur im Rücksetzer", r["ph"] is None and down["ph"] is not None
@@ -173,6 +173,28 @@ def main():
                 all(e[0] in ("V", "A") and (e[2] is None or e[2] < r["p"]) for e in r["ez"]), r["ez"])
     ok &= check("Nachrichtenlage fließt in den Gesamtscore ein", scoring.WEIGHTS.get("n") == 5
                 and sum(scoring.WEIGHTS.values()) == 100, scoring.WEIGHTS)
+
+    # 9. Regelwerk v5: Nachrichtenfilter, Reihenfolge der Einordnung, Chart-Deckel
+    tk = scoring.name_keys("Taiwan Semiconductor Manufacturing Company Limited", "2330.TW")
+    tv = scoring.news_view(
+        [["Nvidia crisis sends AMD up 30%", "Q", "2026-11-10", "u"], ["TSMC books record month", "Q", "2026-11-10", "u"],
+         ["Taiwan Semiconductor beats estimates", "Q", "2026-11-09", "u"], ["Taiwan stocks fall", "Q", "2026-11-09", "u"]],
+        "Taiwan Semiconductor Manufacturing Company Limited", date(2026, 11, 13), "2330.TW")
+    ok &= check("Schlagzeilen: Kurzname TSMC erkannt, fremde Meldungen aussortiert",
+                tk == (["taiwan semiconductor"], ["TSMC"]) and len(tv[0]) == 2 and tv[1]["n"] == 2, (tk, tv[0], tv[1]))
+    ok &= check("Schlagzeilen: Allerweltswort allein reicht nicht",
+                scoring.name_keys("Bank of America Corporation", "BAC")[0] == ["bank of america"]
+                and scoring.name_keys("L'Oréal S.A.", "OR.PA")[0] == ["l oreal"]
+                and scoring.name_keys("Target Corporation", "TGT") == ([], ["TGT"])
+                and scoring.name_keys("NVIDIA Corporation", "NVDA") == (["nvidia"], ["NVDA"]),
+                (scoring.name_keys("Bank of America Corporation", "BAC"), scoring.name_keys("L'Oréal S.A.", "OR.PA")))
+    ok &= check("Einordnung im Aufwärtstrend nur nahe am Hoch und über der 50-Tage-Linie",
+                r["su"] in ("Anlauf", "Trendstark", "Überhitzt", "Neutral") and r["d52"] <= 10 and not r["tc"],
+                (r["su"], r["d52"], r["tc"]))
+    ok &= check("Rücksetzer-Einordnungen nur in Phase 1 bis 3",
+                down["su"] not in ("Turnaround-Kandidat", "Qualität im Rücksetzer") or down["ph"][0] <= 3,
+                (down["su"], down["ph"]))
+    ok &= check("Qualitäts-Dip: sechs Prüfungen ausgewiesen", down["D"] is None or len(down["D"]) == 6, down["D"])
 
     try:
         import json

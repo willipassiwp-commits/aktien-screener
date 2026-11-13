@@ -448,7 +448,7 @@ def main():
             mcap_usd = meta[s].get("mcap_usd")
         fin_cur = fund.get("finCurrency")
         fx_fin = rates[base] / rates[fin_cur] if base in rates and fin_cur in rates else None
-        rec = score(fund, pm, mcap_usd, fx_fin)
+        rec = score(fund, pm, mcap_usd, fx_fin, symbol=s)
         if rec is None:
             skipped += 1
             continue
