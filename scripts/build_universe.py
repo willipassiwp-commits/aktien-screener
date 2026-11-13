@@ -1,4 +1,7 @@
-"""Baut das Aktienuniversum: die rund 1000 größten börsennotierten Unternehmen weltweit.
+"""Baut das Aktienuniversum: die größten börsennotierten Unternehmen aus Nordamerika, Europa und Asien-Pazifik.
+
+Je Region gilt eine feste Zahl an Plätzen (QUOTA), vergeben nach Börsenwert in US-Dollar. Chinesische Unternehmen
+zählen nur mit einer Notierung in Hongkong oder den USA, Festlandsaktien (Shanghai, Shenzhen) bleiben draußen.
 
 Schritt 1: Kandidaten aus der offenen FinanceDatabase (Mega und Large Cap), je Unternehmen nur die Heimatnotiz.
 Schritt 2: Aktuelle Marktkapitalisierung von Yahoo Finance holen, in USD umrechnen, die größten auswählen.
@@ -17,7 +20,16 @@ import pandas as pd
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
-TOP_N = 1000
+QUOTA = {"Nordamerika": 260, "Europa": 130, "Asien-Pazifik": 110}
+TOP_N = sum(QUOTA.values())
+REGION = {}
+for _c in ("United States", "Canada"):
+    REGION[_c] = "Nordamerika"
+for _c in ("Germany", "United Kingdom", "France", "Switzerland", "Netherlands", "Italy", "Spain", "Sweden",
+           "Denmark", "Norway", "Finland", "Belgium", "Ireland", "Austria", "Luxembourg"):
+    REGION[_c] = "Europa"
+for _c in ("Japan", "China", "Hong Kong", "Taiwan", "South Korea", "India", "Australia", "Singapore"):
+    REGION[_c] = "Asien-Pazifik"
 
 US = ["NYQ", "NMS", "NGM", "NCM", "ASE"]
 HOME = {
@@ -64,8 +76,10 @@ def candidates(fd_dir):
             return 100 + FALLBACK.index(r["exchange"])
         return 999
 
+    df = df[df["country"].isin(REGION)]
     df["rank"] = df.apply(rank, axis=1)
     df = df[df["rank"] < 999]
+    df = df[~df["symbol"].str.endswith((".SS", ".SZ"))]
     df["len"] = df["symbol"].str.len()
     df = df.sort_values(["key", "rank", "len", "symbol"]).drop_duplicates("key", keep="first")
     # Dasselbe Papier unter zwei Namen (gleiche ISIN): nur die Heimatnotiz behalten
@@ -74,6 +88,7 @@ def candidates(fd_dir):
     out = []
     for r in df.itertuples():
         out.append({"symbol": r.symbol, "name": r.name, "country": r.country if isinstance(r.country, str) else "",
+                    "region": REGION.get(r.country, ""),
                     "sector": r.sector if isinstance(r.sector, str) else "",
                     "isin": r.isin if isinstance(r.isin, str) else ""})
     return out
@@ -102,7 +117,7 @@ def to_usd(value, cur, rates, subunit_value=True):
 
 def universe_ok():
     try:
-        return len(json.load(open(os.path.join(DATA, "universe.json")))["stocks"]) >= 500
+        return len(json.load(open(os.path.join(DATA, "universe.json")))["stocks"]) >= 300
     except Exception:
         return False
 
@@ -154,8 +169,16 @@ def main():
             rows.append(dict(c, mcap_usd=usd))
     rows.sort(key=lambda r: -r["mcap_usd"])
     have = len(rows)
+    picked, count = [], {k: 0 for k in QUOTA}
+    for r in rows:
+        reg = r.get("region")
+        if reg in count and count[reg] < QUOTA[reg]:
+            picked.append(r)
+            count[reg] += 1
+    print("Je Region:", count)
+    rows = picked
     print("Marktkapitalisierungen gefunden:", have, "von", len(cands))
-    if have < TOP_N * 0.8:
+    if len(rows) < TOP_N * 0.8:
         print("Zu wenige Marktkapitalisierungen. Das Universum wird nicht überschrieben.")
         sys.exit(0 if universe_ok() else 1)
     top = rows[:TOP_N]
