@@ -271,10 +271,10 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
       <div id="tab-chancen" class="left" hidden>
         <section class="panel">
           <div class="sechead"><h2>Besonders heiß: läuft gerade an</h2>
-            <p>Aktien, bei denen mindestens sechs von acht Anlauf-Signalen aus der Chartanalyse erfüllt sind: Kurs über steigenden Durchschnittslinien, neues 3-Monats-Hoch, nahe am 52-Wochen-Hoch, stärker als drei Viertel des Universums, steigendes Handelsvolumen, RSI im starken, aber nicht überkauften Bereich und noch nicht zu weit gelaufen. Die Signale stehen im Steckbrief einzeln.</p>
+            <p>Aktien, bei denen mindestens sieben von acht Anlauf-Signalen aus der Chartanalyse erfüllt sind: Kurs über steigenden Durchschnittslinien, neues 3-Monats-Hoch, nahe am 52-Wochen-Hoch, stärker als drei Viertel des Universums, steigendes Handelsvolumen, RSI im starken, aber nicht überkauften Bereich und noch nicht zu weit gelaufen. Die Signale stehen im Steckbrief einzeln.</p>
             <label class="chk"><input type="checkbox" id="hot-q" checked> nur mit Fundamental ab 6</label></div>
           <div class="tablewrap"><table class="grid"><thead><tr><th>Unternehmen</th><th>Signale</th><th class="r">Fund.</th><th class="r">Qualität</th><th class="r">1 M.</th><th class="r">3 M.</th><th class="r">RSI</th><th class="r">Volumen</th><th class="r">unter 52-W.-Hoch</th><th class="r">Rel. Stärke</th></tr></thead><tbody id="hot-rows"></tbody></table></div>
-          <div class="empty" id="hot-empty" hidden>Derzeit erfüllt keine Aktie mindestens sechs Anlauf-Signale.</div>
+          <div class="empty" id="hot-empty" hidden>Derzeit erfüllt keine Aktie mindestens sieben Anlauf-Signale.</div>
         </section>
         <section class="panel">
           <div class="sechead"><h2>Qualität im Rücksetzer und Turnaround-Kandidaten</h2>
@@ -351,7 +351,7 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
         <details class="meth"><summary>Renditeerwartung, Analystenbild, Einordnung, Risiko</summary><div class="body">
           <p><b>Renditeerwartung</b> nach der Multiple-Methode über fünf Jahre: Der Gewinn je Aktie wächst mit der angesetzten Rate, am Ende steht ein Ziel-KGV. Das ist der Median der KGVs zu den letzten Jahresabschlüssen, gedeckelt je Kategorie (Slow 18, Average 22, Fast 28, Zykliker 15, bei Finanzwerten die Hälfte) und nie höher als das heutige KGV. Dazu kommt die Dividendenrendite. Ab 12 % p. a. gibt es die volle Punktzahl. Die Szenario-Spanne ist ein Rechenbeispiel und kein Kursziel.</p>
           <p><b>Analystenbild (0–10)</b>: Konsens der Empfehlungen (bis 3 Punkte), Abstand des mittleren Kursziels zum Kurs (bis 3), Veränderung der Gewinnschätzung in 90 Tagen (bis 2), mehr Hoch- als Abstufungen in 90 Tagen (1), mindestens zehn Analysten (1). Das sind Meinungen Dritter. Sie liegen oft daneben und fließen deshalb nur mit 15 % in den Gesamtscore ein. Bei weniger als drei Analysten entfällt der Baustein.</p>
-          <p><b>Einordnung</b>: „Anlauf“ (mindestens sechs Anlauf-Signale), „Trendstark“ (Qualität ab 65 im Aufwärtstrend), „Qualität im Rücksetzer“ (Qualität ab 70, schwaches Kursbild, mindestens 15 % unter dem 52-Wochen-Hoch), „Turnaround-Kandidat“ (mindestens fünf Turnaround-Prüfungen, mindestens 25 % unter dem Hoch), „Überhitzt“ (RSI ab 78 oder 40 % über der 200-Tage-Linie), „Schwach“ (Qualität unter 45 im Abwärtstrend), sonst „Neutral“.</p>
+          <p><b>Einordnung</b>: „Anlauf“ (mindestens sieben Anlauf-Signale), „Trendstark“ (Qualität ab 65 im Aufwärtstrend), „Qualität im Rücksetzer“ (Qualität ab 70, schwaches Kursbild, mindestens 15 % unter dem 52-Wochen-Hoch), „Turnaround-Kandidat“ (mindestens fünf Turnaround-Prüfungen, mindestens 25 % unter dem Hoch), „Überhitzt“ (RSI ab 78 oder 40 % über der 200-Tage-Linie), „Schwach“ (Qualität unter 45 im Abwärtstrend), sonst „Neutral“.</p>
           <p><b>Risikoklasse</b> 1 bis 5: steigt mit Kursschwankung (ab 25 % und ab 40 % pro Jahr), einem Einbruch über 40 % in fünf Jahren, hoher Verschuldung (bei Finanzwerten: zu wenig Eigenkapital) und mehreren Gewinnrückgängen.</p>
           <p><b>Nachrichten</b> sind die jüngsten Schlagzeilen von Yahoo Finance mit Link zur Quelle. Sie werden nicht bewertet. Die Punkte unter „Worauf achten“ stammen ausschließlich aus Daten: Termine, Schätzungsänderungen, Abstufungen, Kursverlauf und Kennzahlen.</p>
         </div></details>
@@ -417,7 +417,7 @@ function uval(k,v){if(v==null)return"";return k==="fund"?fmt(v,1)+"/10":k==="moa
 var PRE=[
  ["all","Alle","",null],
  ["trend","Trendstark","Qualität ab 65 und intakter Aufwärtstrend.",function(x){return x.su==="Trendstark"}],
- ["hot","Anlauf","Mindestens sechs von acht Anlauf-Signalen erfüllt.",function(x){return x.hot>=S.hotMin}],
+ ["hot","Anlauf","Mindestens sieben von acht Anlauf-Signalen erfüllt.",function(x){return x.hot>=S.hotMin}],
  ["dip","Qualität im Rücksetzer","Qualität ab 70, aber Kurs mindestens 15 % unter dem 52-Wochen-Hoch und schwaches Kursbild.",function(x){return x.su==="Qualität im Rücksetzer"||x.su==="Turnaround-Kandidat"}],
  ["qual","Beste Qualität","Fundamental ab 8 und Burggraben ab 18, unabhängig vom Kursbild.",function(x){return x.f>=8&&x.m>=18}],
  ["grow","Wachstum","Strategie Wachstum, Fundamental ab 7.",function(x){return x.strat==="Wachstum"&&x.f>=7}],
