@@ -313,6 +313,18 @@ def benchmarks(charts):
                 out.append([sym, name, [pct(pm["p1m"]), pct(pm["p3m"]), pct(pm["p6m"]), pct(pm["p1y"])]])
     except Exception as e:  # noqa: BLE001
         print("Vergleichsindizes nicht geladen:", type(e).__name__, flush=True)
+    # Wechselkurs Dollar je Euro: Damit lässt sich der MSCI-World-ETF (in Dollar) in Euro umrechnen.
+    try:
+        start = (datetime.now(timezone.utc) - timedelta(days=int(5 * 365.25))).strftime("%Y-%m-%d")
+        fx = yf.download("EURUSD=X", start=start, auto_adjust=False, progress=False)
+        c = fx["Close"]
+        if hasattr(c, "columns"):
+            c = c.iloc[:, 0]
+        w = c.dropna().resample("W").last().dropna()
+        if len(w) >= 100 and 0.5 < float(w.iloc[-1]) < 2.5:
+            charts["_EURUSD"] = [float("%.5g" % v) for v in w.values]
+    except Exception as e:  # noqa: BLE001
+        print("Wechselkurs nicht geladen:", type(e).__name__, flush=True)
     return out
 
 

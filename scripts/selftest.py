@@ -153,6 +153,27 @@ def main():
     ok &= check("Einordnungstext vorhanden", "Einordnung:" in down["txt"] and len(down["con"]) >= 1, down["txt"])
     ok &= check("Termin in 8 Tagen als Hinweis", any("Quartalszahlen" in c for c in r["con"]), r["con"])
 
+    # 8. Nachrichtenlage, Stand der Wende, Trendalter, Einstiegsmarken
+    from datetime import date
+    nv, nz, ns = scoring.news_view(
+        [["Testfirma beats estimates and raises outlook", "Q", "2026-11-10", "u"],
+         ["Testfirma faces lawsuit over recall", "Q", "2026-11-09", "u"],
+         ["Musterbank upgrade for Testfirma", "Q", "2026-11-08", "u"],
+         ["Markets mixed ahead of data", "Q", "2026-11-08", "u"],
+         ["Testfirma posts record quarter", "Q", "2026-09-01", "u"]], "Testfirma AG", date(2026, 11, 13))
+    ok &= check("Schlagzeilen: nur aktuelle mit Firmennamen gewertet", nz == dict(n=3, pos=2, neg=1) and ns == 6.2
+                and [v[4] for v in nv] == [1, -1, 1, None, None], (nz, ns, [v[4] for v in nv]))
+    ok &= check("Unter drei Schlagzeilen keine Note",
+                scoring.news_view([["Testfirma beats", "Q", "2026-11-10", "u"]], "Testfirma AG", date(2026, 11, 13))[2] is None)
+    ok &= check("Stand der Wende nur im Rücksetzer", r["ph"] is None and down["ph"] is not None
+                and 1 <= down["ph"][0] <= 4 and len(down["ph"]) == 4, (r["ph"], down["ph"]))
+    ok &= check("Trendalter im Aufwärtstrend", r["d200"] > 0 and r["tm"] in ("früh", "etabliert", "reif")
+                and (down["d200"] > 0) == (down["tm"] is not None), (r["d200"], r["tm"], down["d200"], down["tm"]))
+    ok &= check("Einstiegsmarken aus der Bewertung liegen unter dem Kurs",
+                all(e[0] in ("V", "A") and (e[2] is None or e[2] < r["p"]) for e in r["ez"]), r["ez"])
+    ok &= check("Nachrichtenlage fließt in den Gesamtscore ein", scoring.WEIGHTS.get("n") == 5
+                and sum(scoring.WEIGHTS.values()) == 100, scoring.WEIGHTS)
+
     try:
         import json
         json.dumps([r, down, weak, none])

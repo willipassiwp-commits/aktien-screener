@@ -16,12 +16,13 @@ Ergebnis je Aktie (kurze Schlüssel, weil die Website die Datei lädt):
   U  Turnaround-Prüfungen    [Schlüssel, Wert, erfüllt]
 """
 import math
+import re
 from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
 
-VERSION = 3
+VERSION = 4
 
 # Schwellen je Lynch-Kategorie. Belegt aus öffentlichen Analysen: Average 6/6/6/10 und Verschuldung 3,0,
 # Fast Grower EBIT-Marge 20. Die übrigen Werte sind Annahmen.
@@ -55,7 +56,7 @@ CYC_INDUSTRIES = {"Auto Manufacturers", "Auto Parts", "Airlines", "Residential C
                   "Lumber & Wood Production"}
 G_CAP = {"Slow Grower": 0.08, "Average Grower": 0.15, "Fast Grower": 0.20, "Zykliker": 0.08}
 SUBUNIT = {"GBp": 0.01, "GBX": 0.01, "ZAc": 0.01, "ILA": 0.01}
-WEIGHTS = dict(f=30, m=15, t=20, r=20, a=15)
+WEIGHTS = dict(f=30, m=15, t=20, r=15, a=15, n=5)
 HOT_MIN = 7        # von 8 Anlauf-Signalen
 T_MAX = 12         # Rohpunkte der Chart-Prüfungen, auf 10 umgerechnet
 
@@ -300,6 +301,18 @@ def price_metrics(df):
                 cross = [int(sign[i]), len(sign) - 1 - i]
                 break
 
+    # Abstand zum 52-Wochen-Tief und Alter des laufenden Trends
+    since_low = int(len(c52) - 1 - int(np.argmin(c52.values)))
+    s200 = c.rolling(200).mean().iloc[-520:].dropna()
+    side = np.sign((c.reindex(s200.index) - s200).values)
+    days200 = 0
+    for v in side[::-1]:
+        if v != side[-1] or v == 0:
+            break
+        days200 += 1
+    days200 = int(days200 * side[-1]) if len(side) else 0
+    capped200 = bool(len(side) and abs(days200) >= len(side))
+
     # Tage seit dem letzten 3-Monats-Hoch
     c63 = c.iloc[-63:]
     since_high = int(len(c63) - 1 - int(np.argmax(c63.values)))
@@ -341,6 +354,7 @@ def price_metrics(df):
                 r2=r2, slope=slope, vola=vola, div_ttm=div_ttm, div_growth=div_growth, series=c, tr=tr,
                 p1m=perf(c, 21), p3m=perf(c, 63), p6m=perf(c, 126), p1y=perf(c, 252),
                 hi52=hi52, lo52=lo52, rsi=rsi(c), vol_ratio=vol_ratio, cross=cross, since_high=since_high,
+                since_low=since_low, days200=days200, capped200=capped200,
                 sym=sym, zs=zs, zr=zr, weekly=[float("%.4g" % v) for v in w.values])
 
 
@@ -388,6 +402,8 @@ def _parts(rec, w, with_chart):
         parts.append((w["t"], rec["t"] * 10))
     if rec.get("a") is not None:
         parts.append((w["a"], rec["a"] * 10))
+    if rec.get("ns") is not None:
+        parts.append((w.get("n", 0), rec["ns"] * 10))
     ws = sum(p[0] for p in parts) or 1
     return sum(p[0] * p[1] for p in parts) / ws
 
@@ -400,6 +416,43 @@ def total(rec, w=WEIGHTS):
 def quality(rec, w=WEIGHTS):
     """Qualitätsscore 0-100: alles außer dem Kursbild."""
     return _parts(rec, w, False)
+
+
+NEG_WORDS = ["downgrade", "cuts ", "cut to", "slashes", "lawsuit", "sues", "sued", "probe", "investigation",
+             "recall", "fraud", "warning", "warns", "misses", "missed", "plunge", "tumble", "sinks", "slump",
+             "layoffs", "antitrust", "short seller", "resigns", "steps down", "fined", " ban", "halts", "bankrupt",
+             "scandal", "subpoena", "lowers", "selloff", "sell-off", "falls", "drops", "slides", "weak", "concern",
+             "disappoint", "delay", "loss ", "losses", "crash", "underperform", "bearish"]
+POS_WORDS = ["upgrade", "beats", "beat ", "raises", "raised", "record", "buyback", "surges", "soars", "jumps",
+             "rallies", "rally", "wins", "approval", "approved", "tops", "outperform", "all-time high", "boosts",
+             "hikes", "strong", "gains", "climbs", "rises", "bullish", "breakthrough", "expands"]
+NAME_SKIP = {"the", "inc", "corp", "corporation", "company", "co", "ltd", "plc", "group", "holdings", "holding",
+             "ag", "se", "sa", "nv", "and"}
+
+
+def news_view(items, name, today):
+    """Schlagzeilen der letzten 30 Tage mit Stichwort-Einordnung. Gewertet werden nur Schlagzeilen, die das
+    Unternehmen beim Namen nennen. Eine Stichwortsuche erkennt den Ton einer Überschrift, nicht den Inhalt des
+    Artikels. Rückgabe: Liste [Titel, Quelle, Datum, Link, Wertung], Zusammenfassung, Score 0-10 oder None."""
+    words = [w for w in re.sub(r"[^a-z0-9 ]", " ", name.lower()).split() if w not in NAME_SKIP and len(w) >= 3]
+    key = words[0] if words else None
+    cutoff = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    out, pos, neg, n = [], 0, 0, 0
+    for it in items:
+        if len(it) < 4:
+            continue
+        title, low = it[0], " " + it[0].lower() + " "
+        flag = None
+        if key and key in low and it[2] >= cutoff:
+            p_ = any(w in low for w in POS_WORDS)
+            n_ = any(w in low for w in NEG_WORDS)
+            flag = 1 if p_ and not n_ else -1 if n_ and not p_ else 0
+            n += 1
+            pos += flag == 1
+            neg += flag == -1
+        out.append([title, it[1], it[2], it[3], flag])
+    score10 = round(clamp(5 + 5 * (pos - neg) / max(n, 4), 0, 10), 1) if n >= 3 else None
+    return out, dict(n=n, pos=int(pos), neg=int(neg)), score10
 
 
 REC_WORD = [(1.5, "klar Kaufen"), (2.5, "Kaufen"), (3.5, "Halten"), (4.5, "Verkaufen"), (9, "klar Verkaufen")]
@@ -739,6 +792,9 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None):
         ]
         a10 = float(sum(x[2] for x in An))
 
+    # ---------- Nachrichtenlage (0-10) ----------
+    news, nz, ns10 = news_view(fund.get("news") or [], fund.get("name") or "", today)
+
     # ---------- Risikoklasse 1 (defensiv) bis 5 (offensiv) ----------
     risk = 1
     v = pm["vola"]
@@ -817,13 +873,15 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None):
                 rec=recs.get("0m"), rec3=recs.get("-3m"), rev90=pct(rev90),
                 rev30=[er.get("up30"), er.get("down30")], ud=ud[:6]),
         ev=dict(earn=earn, ed=earn_days, exdiv=fund.get("exDiv")),
-        news=(fund.get("news") or [])[:6], q=quality_grade, qn=notes, po=pct(payout, 0), nd=r1(nd),
+        news=news[:8], nz=nz, ns=ns10, q=quality_grade, qn=notes, po=pct(payout, 0), nd=r1(nd),
     )
     rec["_x"] = dict(above=above, up200=up200, up50=bool(pm["sma50_prev"] and pm["sma50"] > pm["sma50_prev"]),
                      over50=price > pm["sma50"], since_high=pm["since_high"], ext=price / pm["sma200"] - 1,
                      upside=upside, rmean=rmean, rev90=rev90, ups=ups, downs=downs, margin=margin, roic=roic,
                      roe=roe, fcf_y=fcf_y, payout=payout, cov=cov, nd=nd, rev_e=rev_e,
-                     net_cash=(debt is not None and cash is not None and cash > debt), fin=fin, dec=dec)
+                     net_cash=(debt is not None and cash is not None and cash > debt), fin=fin, dec=dec,
+                     pe=pe, hist_pe=hist_pe, g=g, dy=dy, cap=cap, since_low=pm["since_low"],
+                     days200=pm["days200"], capped200=pm["capped200"], lo52=pm["lo52"])
     return rec
 
 
@@ -884,6 +942,69 @@ def finalize(recs):
         if U:
             U = [[u[0], u[1], bool(u[2])] for u in U]
         r["U"], r["tu"] = U, (sum(1 for u in U if u[2]) if U else None)
+
+        # Wie weit ist die Wende? Vier Phasen, jede an Kursdaten festgemacht.
+        r["sl"] = x["since_low"]
+        r["ul"] = pct(r["p"] / x["lo52"] - 1) if x["lo52"] else None
+        ph = None
+        if r["d52"] is not None and r["d52"] >= 15:
+            new_low = x["since_low"] <= 20
+            if x["above"]:
+                ph = [4, "Wende bestätigt", "Der Kurs liegt wieder über der 200-Tage-Linie (%s)." % de(r["s200"], 2),
+                      "Für einen neuen Aufwärtstrend fehlt noch ein Kurs nahe am 52-Wochen-Hoch (%s, %s %%)."
+                      % (de(r["h52"], 2), sde(r["d52"] / (1 - r["d52"] / 100)))]
+            elif x["over50"] and x["up50"]:
+                ph = [3, "Bodenbildung", "Der Kurs liegt über einer steigenden 50-Tage-Linie, aber noch unter der "
+                      "200-Tage-Linie.", "Bestätigt wäre die Wende über der 200-Tage-Linie bei %s (%s %% zum Kurs)."
+                      % (de(r["s200"], 2), sde((r["s200"] / r["p"] - 1) * 100))]
+            elif not new_low and (x["over50"] or (r["ul"] or 0) >= 10):
+                ph = [2, "Stabilisierung", "Seit %d Handelstagen kein neues 52-Wochen-Tief, der Kurs liegt %s %% "
+                      "über dem Tief." % (x["since_low"], de(r["ul"] or 0, 0)),
+                      "Nächster Schritt wäre ein Kurs über einer steigenden 50-Tage-Linie (derzeit %s)."
+                      % de(r["s50"], 2)]
+            else:
+                ph = [1, "Abwärtsbewegung läuft", ("Das letzte 52-Wochen-Tief ist erst %d Handelstage alt."
+                                                   % x["since_low"]) if new_low else
+                      "Der Kurs liegt unter einer fallenden 50-Tage-Linie.",
+                      "Ein erstes Zeichen wäre: 20 Handelstage ohne neues Tief und ein Kurs über der 50-Tage-Linie "
+                      "(%s)." % de(r["s50"], 2)]
+        r["ph"] = ph
+
+        # Alter des Trends: Wie lange liegt der Kurs schon über der 200-Tage-Linie?
+        d200 = x["days200"]
+        r["d200"] = d200
+        if d200 > 0:
+            mature = d200 > 250 or x["ext"] >= 0.25
+            r["tm"] = "früh" if d200 <= 60 else "reif" if mature else "etabliert"
+        else:
+            r["tm"] = None
+
+        # Einstiegsmarken aus Bewertung und Analysten (die Chart-Zonen stehen in zs)
+        ez, price = [], r["p"]
+        pe, hpe, g, dy = x["pe"], x["hist_pe"], x["g"], x["dy"]
+        if pe and hpe:
+            if hpe < pe:
+                ez.append(["V", "KGV wie im eigenen Schnitt der letzten Abschlüsse (%s)" % de(hpe), sig(price * hpe / pe),
+                           pct(hpe / pe - 1)])
+            else:
+                ez.append(["V", "KGV liegt bereits unter dem eigenen Schnitt (%s gegenüber %s)" % (de(pe), de(hpe)),
+                           None, None])
+        if pe and g is not None and 1.10 - dy > 0:
+            k = min(hpe or x["cap"], x["cap"])
+            pe10 = (1 + g) ** 5 * k / (1.10 - dy) ** 5
+            if pe10 < pe:
+                ez.append(["V", "Renditeerwartung des Rechenmodells erreicht 10 % p. a.", sig(price * pe10 / pe),
+                           pct(pe10 / pe - 1)])
+            else:
+                ez.append(["V", "Renditeerwartung des Rechenmodells liegt bereits bei mindestens 10 % p. a.",
+                           None, None])
+        an = r["an"]
+        if an.get("n") and an.get("lo") and an["lo"] < price:
+            ez.append(["A", "Niedrigstes Kursziel der %d Analysten" % an["n"], an["lo"], pct(an["lo"] / price - 1)])
+        elif an.get("n") and an.get("lo"):
+            ez.append(["A", "Kurs liegt unter dem niedrigsten Kursziel der %d Analysten (%s)"
+                       % (an["n"], de(an["lo"], 2)), None, None])
+        r["ez"] = ez
 
         # Einordnung
         ql, st = r["ql"], r["st"]
@@ -977,6 +1098,12 @@ def texts(r, x):
         con.append("%d Gewinnrückgänge in den vorliegenden Jahresabschlüssen" % x["dec"])
     if x["upside"] is not None and x["upside"] < 0 and r["an"]["n"]:
         con.append("Mittleres Kursziel der Analysten liegt %s %% unter dem Kurs" % de(abs(x["upside"]) * 100, 0))
+    nz0 = r.get("nz") or {}
+    if nz0.get("neg", 0) >= 3 and nz0["neg"] > nz0.get("pos", 0):
+        con.append("%d von %d Schlagzeilen der letzten 30 Tage mit negativem Ton" % (nz0["neg"], nz0["n"]))
+    if r.get("tm") == "reif" and r["st"] == "Aufwärtstrend" and x["ext"] >= 0.25:
+        con.append("Kurs %s %% über der 200-Tage-Linie: Rücksetzer sind nach so einem Anstieg üblich"
+                   % de(x["ext"] * 100, 0))
     if r["q"] == "C":
         con.append("Datenqualität C: Kennzahlen lückenhaft oder auffällig")
 
@@ -1010,4 +1137,19 @@ def texts(r, x):
         tail += (" Der laufende Rückgang beträgt bis zu %s %%, frühere Korrekturen lagen im Mittel bei %s %% "
                  "und höchstens bei %s %%." % (de(sym[1], 0), de(sym[2], 0), de(sym[3], 0)))
     s.append(tail)
+    if r.get("ph") and su in ("Qualität im Rücksetzer", "Turnaround-Kandidat"):
+        ph = r["ph"]
+        s.append("Stand der Wende: Phase %d von 4 (%s). %s %s" % (ph[0], ph[1], ph[2], ph[3]))
+    if r.get("tm") and r["st"] == "Aufwärtstrend":
+        mon = "über zwei Jahren" if x["capped200"] else "%d Handelstagen" % r["d200"]
+        if r["tm"] == "reif":
+            s.append("Der Trend ist reif: Der Kurs liegt seit %s über der 200-Tage-Linie und %s %% darüber. "
+                     "Ein Rücksetzer bis zur 50-Tage-Linie (%s) wären %s %%."
+                     % (mon, de(x["ext"] * 100, 0), de(r["s50"], 2), sde((r["s50"] / r["p"] - 1) * 100)))
+        elif r["tm"] == "früh":
+            s.append("Der Trend ist jung: Der Kurs liegt erst seit %s über der 200-Tage-Linie." % mon)
+    nz = r.get("nz") or {}
+    if r.get("ns") is not None:
+        s.append("Nachrichten: %d Schlagzeilen zum Unternehmen in 30 Tagen, davon %d mit positivem und %d mit "
+                 "negativem Ton (Stichwortsuche)." % (nz["n"], nz["pos"], nz["neg"]))
     return pro[:6], con[:7], " ".join(s)
