@@ -1,9 +1,11 @@
 """Täglicher Lauf: Kurse für alle Aktien laden, einen Teil der Fundamentaldaten auffrischen, alles bewerten.
 
-Ergebnis: docs/data.json (liest die Website). Fundamentaldaten liegen im Cache data/fundamentals.json und werden
-reihum erneuert (die ältesten zuerst), damit Yahoo Finance pro Lauf nur wenige Anfragen bekommt.
+Ergebnis für die Website: docs/data.json (Bewertung), docs/charts.json (Wochenkurse, fünf Jahre) und
+docs/history.json (Gesamtscore der letzten Läufe, für die Veränderung). Fundamentaldaten liegen im Cache
+data/fundamentals.json und werden reihum erneuert (die ältesten zuerst), damit Yahoo Finance pro Lauf nur wenige
+Anfragen bekommt.
 
-Umgebungsvariablen: FUND_LIMIT (Standard 200) = wie viele Aktien pro Lauf neue Fundamentaldaten bekommen.
+Umgebungsvariablen: FUND_LIMIT (Standard 150) = wie viele Aktien pro Lauf neue Fundamentaldaten bekommen.
 """
 import json
 import os
@@ -17,15 +19,33 @@ from yfinance.exceptions import YFRateLimitError
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from build_universe import SUBUNIT, fx_rates  # noqa: E402
-from scoring import TH, num, price_metrics, score  # noqa: E402
+from scoring import FIN_PE_FACTOR, FIN_TH, G_CAP, TH, VERSION, num, price_metrics, score  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA, DOCS = os.path.join(ROOT, "data"), os.path.join(ROOT, "docs")
 FUND_PATH = os.path.join(DATA, "fundamentals.json")
 OUT_PATH = os.path.join(DOCS, "data.json")
-FUND_LIMIT = int(os.environ.get("FUND_LIMIT") or 0)  # 0 = automatisch: beim ersten Lauf alle, danach 200
+CHART_PATH = os.path.join(DOCS, "charts.json")
+HIST_PATH = os.path.join(DOCS, "history.json")
+FUND_LIMIT = int(os.environ.get("FUND_LIMIT") or 0)  # 0 = automatisch: fehlende und veraltete zuerst, sonst 150
 BATCH = 40
 HISTORY_YEARS = 21
+HISTORY_KEEP = 120
+Y_KEYS = ["trailingPE", "forwardPE", "priceToBook", "returnOnEquity", "returnOnAssets", "operatingMargins",
+          "profitMargins", "ebitda", "totalDebt", "totalCash", "totalRevenue", "payoutRatio", "beta"]
+# Börsenkürzel am Ende des Symbols -> Land der Börse (für die Wahl der Heimatnotiz bei Doppelnotierungen)
+SUFFIX_COUNTRY = {
+    "": ("United States",), "DE": ("Germany",), "F": ("Germany",), "PA": ("France",), "L": ("United Kingdom",),
+    "SW": ("Switzerland",), "AS": ("Netherlands",), "TO": ("Canada",), "HK": ("Hong Kong", "China"),
+    "SS": ("China",), "SZ": ("China",), "T": ("Japan",), "ST": ("Sweden",), "CO": ("Denmark",), "OL": ("Norway",),
+    "HE": ("Finland",), "MI": ("Italy",), "MC": ("Spain",), "BR": ("Belgium",), "VI": ("Austria",),
+    "LS": ("Portugal",), "IR": ("Ireland",), "AX": ("Australia",), "NS": ("India",), "BO": ("India",),
+    "KS": ("South Korea",), "KQ": ("South Korea",), "TW": ("Taiwan",), "TWO": ("Taiwan",), "SA": ("Brazil",),
+    "MX": ("Mexico",), "SR": ("Saudi Arabia",), "JO": ("South Africa",), "SI": ("Singapore",), "JK": ("Indonesia",),
+    "BK": ("Thailand",), "KL": ("Malaysia",), "TA": ("Israel",), "WA": ("Poland",), "IS": ("Turkey",),
+    "SN": ("Chile",), "NZ": ("New Zealand",), "AT": ("Greece",), "PR": ("Czech Republic",), "BD": ("Hungary",),
+    "QA": ("Qatar",), "AE": ("United Arab Emirates",), "PS": ("Philippines",),
+}
 
 
 def row(df, names):
@@ -52,6 +72,17 @@ def est_growth(df):
         return None
 
 
+def long_term_growth(df):
+    """Langfristige Gewinnwachstumsschätzung der Analysten, falls Yahoo sie liefert."""
+    try:
+        for k in ("LTG", "+5y"):
+            if k in df.index:
+                return num(df.loc[k, "stockTrend"])
+    except Exception:
+        pass
+    return None
+
+
 def safe(fn):
     try:
         return fn()
@@ -68,6 +99,7 @@ def fetch_fund(sym):
     bal = safe(lambda: t.balance_sheet)
     rev_est = safe(lambda: t.revenue_estimate)
     eps_est = safe(lambda: t.earnings_estimate)
+    growth = safe(lambda: t.growth_estimates)
     rev = row(inc, ["Total Revenue", "Operating Revenue"])
     gp = row(inc, ["Gross Profit"])
     gross = num(info.get("grossMargins"))
@@ -93,13 +125,19 @@ def fetch_fund(sym):
         "totalDebt": row(bal, ["Total Debt"]),
         "cash": row(bal, ["Cash Cash Equivalents And Short Term Investments", "Cash And Cash Equivalents"]),
         "revGrowthEst": est_growth(rev_est), "epsGrowthEst": est_growth(eps_est),
+        "ltg": long_term_growth(growth),
+        "y": {k: num(info.get(k)) for k in Y_KEYS},
     }
 
 
 def refresh_fundamentals(symbols, cache):
-    order = sorted(symbols, key=lambda s: cache.get(s, {}).get("ts", 0))
-    missing = sum(1 for s in symbols if s not in cache)
-    limit = FUND_LIMIT or max(200, missing)
+    def stamp(s):  # fehlende Einträge und solche im alten Format zuerst
+        c = cache.get(s)
+        return 0 if not c or "y" not in c else c.get("ts", 0)
+
+    order = sorted(symbols, key=stamp)
+    missing = sum(1 for s in symbols if stamp(s) == 0)
+    limit = FUND_LIMIT or max(150, missing)
     limits, done = 0, 0
     for s in order[:limit]:
         for attempt in range(2):
@@ -137,7 +175,8 @@ def download_prices(symbols):
         px = None
         for attempt in range(3):
             try:
-                px = yf.download(batch, start=start, auto_adjust=True, actions=True, group_by="ticker",
+                # auto_adjust=False: Schlusskurse wie im Chart (um Splits bereinigt, nicht um Dividenden)
+                px = yf.download(batch, start=start, auto_adjust=False, actions=True, group_by="ticker",
                                  progress=False, threads=True)
                 if px is not None and not px.empty:
                     break
@@ -154,6 +193,70 @@ def download_prices(symbols):
         time.sleep(1.5)
 
 
+def find_dupes(symbols, cache):
+    """Doppelnotierungen desselben Unternehmens. Behalten wird die Notiz an der Heimatbörse (Land der Börse =
+    Sitz des Unternehmens), bei Gleichstand die in der Bilanzwährung, sonst die erste."""
+    by_name, dupes = {}, set()
+    for s in symbols:
+        f = cache.get(s) or {}
+        if f.get("name"):
+            by_name.setdefault(f["name"], []).append(s)
+
+    def rank(s):
+        f = cache[s]
+        suffix = s.rsplit(".", 1)[1] if "." in s else ""
+        home = f.get("country") in SUFFIX_COUNTRY.get(suffix, ())
+        cur = SUBUNIT.get(f.get("currency"), (f.get("currency"), 1))[0]
+        return (0 if home else 1, 0 if cur == f.get("finCurrency") else 1)
+
+    for syms in by_name.values():
+        if len(syms) > 1:
+            keep = min(syms, key=lambda s: (rank(s), syms.index(s)))
+            dupes.update(s for s in syms if s != keep)
+    return dupes
+
+
+def add_history(stocks):
+    """Hält den Gesamtscore je Tag fest und trägt die Veränderung zum Vortag und zu vor sieben Tagen ein."""
+    try:
+        hist = json.load(open(HIST_PATH))
+    except Exception:
+        hist = {"dates": [], "tot": {}}
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    dates, tot = hist["dates"], hist["tot"]
+    if dates and dates[-1] == today:
+        dates.pop()
+        for v in tot.values():
+            if v:
+                v.pop()
+    n = len(dates)
+    now = {x["s"]: x.get("tot") for x in stocks}
+    for s in set(tot) | set(now):
+        row = tot.setdefault(s, [])
+        row.extend([None] * (n - len(row)))
+        row.append(now.get(s))
+    dates.append(today)
+    if len(dates) > HISTORY_KEEP:
+        cut = len(dates) - HISTORY_KEEP
+        del dates[:cut]
+        for s in tot:
+            del tot[s][:cut]
+
+    def back(days):
+        limit = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        idx = [i for i, d in enumerate(dates[:-1]) if d <= limit]
+        return idx[-1] if idx else None
+
+    i1, i7 = (len(dates) - 2 if len(dates) > 1 else None), back(7)
+    for x in stocks:
+        row = tot.get(x["s"]) or []
+        cur = x.get("tot")
+        x["c1"] = round(cur - row[i1], 1) if i1 is not None and cur is not None and row[i1] is not None else None
+        x["c7"] = round(cur - row[i7], 1) if i7 is not None and cur is not None and row[i7] is not None else None
+    with open(HIST_PATH, "w") as f:
+        json.dump(hist, f, separators=(",", ":"))
+
+
 def main():
     uni = json.load(open(os.path.join(DATA, "universe.json")))["stocks"]
     symbols = [u["symbol"] for u in uni]
@@ -165,28 +268,19 @@ def main():
     print("Universum:", len(symbols), "| Fundamentaldaten im Cache:", len(cache), flush=True)
     refresh_fundamentals(symbols, cache)
 
-    old = {}
+    old, old_version = {}, None
     if os.path.exists(OUT_PATH):
         try:
-            old = {x["s"]: x for x in json.load(open(OUT_PATH))["stocks"]}
+            prev = json.load(open(OUT_PATH))
+            old, old_version = {x["s"]: x for x in prev["stocks"]}, prev.get("v")
         except Exception:
             old = {}
 
     rates = fx_rates({(cache.get(s) or {}).get(k) for s in symbols for k in ("currency", "finCurrency")})
 
-    # Doppelnotierungen desselben Unternehmens: nur die Notiz in der Bilanzwährung behalten, sonst die erste
-    by_name, dupes = {}, set()
-    for s in symbols:
-        f = cache.get(s) or {}
-        if f.get("name"):
-            by_name.setdefault(f["name"], []).append(s)
-    for name, syms in by_name.items():
-        if len(syms) > 1:
-            home = [s for s in syms if SUBUNIT.get(cache[s].get("currency"), (cache[s].get("currency"), 1))[0]
-                    == cache[s].get("finCurrency")]
-            keep = (home or syms)[0]
-            dupes.update(s for s in syms if s != keep)
+    dupes = find_dupes(symbols, cache)
     print("Doppelnotierungen entfernt:", len(dupes), flush=True)
+    charts = {}
     stocks, priced, skipped = [], 0, 0
     for s, df in download_prices(symbols):
         if s in dupes:
@@ -194,7 +288,8 @@ def main():
         fund = cache.get(s)
         pm = price_metrics(df)
         if pm is None or not fund:
-            if s in old and fund:  # alten Stand weiterzeigen, die Seite markiert ihn über das Kursdatum als veraltet
+            # alten Stand weiterzeigen, die Seite markiert ihn über das Kursdatum als veraltet
+            if s in old and fund and old_version == VERSION:
                 stocks.append(old[s])
             else:
                 skipped += 1
@@ -213,6 +308,10 @@ def main():
         if rec is None:
             skipped += 1
             continue
+        if (time.time() - fund["ts"]) > 21 * 86400:
+            rec["qn"].append("Fundamentaldaten seit über drei Wochen nicht aktualisiert")
+            rec["q"] = "C" if rec["q"] == "B" else "B" if rec["q"] == "A" else rec["q"]
+        charts[s] = pm["weekly"]
         rec.update(s=s, n=fund.get("name") or meta[s]["name"], c=fund.get("country") or meta[s].get("country") or "",
                    sec=fund.get("sector") or meta[s].get("sector") or "", ind=fund.get("industry") or "",
                    cur=cur or "", fd=datetime.fromtimestamp(fund["ts"], timezone.utc).strftime("%Y-%m-%d"))
@@ -222,12 +321,18 @@ def main():
     if priced < 0.5 * len(symbols):
         print("Weniger als die Hälfte der Kurse geladen. data.json bleibt unverändert.")
         sys.exit(1 if priced == 0 else 0)
-    out = {"updated": datetime.now(timezone.utc).isoformat(timespec="minutes"), "universe": len(symbols),
-           "skipped": skipped, "th": TH, "stocks": stocks}
     os.makedirs(DOCS, exist_ok=True)
+    add_history(stocks)
+    out = {"v": VERSION, "updated": datetime.now(timezone.utc).isoformat(timespec="minutes"),
+           "universe": len(symbols), "dupes": len(dupes), "skipped": skipped,
+           "th": TH, "finTh": FIN_TH, "finPe": FIN_PE_FACTOR, "gCap": G_CAP, "stocks": stocks}
     with open(OUT_PATH, "w") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
-    print("Geschrieben:", OUT_PATH, len(stocks), "Aktien")
+    if charts:
+        with open(CHART_PATH, "w") as f:
+            json.dump(charts, f, separators=(",", ":"))
+    q = {k: sum(1 for x in stocks if x.get("q") == k) for k in "ABC"}
+    print("Geschrieben:", OUT_PATH, len(stocks), "Aktien | Datenqualität", q)
 
 
 if __name__ == "__main__":
