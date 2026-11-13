@@ -1,6 +1,6 @@
 # Aktien-Qualitätsscreener
 
-Website, die die rund 1000 größten börsennotierten Unternehmen der Welt täglich nach festen Regeln bewertet.
+Website, die rund 500 der größten börsennotierten Unternehmen aus Nordamerika, Europa und Asien-Pazifik mehrmals täglich nach festen Regeln bewertet. Mit Chartanalyse, Analystenbild, Nachrichten und einer Depotauswertung im Browser.
 Keine Anlageberatung, keine Kauf- oder Verkaufsempfehlung.
 
 ## Aufbau
@@ -8,7 +8,7 @@ Keine Anlageberatung, keine Kauf- oder Verkaufsempfehlung.
 | Datei | Aufgabe |
 | --- | --- |
 | `docs/index.html` | Die Website. Lädt `docs/data.json`. |
-| `scripts/build_universe.py` | Bestimmt die 1000 größten Unternehmen (monatlich). |
+| `scripts/build_universe.py` | Bestimmt das Universum nach Regionen-Kontingenten (monatlich). |
 | `scripts/update.py` | Lädt Kurse und Fundamentaldaten von Yahoo Finance, schreibt `docs/data.json`, `docs/charts.json`, `docs/history.json`. |
 | `scripts/scoring.py` | Die Bewertungsregeln, alle Schwellen und die Datenprüfungen. |
 | `scripts/selftest.py` | Prüft die Rechenregeln an festen Beispielen. Läuft vor jedem Datenlauf. |
