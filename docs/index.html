@@ -10,6 +10,7 @@
 :root{
   --bg:#eef1f5; --surface:#ffffff; --sunken:#e4e8ee; --line:#cfd6e0; --fg:#141c28; --muted:#586374;
   --accent:#1d4f91; --accent-soft:#dbe6f5;
+  --c1:#1d4f91; --c2:#c2541b; --c3:#2f8a4e; --c4:#8e3fa8; --c5:#b8860b; --c6:#0f8a8a; --c7:#c23b6b; --c8:#5b6573;
   --good:#17754a; --good-soft:#d9efe3; --mid:#8a6a00; --mid-soft:#f6ebc4; --bad:#b03a2e; --bad-soft:#f7dcd8;
   --display:"Archivo","Helvetica Neue",Arial,sans-serif;
   --text:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
@@ -18,6 +19,7 @@
 @media (prefers-color-scheme: dark){ :root{
   --bg:#10151d; --surface:#18202b; --sunken:#212b38; --line:#33404f; --fg:#e6ebf2; --muted:#9aa6b6;
   --accent:#7fb0ee; --accent-soft:#223850;
+  --c1:#7fb0ee; --c2:#f0945f; --c3:#6cc98a; --c4:#c58be0; --c5:#e3c25a; --c6:#5fd0cf; --c7:#ef7fa6; --c8:#a4afbd;
   --good:#5ac28f; --good-soft:#173527; --mid:#e0bd4f; --mid-soft:#3a3115; --bad:#f08a7e; --bad-soft:#42211d;
   color-scheme:dark } }
 *{box-sizing:border-box}
@@ -132,6 +134,9 @@ ul.plain.pro li::marker{color:var(--good)} ul.plain.con li::marker{color:var(--b
 .chart .sup{fill:var(--good);opacity:.16} .chart .res{fill:var(--bad);opacity:.14}
 .chart text{fill:var(--muted);font-family:var(--mono);font-size:10px}
 .chart .dot{fill:var(--accent)}
+.chart .ln{fill:none;stroke-width:1.6} .chart .bm{fill:none;stroke:var(--muted);stroke-width:1.3;stroke-dasharray:5 3}
+.legend i.c{border-top-width:3px;border-top-style:solid}
+.trk td,.trk th{white-space:nowrap}
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted)}
 .legend i{display:inline-block;width:16px;height:0;border-top:2px solid var(--accent);vertical-align:middle;margin-right:5px}
 .legend i.a{border-top:2px dashed var(--mid)}
@@ -206,6 +211,7 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
     <button role="tab" data-tab="rangliste" aria-selected="true">Rangliste</button>
     <button role="tab" data-tab="chancen" aria-selected="false">Chancen: Anlauf, Dips &amp; Turnaround<span class="cnt" id="cnt-hot">0</span></button>
     <button role="tab" data-tab="depot" aria-selected="false">Mein Depot<span class="cnt" id="cnt-depot">0</span></button>
+    <button role="tab" data-tab="treffer" aria-selected="false">Trefferquote</button>
     <button role="tab" data-tab="methodik" aria-selected="false">Methodik</button>
   </nav>
 
@@ -328,6 +334,14 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
       </div>
 
       <!-- ================= Methodik ================= -->
+      <div id="tab-treffer" class="left" hidden>
+        <section class="panel pad">
+          <h2>Trefferquote: Wie liefen die Aktien nach ihrer Einordnung?</h2>
+          <p class="muted" style="max-width:90ch">Jeden Tag wird festgehalten, wie jede Aktie eingeordnet ist und was sie kostet. Später zeigt diese Seite, wie sich die Aktien jeder Einordnung danach entwickelt haben, verglichen mit dem Durchschnitt aller Aktien im selben Zeitraum. So lässt sich prüfen, ob „Anlauf“, „Trendstark“ oder „Qualitäts-Dip“ tatsächlich besser liefen als der Rest. Kurse ohne Dividenden, in der Währung der jeweiligen Börse. Vergangene Treffer sagen nichts Sicheres über künftige.</p>
+          <div class="chips" id="trk-h" style="margin:10px 0"></div>
+          <div id="trk-body"></div>
+        </section>
+      </div>
       <div id="tab-methodik" class="left" hidden>
       <section class="panel" aria-label="Methodik">
         <details class="meth" open><summary>Aufbau der Analyse</summary><div class="body">
@@ -376,6 +390,7 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
           <p>Die Auswertung prüft dein Depot gegen übliche Richtwerte der Portfoliotheorie: Gewicht einzelner Positionen, Verteilung auf Sektoren, Regionen und Währungen, Gleichlauf der Positionen (Korrelation der Wochenrenditen über bis zu drei Jahre), Schwankung, Beta zum MSCI World, größter Rückgang der heutigen Zusammensetzung in den letzten Jahren, Qualität und Bewertung nach dem Screener, Kursbild, anstehende Termine und Datenqualität. Der Depot-Score startet je Teilbereich bei 100 und verliert 25 Punkte je kritischem Befund, 12 je Warnung und 5 je Hinweis. Gewichtung: Streuung 27 %, Risiko 23 %, Qualität und Bewertung 22 %, Kursbild 13 %, Rendite gegenüber dem MSCI World 10 %, Daten 5 %.</p>
           <p><b>Rendite gegenüber dem MSCI World</b>: Hast du für mindestens die Hälfte des Depotwerts Einstandswert und Kaufdatum eingetragen, rechnet die Auswertung, was dasselbe Geld zum selben Zeitpunkt in einem MSCI-World-ETF (iShares, Kurs in Euro umgerechnet, ohne Ausschüttungen) heute wert wäre, und vergleicht das mit dem heutigen Wert deiner Positionen. Sonst vergleicht sie die Kursentwicklung der heutigen Aktienauswahl über zwölf Monate mit dem ETF. Gleichstand gibt 50 Punkte, je Prozentpunkt Vorsprung oder Rückstand 2,5 Punkte mehr oder weniger. Die Kurse liegen wöchentlich vor, das Kaufdatum wird also auf die Woche genau zugeordnet, höchstens fünf Jahre zurück. Dividenden, Kosten und Steuern fehlen auf beiden Seiten.</p>
           <p><b>Positionen auf dem Prüfstand</b> sind Aktien, bei denen mindestens zwei dieser Datenpunkte zutreffen: Gesamtscore unter 48, Trendbruch oder Abwärtstrend, Kurs unter der 200-Tage-Linie, Gewinnschätzung in 90 Tagen um mindestens 5 % gesenkt, mindestens 15 Prozentpunkte hinter dem MSCI World (zwölf Monate oder seit dem Kauf), Nachrichtenlage höchstens 3, Fundamental unter 5, Verlust. Dagegen stehen Erholungszeichen: Qualität ab 65, mindestens fünf Turnaround-Prüfungen, Phase 3 oder 4, positives Analystenbild, steigende Gewinnschätzung. „Stärker bewertet im selben Sektor“ nennt bis zu drei Titel, die nicht im Depot sind, mindestens 62 Punkte und mindestens 15 Punkte mehr haben und im Aufwärtstrend oder in der Erholung stehen. Der Abstand zum Einstand ist reine Rechnung. Ob und wann ein Kurs den Einstand wieder erreicht, kann niemand sagen.</p>
+          <p><b>Verlauf deiner Aktien</b>: Der Gesamtverlauf rechnet jede Aktie mit ihrer heutigen Stückzahl zurück (Wert heute geteilt durch Kurs heute) und hält den Wechselkurs fest. Daneben der MSCI World mit demselben Startwert. In der Ansicht „Einzelne Aktien“ startet jede Aktie bei 100.</p>
           <p>Nicht ausgewertet werden Kosten, Steuern, Kaufzeitpunkte und dein Handelsverhalten, weil dafür deine Transaktionen nötig wären. Kurse sind in der Währung der jeweiligen Börse gerechnet, Wechselkurseffekte auf dein Depot in Euro fehlen also. Die Richtwerte passen nicht auf jede Lebenslage.</p>
         </div></details>
       </section>
@@ -764,6 +779,52 @@ function candHtml(c){var q=c.q,x=q.x,p=q.p,an=x.an||{},cur=esc(x.cur),e,mk=[],z=
   if(mk.length)h+="<div><h3>Marken und Termine, an denen sich das Bild ändert</h3>"+ul(mk,"")+"</div>";
   h+="<div><h3>Stärker bewertet im selben Sektor · "+esc(sek(x.sec))+"</h3>"+(c.alt.length?'<ul class="plain">'+c.alt.map(function(y){return'<li><button class="link" data-open="'+esc(y.s)+'">'+esc(y.n)+'</button> <span class="muted">· Gesamtscore '+fmt(y.total,0)+", "+y.su+", "+y.st+"</span></li>"}).join("")+'</ul><p class="muted" style="font-size:12px">Vergleich nach Screener-Score, kein Tauschvorschlag. Diese Titel sind nicht in deinem Depot.</p>':'<p class="muted">Kein Titel dieses Sektors, der nicht im Depot ist, liegt mindestens 15 Punkte höher und im Aufwärtstrend.</p>')+"</div>";
   return h+"</div></div>"}
+// ---------------------------------------------------------------- Trefferquote
+var TRK_ROWS=[["Einordnung",["Anlauf","Trendstark","Qualitäts-Dip","Turnaround-Kandidat","Qualität im Rücksetzer","Überhitzt","Neutral","Schwach"]],["Gesamtscore",["Gesamtscore ab 75","Gesamtscore 62 bis 74","Gesamtscore 48 bis 61","Gesamtscore unter 48"]]];
+function renderTrack(){
+  var t=S.d&&S.d.track,H=(t&&t.h)||[];
+  if(S.trkH==null||!H.some(function(h){return h[1]===S.trkH}))S.trkH=H.length?H[0][1]:7;
+  $("trk-h").innerHTML=H.map(function(h){return'<button data-trk="'+h[1]+'" aria-pressed="'+(h[1]===S.trkH)+'">nach '+h[0]+"</button>"}).join("");
+  if(!t){$("trk-body").innerHTML='<p class="muted">Die Messung beginnt mit dem nächsten Datenlauf.</p>';return}
+  var since=dat(t.since);
+  if(!H.length){$("trk-body").innerHTML='<p class="notice">Die Messung läuft seit dem '+since+" ("+t.n+" Tag"+(t.n===1?"":"e")+' erfasst). Erste Ergebnisse gibt es eine Woche nach dem ersten erfassten Tag, für längere Zeiträume entsprechend später. Bis dahin bleibt diese Seite leer, damit nichts geschätzt werden muss.</p>';return}
+  var h=H.filter(function(x){return x[1]===S.trkH})[0],G=h[3];
+  var b='<p class="muted" style="font-size:12.5px">Seit '+since+", "+h[2]+" Startwoche"+(h[2]===1?"":"n")+" mit einem Ergebnis nach "+h[0]+'. Je weniger Startwochen, desto zufälliger sind die Zahlen; unter etwa zehn ist das Bild noch wenig belastbar.</p>';
+  b+='<div class="tablewrap"><table class="grid trk"><thead><tr><th></th><th class="r">Aktien</th><th class="r">Beobachtungen</th><th class="r">Ø Kursentwicklung</th><th class="r">ggü. Durchschnitt aller Aktien</th><th class="r">besser als der Durchschnitt</th></tr></thead><tbody>';
+  TRK_ROWS.forEach(function(grp){b+='<tr class="blk"><td colspan="6"><b>'+grp[0]+"</b></td></tr>";grp[1].forEach(function(k){var g=G[k];
+    b+="<tr><td>"+(SUC[k]?'<span class="pill '+SUC[k]+'">'+k+"</span>":esc(k))+"</td>"+(g?'<td class="r num">'+g[1]+'</td><td class="r num">'+g[0]+'</td><td class="r num '+cls(g[2])+'">'+sgp(g[2],1)+'</td><td class="r num '+cls(g[3])+'"><b>'+sg(g[3],1)+' Pp.</b></td><td class="r num">'+g[4]+" %</td>":'<td colspan="5" class="muted">keine Aktie in dieser Gruppe</td>')+"</tr>"})});
+  b+='</tbody></table></div><p class="muted" style="font-size:12px">Beobachtung = eine Aktie in einer Startwoche. „ggü. Durchschnitt“ ist der Abstand zur mittleren Kursentwicklung aller Aktien im selben Zeitraum, in Prozentpunkten. „Besser als der Durchschnitt“ ist der Anteil der Beobachtungen, die diesen Durchschnitt geschlagen haben; 50 % wäre Zufall. Gezählt werden nur Tage mit dem aktuellen Regelwerk, weil sich die Einordnungen mit dem Regelwerk ändern.</p>';
+  $("trk-body").innerHTML=b}
+// ---------------------------------------------------------------- Depot-Chart
+var LCOL=["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)","var(--c8)"];
+function depotChart(A){
+  if(S.chartsState!==2)return'<p class="muted">Kursverläufe werden geladen …</p>';
+  var cfg=S.dpc||(S.dpc={n:52,m:"sum"}),st=A.st.filter(function(q){var w=S.charts[q.x.s];return w&&w.length>10});
+  if(!st.length)return'<p class="muted">Für die Aktien im Depot liegen keine Kursverläufe vor.</p>';
+  var avail=Math.min.apply(null,st.map(function(q){return S.charts[q.x.s].length})),n=Math.min(cfg.n+1,avail),short=n<cfg.n+1;
+  function tail(w){return w.slice(w.length-n)}
+  var mw=S.charts["_URTH"],fx=S.charts["_EURUSD"],bm=null;
+  if(mw&&mw.length>=n){bm=tail(mw);if(fx&&fx.length>=n){var f=tail(fx);bm=bm.map(function(v,i){return v/f[i]})}}
+  var lines=[],W=600,H=240,L=6,R=58,T=8,B=20,tot=0;st.forEach(function(q){tot+=q.p.v});
+  if(cfg.m==="sum"){
+    var sum=[];for(var i=0;i<n;i++){var v=0;st.forEach(function(q){var w=tail(S.charts[q.x.s]);v+=q.p.v*w[i]/w[n-1]});sum.push(v)}
+    lines.push({n:"Deine Aktien (heutige Stückzahl)",v:sum,c:"var(--c1)"});
+    if(bm)lines.push({n:"MSCI World, gleicher Startwert",v:bm.map(function(v){return sum[0]*v/bm[0]}),bm:1});
+  }else{
+    st.slice().sort(function(a,b){return b.p.v-a.p.v}).slice(0,8).forEach(function(q,k){var w=tail(S.charts[q.x.s]);lines.push({n:q.name,v:w.map(function(v){return v/w[0]*100}),c:LCOL[k]})});
+    if(bm)lines.push({n:"MSCI World",v:bm.map(function(v){return v/bm[0]*100}),bm:1});
+  }
+  var mn=Infinity,mx=-Infinity;lines.forEach(function(l){l.v.forEach(function(v){if(v<mn)mn=v;if(v>mx)mx=v})});var pad=(mx-mn)*0.05||1;mn-=pad;mx+=pad;
+  function X(i){return L+(W-L-R)*i/(n-1)}function Y(v){return T+(H-T-B)*(1-(v-mn)/(mx-mn))}
+  var g="";for(var j=0;j<=3;j++){var v=mn+(mx-mn)*j/3,y=Y(v);g+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+y.toFixed(1)+'" y2="'+y.toFixed(1)+'"/><text x="'+(W-R+5)+'" y="'+(y+3).toFixed(1)+'">'+(cfg.m==="sum"?fmt(v/1000,v<10000?1:0)+" T€":fmt(v,0))+"</text>"}
+  var end=S.updated?new Date(S.updated):new Date();
+  for(var q=0;q<6;q++){var d0=new Date(end.getFullYear()-q,0,1),wk=Math.round((end-d0)/6048e5),ix=n-1-wk;if(ix<3||ix>n-4)continue;g+='<line class="grid" x1="'+X(ix).toFixed(1)+'" x2="'+X(ix).toFixed(1)+'" y1="'+T+'" y2="'+(H-B)+'"/><text x="'+(X(ix)+3).toFixed(1)+'" y="'+(H-6)+'">'+(end.getFullYear()-q)+"</text>"}
+  if(cfg.m!=="sum"){var y0=Y(100);g+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+y0.toFixed(1)+'" y2="'+y0.toFixed(1)+'" style="stroke-dasharray:2 3"/>'}
+  var paths=lines.map(function(l){var d="";l.v.forEach(function(v,i){d+=(i?"L":"M")+X(i).toFixed(1)+" "+Y(v).toFixed(1)});return'<path class="'+(l.bm?"bm":"ln")+'" d="'+d+'"'+(l.bm?"":' style="stroke:'+l.c+'"')+"/>"}).join("");
+  var leg=lines.map(function(l){var ch=(l.v[n-1]/l.v[0]-1)*100;return'<span><i class="c" style="border-top-color:'+(l.bm?"var(--muted)":l.c)+(l.bm?";border-top-style:dashed":"")+'"></i>'+esc(l.n)+' <b class="num '+cls(ch)+'">'+sgp(ch,0)+"</b></span>"}).join("");
+  var ctl='<div class="chips" style="margin-bottom:6px">'+[[52,"1 Jahr"],[156,"3 Jahre"],[260,"5 Jahre"]].map(function(o){return'<button data-dpn="'+o[0]+'" aria-pressed="'+(cfg.n===o[0])+'">'+o[1]+"</button>"}).join("")+'<span style="width:10px"></span>'+[["sum","Depot gesamt"],["each","Einzelne Aktien"]].map(function(o){return'<button data-dpm="'+o[0]+'" aria-pressed="'+(cfg.m===o[0])+'">'+o[1]+"</button>"}).join("")+"</div>";
+  var note=(cfg.m==="sum"?"Wert deiner Aktien, gerechnet mit der heutigen Stückzahl jeder Position und festem Wechselkurs. Zeigt, wie die heutige Auswahl gelaufen wäre, nicht deine tatsächliche Wertentwicklung mit Käufen und Verkäufen.":"Jede Aktie auf 100 zum Startpunkt gesetzt, die acht größten Positionen.")+(bm?" MSCI World über den iShares-ETF"+(fx?", in Euro umgerechnet.":"."):"")+" Ohne Dividenden."+(short?" Der Zeitraum ist auf "+Math.round((n-1)/52*10)/10+" Jahre verkürzt, weil nicht für alle Aktien so lange Kurse vorliegen.":"")+(A.st.length>st.length?" Ohne "+(A.st.length-st.length)+" Aktie(n) ohne Kursverlauf.":"")+" ETFs, Cash und andere Positionen fehlen, weil der Screener für sie keine Kurse hat.";
+  return ctl+'<svg class="chart" viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Verlauf der Aktien im Depot">'+g+paths+'</svg><div class="legend">'+leg+'</div><p class="muted" style="font-size:12px">'+note+"</p>"}
 function renderDepot(){
   var pos=S.depot.pos;$("cnt-depot").textContent=pos.length;$("dp-profile").value=S.depot.profile||"bal";
   var A=analyse();$("dp-tablepanel").hidden=!pos.length;
@@ -777,6 +838,7 @@ function renderDepot(){
   h+='<div class="kpis"><div><span>Depotwert</span><b>'+eur(A.tot)+"</b>"+(A.pl?'<small class="'+cls(A.pl[0])+'">'+sg(A.pl[0],0)+" € · "+sgp(A.pl[1],1)+" auf erfasste Einstände</small>":"")+"</div><div><span>Positionen</span><b>"+A.P.length+"</b><small>wirken wie "+fmt(A.eff,1)+' gleich große</small></div><div><span>Gesamtscore der Aktien</span><b>'+fmt(A.sc,0)+"</b><small>Qualität "+fmt(A.ql,0)+'</small></div><div><span>Dividendenrendite der Aktien</span><b>'+pct(A.dy,2)+"</b><small>rund "+eur(A.divEur)+' im Jahr vor Steuern</small></div><div><span>Schwankung pro Jahr</span><b>'+(R?pct(R.vol,0):"–")+"</b><small>"+(R?"aus "+R.weeks+" Wochen":"Kursverläufe fehlen")+'</small></div><div><span>Beta zum MSCI World</span><b>'+(R&&R.beta!=null?fmt(R.beta,2):"–")+'</b><small>1 = wie der Weltmarkt</small></div><div><span>Größter Rückgang</span><b>'+(R?"−"+fmt(R.dd,0)+" %":"–")+'</b><small>heutige Gewichte, rückgerechnet</small></div><div><span>Mittlere Korrelation</span><b>'+(R&&R.corr!=null&&A.st.length>1?fmt(R.corr,2):"–")+"</b><small>"+(R&&R.maxc&&A.st.length>1?"höchste: "+esc(R.maxc[1])+" / "+esc(R.maxc[2])+" "+fmt(R.maxc[0],2):"")+'</small></div><div><span>KGV des Depots</span><b>'+fmt(A.ppe,0)+'</b><small>gewichtet, ohne Verlustbringer</small></div></div>';
   var PF=A.PF;
   h+='<div class="sec"><h3>Rendite gegenüber dem MSCI World</h3>'+(PF&&PF.mode==="kauf"?'<div class="kpis"><div><span>Deine Positionen mit Kaufdatum</span><b class="'+cls(PF.own)+'">'+sgp(PF.own,1)+"</b><small>"+eur(PF.val)+" aus "+eur(PF.cost)+' Einstand</small></div><div><span>Dasselbe Geld im MSCI World</span><b class="'+cls(PF.mw)+'">'+sgp(PF.mw,1)+"</b><small>wären heute "+eur(PF.hyp)+'</small></div><div><span>Unterschied</span><b class="'+cls(PF.diff)+'">'+sg(PF.diff,1)+" Pp.</b><small>"+sg(PF.val-PF.hyp,0)+' €</small></div></div><p class="muted" style="font-size:12px">Erfasst sind '+pct(PF.cover*100,0)+" des Depotwerts. Vergleich mit dem iShares-MSCI-World-ETF ab der Woche des Kaufdatums"+(PF.eur?", in Euro umgerechnet":", in Dollar, weil der Wechselkurs fehlt")+". Ohne Dividenden, Kosten und Steuern auf beiden Seiten. Bei mehreren Käufen einer Position zählt das eine eingetragene Datum.</p>":'<p class="muted">'+(PF?"Für weniger als die Hälfte des Depotwerts sind Einstandswert und Kaufdatum eingetragen. Bis dahin vergleicht die Auswertung die heutige Aktienauswahl über zwölf Monate: "+sgp(PF.own,1)+" gegenüber "+sgp(PF.mw,1)+" beim MSCI World ("+sg(PF.diff,1)+" Prozentpunkte). ":"Der Vergleich ist erst möglich, wenn die Kursverläufe geladen sind. ")+"Mit Einstandswert und Kaufdatum je Position rechnet sie, was dasselbe Geld im MSCI World heute wert wäre.</p>")+"</div>";
+  h+='<div class="sec"><h3>Verlauf deiner Aktien</h3><div id="dp-chart">'+depotChart(A)+"</div></div>";
   h+='<div class="sec"><h3>Kursentwicklung der Aktien nach heutigen Gewichten</h3><div class="tablewrap"><table class="thr"><tr><th></th><th>1 Monat</th><th>3 Monate</th><th>6 Monate</th><th>12 Monate</th></tr><tr><td><b>Dein Depot (Aktien)</b></td>'+A.perf.map(function(v){return'<td class="num '+cls(v)+'">'+sgp(v,1)+"</td>"}).join("")+"</tr>"+bench.map(function(bn){return"<tr><td>"+esc(bn[1])+"</td>"+bn[2].map(function(v){return'<td class="num '+cls(v)+'">'+sgp(v,1)+"</td>"}).join("")+"</tr>"}).join("")+'</table></div><p class="muted" style="font-size:12px">Ohne Dividenden, in der Währung der jeweiligen Börse. Zeigt, wie die heutige Auswahl gelaufen ist, nicht deine tatsächliche Rendite.</p></div></section>';
   // Chancen / Risiken / läuft gut / läuft schlecht
   var st=A.st,byP=st.filter(function(q){return q.x.pf&&q.x.pf[0]!=null}).sort(function(a,b){return b.x.pf[0]-a.x.pf[0]});
@@ -823,16 +885,18 @@ function fill(id,vals,lab){var s=$(id);s.innerHTML='<option value="">Alle</optio
 function uniq(k){var o={};S.all.forEach(function(x){if(x[k])o[x[k]]=1});return Object.keys(o)}
 function renderAll(){renderTable();renderChancen();if(S.tab==="depot")renderDepot();renderDetail()}
 function toggleStar(s){if(S.watch[s])delete S.watch[s];else S.watch[s]=1;store(WKEY,Object.keys(S.watch));renderPresets();renderAll()}
-function setTab(t){if(!$("tab-"+t))t="rangliste";S.tab=t;["rangliste","chancen","depot","methodik"].forEach(function(k){$("tab-"+k).hidden=k!==t});
+function setTab(t){if(!$("tab-"+t))t="rangliste";S.tab=t;["rangliste","chancen","depot","treffer","methodik"].forEach(function(k){$("tab-"+k).hidden=k!==t});
   [].forEach.call(document.querySelectorAll("#tabs button"),function(b){b.setAttribute("aria-selected",b.dataset.tab===t?"true":"false")});
-  $("detail").hidden=t==="methodik";$("main").classList.toggle("with-detail",t!=="methodik");
-  if(t==="depot")renderDepot();try{history.replaceState(null,"","#"+t)}catch(e){}}
+  $("detail").hidden=t==="methodik"||t==="treffer";$("main").classList.toggle("with-detail",t!=="methodik"&&t!=="treffer");
+  if(t==="depot")renderDepot();if(t==="treffer")renderTrack();try{history.replaceState(null,"","#"+t)}catch(e){}}
 
 document.addEventListener("click",function(e){
   var tb=e.target.closest("#tabs button");if(tb){setTab(tb.dataset.tab);return}
   var st=e.target.closest("[data-star]");if(st){e.stopPropagation();toggleStar(st.dataset.star);return}
   var del=e.target.closest("[data-del]");if(del){e.stopPropagation();S.depot.pos=S.depot.pos.filter(function(p){return p.id!==del.dataset.del});saveDepot();renderDepot();return}
   var pr=e.target.closest("[data-pre]");if(pr){S.pre=pr.dataset.pre;S.shown=100;S.sort={rise:"c7",hot:"hot",div:"dy",an:"a",qual:"qual",dip:"qual",qdip:"qual"}[S.pre]||"total";S.dir=-1;renderPresets();renderTable();return}
+  var tk=e.target.closest("[data-trk]");if(tk){S.trkH=+tk.dataset.trk;renderTrack();return}
+  var dn=e.target.closest("[data-dpn],[data-dpm]");if(dn){S.dpc=S.dpc||{n:52,m:"sum"};if(dn.dataset.dpn)S.dpc.n=+dn.dataset.dpn;else S.dpc.m=dn.dataset.dpm;var A=analyse();if(A)$("dp-chart").innerHTML=depotChart(A);return}
   var op=e.target.closest("[data-open]");if(op){S.sel=op.dataset.open;renderAll();if(window.matchMedia("(max-width:1199px)").matches)$("detail").scrollIntoView({behavior:"smooth",block:"start"});return}
   var tr=e.target.closest("tr[data-id]");if(tr){S.sel=tr.dataset.id;renderAll();if(window.matchMedia("(max-width:1199px)").matches)$("detail").scrollIntoView({behavior:"smooth",block:"start"})}});
 document.addEventListener("keydown",function(e){if(e.key==="Enter"&&e.target.tagName==="TR"&&e.target.dataset.id){S.sel=e.target.dataset.id;renderAll()}});
