@@ -194,7 +194,9 @@ def short_term(c, vol, weekly):
 
 def lage(price, pm, rsi_d, zs, sym):
     """Kurzfristige Lage: eine Einstufung mit Belegen. Beschreibt den Kursverlauf bis heute, keine Vorhersage.
-    Rückgabe: [Code, Bezeichnung, Satz, Belege [[Text, Wert, positiv?], ...], Überdehnt-Zähler]."""
+    Rückgabe: [Code, Bezeichnung, Satz, Belege [[Text, Wert, positiv?], ...], Überdehnt-Zähler].
+    Codes: U überdehnt, G Gegenbewegung, F fällt noch, D dreht nach oben, A Rücksetzer läuft aus, S läuft stabil,
+    N uneinheitlich."""
     st = pm.get("st")
     if not st:
         return None
@@ -202,7 +204,8 @@ def lage(price, pm, rsi_d, zs, sym):
     over20, over50 = price > s20, price > s50
     rw, sx = st["rsi_w"], st["stretch"]
     hot = [rsi_d is not None and rsi_d >= 70, rw is not None and rw >= 70, sx is not None and sx >= 2]
-    new_low = st["low60_age"] <= 4
+    new_low = st["low60_age"] <= 2
+    p1w = pm.get("p1w")
     rsi_up = rsi_d is not None and st["rsi5"] is not None and rsi_d > st["rsi5"] + 3
     macd_turn = st["macd_h"] > 0 >= st["macd_h5"]
     sup = zs[0] if zs else None
@@ -223,6 +226,11 @@ def lage(price, pm, rsi_d, zs, sym):
         txt = ("Der Kurs ist kurzfristig weit gelaufen: %d von 3 Kriterien (RSI 14 Tage ab 70, RSI 14 Wochen ab 70, "
                "mindestens zwei übliche Schwankungen über der 50-Tage-Linie). Nach solchen Phasen folgen oft "
                "Verschnaufpausen; die 50-Tage-Linie liegt bei %s (%s %%)." % (sum(hot), de(s50, 2), sde((s50 / price - 1) * 100)))
+    elif not over20 and p1w is not None and p1w >= 0.04 and not new_low:
+        code, lab = "G", "Gegenbewegung"
+        txt = ("Der Kurs hat sich in einer Woche um %s %% erholt, liegt aber noch unter der 20-Tage-Linie (%s)%s. "
+               "Ob daraus eine Wende wird, zeigt sich erst über der 20-Tage-Linie."
+               % (de(p1w * 100, 0), de(s20, 2), "" if over50 else " und der 50-Tage-Linie (%s)" % de(s50, 2)))
     elif not over20 and not over50 and (new_low or not st["up20"]):
         code, lab = "F", "Fällt noch"
         txt = ("Der Kurs liegt unter der 20- und der 50-Tage-Linie%s. Ein Wendezeichen gibt es noch nicht."
