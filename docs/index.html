@@ -107,7 +107,7 @@ table.grid tbody tr.sel{background:var(--accent-soft)}
 .dhead .big{font-family:var(--display);font-size:40px;font-weight:700;line-height:1;white-space:nowrap;text-align:right}
 .dhead .big small{font-size:14px;color:var(--muted);font-weight:500}
 .dhead .chg{font-size:12px;font-family:var(--mono);margin-top:4px;text-align:right}
-.subs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.subs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .subs div{background:var(--sunken);padding:7px;border-radius:3px;min-width:0}
 .subs span{display:block;font-size:10.5px;color:var(--muted)}
 .subs b{font-family:var(--mono);font-weight:500;font-size:14px}
@@ -147,6 +147,13 @@ ul.plain.pro li::marker{color:var(--good)} ul.plain.con li::marker{color:var(--b
 .recbar .sb{background:var(--good)} .recbar .b{background:var(--good);opacity:.55} .recbar .h{background:var(--mid);opacity:.7} .recbar .s{background:var(--bad);opacity:.55} .recbar .ss{background:var(--bad)}
 .news{display:flex;flex-direction:column;gap:6px;font-size:13px}
 .news small{color:var(--muted)}
+.tag{display:inline-block;font-size:10.5px;line-height:1.5;padding:0 5px;border-radius:3px;background:var(--sunken);color:var(--muted);margin-right:6px;white-space:nowrap}
+.tag.pos{background:var(--good-soft);color:var(--good)} .tag.neg{background:var(--bad-soft);color:var(--bad)}
+.phase{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:2px 0 8px}
+.phase i{height:6px;border-radius:3px;background:var(--line)} .phase i.on{background:var(--accent)}
+.zsub{font-size:12px;color:var(--muted);margin:8px 0 3px;text-transform:uppercase;letter-spacing:.04em}
+.cand{border-top:1px solid var(--line);padding:14px 0;display:grid;gap:10px;font-size:13.5px}
+.cand .cols{gap:12px 18px} .cand h3{margin-bottom:3px} .cand ul.plain{margin:0}
 details.fold>summary{cursor:pointer;font-family:var(--display);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:2px 0}
 details.fold[open]>summary{margin-bottom:6px}
 .notes{margin:0;padding-left:18px;font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
@@ -188,7 +195,7 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
   <header class="top">
     <div>
       <h1>Aktien-Qualitätsscreener</h1>
-      <p>Die größten börsennotierten Unternehmen aus Nordamerika, Europa und Asien, mehrmals täglich neu bewertet nach festen Regeln: Fundamentaldaten, Burggraben, Chartanalyse, Bewertung und Analystenbild. Ein Werkzeug zur Vorauswahl, keine Kauf- oder Verkaufsempfehlung.</p>
+      <p>Die größten börsennotierten Unternehmen aus Nordamerika, Europa und Asien, mehrmals täglich neu bewertet nach festen Regeln: Fundamentaldaten, Burggraben, Chartanalyse, Bewertung, Analystenbild und Nachrichtenlage. Ein Werkzeug zur Vorauswahl, keine Kauf- oder Verkaufsempfehlung.</p>
     </div>
     <div class="stand" id="stand"></div>
   </header>
@@ -232,6 +239,7 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
               <label>Chart <span class="v num" id="wv-t"></span><input type="range" id="w-t" min="0" max="50" step="5"></label>
               <label>Renditeerwartung <span class="v num" id="wv-r"></span><input type="range" id="w-r" min="0" max="50" step="5"></label>
               <label>Analystenbild <span class="v num" id="wv-a"></span><input type="range" id="w-a" min="0" max="50" step="5"></label>
+              <label>Nachrichtenlage <span class="v num" id="wv-n"></span><input type="range" id="w-n" min="0" max="50" step="5"></label>
             </div>
           </details>
         </section>
@@ -271,15 +279,15 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
       <div id="tab-chancen" class="left" hidden>
         <section class="panel">
           <div class="sechead"><h2>Besonders heiß: läuft gerade an</h2>
-            <p>Aktien, bei denen mindestens sieben von acht Anlauf-Signalen aus der Chartanalyse erfüllt sind: Kurs über steigenden Durchschnittslinien, neues 3-Monats-Hoch, nahe am 52-Wochen-Hoch, stärker als drei Viertel des Universums, steigendes Handelsvolumen, RSI im starken, aber nicht überkauften Bereich und noch nicht zu weit gelaufen. Die Signale stehen im Steckbrief einzeln.</p>
+            <p>Aktien, bei denen mindestens sieben von acht Anlauf-Signalen aus der Chartanalyse erfüllt sind: Kurs über steigenden Durchschnittslinien, neues 3-Monats-Hoch, nahe am 52-Wochen-Hoch, stärker als drei Viertel des Universums, steigendes Handelsvolumen, RSI im starken, aber nicht überkauften Bereich und noch nicht zu weit gelaufen. Die Signale stehen im Steckbrief einzeln. „Trendalter“ zeigt, wie lange der Kurs schon über der 200-Tage-Linie liegt: früh (bis 60 Handelstage), etabliert oder reif (über 250 Handelstage oder mindestens 25 % über der Linie).</p>
             <label class="chk"><input type="checkbox" id="hot-q" checked> nur mit Fundamental ab 6</label></div>
-          <div class="tablewrap"><table class="grid"><thead><tr><th>Unternehmen</th><th>Signale</th><th class="r">Fund.</th><th class="r">Qualität</th><th class="r">1 M.</th><th class="r">3 M.</th><th class="r">RSI</th><th class="r">Volumen</th><th class="r">unter 52-W.-Hoch</th><th class="r">Rel. Stärke</th></tr></thead><tbody id="hot-rows"></tbody></table></div>
+          <div class="tablewrap"><table class="grid"><thead><tr><th>Unternehmen</th><th>Signale</th><th>Trendalter</th><th class="r">Fund.</th><th class="r">Qualität</th><th class="r">1 M.</th><th class="r">3 M.</th><th class="r">RSI</th><th class="r">Volumen</th><th class="r">unter 52-W.-Hoch</th><th class="r">Rel. Stärke</th></tr></thead><tbody id="hot-rows"></tbody></table></div>
           <div class="empty" id="hot-empty" hidden>Derzeit erfüllt keine Aktie mindestens sieben Anlauf-Signale.</div>
         </section>
         <section class="panel">
           <div class="sechead"><h2>Qualität im Rücksetzer und Turnaround-Kandidaten</h2>
-            <p>Unternehmen mit starken Kennzahlen, deren Kurs mindestens 15 % unter dem 52-Wochen-Hoch steht. Die Turnaround-Prüfungen fragen: Sind Fundamentaldaten und Burggraben stark? Stabilisiert sich der Kurs? Bleiben Analysten und Gewinnschätzungen positiv? Ist der Rückgang tiefer als frühere Korrekturen dieser Aktie? Ein Rücksetzer kann sich fortsetzen, die Liste zeigt nur, wo Qualität und Kurs auseinanderlaufen.</p></div>
-          <div class="tablewrap"><table class="grid"><thead><tr><th>Unternehmen</th><th>Einordnung</th><th>Prüfungen</th><th class="r">Qualität</th><th class="r">unter 52-W.-Hoch</th><th class="r">Rückgang jetzt / früher max.</th><th class="r">Analysten</th><th class="r">Kursziel</th><th class="r">1 M.</th><th>Trendstatus</th></tr></thead><tbody id="turn-rows"></tbody></table></div>
+            <p>Unternehmen mit starken Kennzahlen, deren Kurs mindestens 15 % unter dem 52-Wochen-Hoch steht. Die Turnaround-Prüfungen fragen: Sind Fundamentaldaten und Burggraben stark? Stabilisiert sich der Kurs? Bleiben Analysten und Gewinnschätzungen positiv? Ist der Rückgang tiefer als frühere Korrekturen dieser Aktie? Die Spalte „Stand“ zeigt, wie weit die Wende im Kurs ist: 1 Abwärtsbewegung läuft, 2 Stabilisierung, 3 Bodenbildung, 4 Wende bestätigt. Ein Rücksetzer kann sich fortsetzen, die Liste zeigt nur, wo Qualität und Kurs auseinanderlaufen.</p></div>
+          <div class="tablewrap"><table class="grid"><thead><tr><th>Unternehmen</th><th>Einordnung</th><th>Prüfungen</th><th>Stand</th><th class="r">Qualität</th><th class="r">unter 52-W.-Hoch</th><th class="r">Rückgang jetzt / früher max.</th><th class="r">Analysten</th><th class="r">Kursziel</th><th class="r">1 M.</th><th>Trendstatus</th></tr></thead><tbody id="turn-rows"></tbody></table></div>
           <div class="empty" id="turn-empty" hidden>Derzeit kein Treffer.</div>
         </section>
       </div>
@@ -287,11 +295,12 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
       <!-- ================= Depot ================= -->
       <div id="tab-depot" class="left" hidden>
         <section class="panel pad">
-          <div><h2>Mein Depot</h2><p class="muted" style="max-width:90ch">Trage deine Positionen mit ihrem aktuellen Wert ein. Die Angaben bleiben nur in diesem Browser gespeichert und verlassen dein Gerät nicht. Die Auswertung ist regelbasiert und vergleicht dein Depot mit üblichen Richtwerten. Sie ist keine Anlageberatung.</p></div>
+          <div><h2>Mein Depot</h2><p class="muted" style="max-width:90ch">Trage deine Positionen mit ihrem aktuellen Wert ein. Die Angaben bleiben nur in diesem Browser gespeichert und verlassen dein Gerät nicht. Mit Einstandswert und Kaufdatum rechnet die Auswertung auch deine Rendite gegenüber dem MSCI World. Um eine vorhandene Position zu ergänzen, trage sie einfach noch einmal ein, sie wird dann aktualisiert. Die Auswertung ist regelbasiert und vergleicht dein Depot mit üblichen Richtwerten. Sie ist keine Anlageberatung.</p></div>
           <form id="dp-form" class="row" autocomplete="off">
             <label class="f grow">Aktie aus dem Screener<input type="text" id="dp-name" list="dp-list" placeholder="Name oder Kürzel eingeben und auswählen"><datalist id="dp-list"></datalist></label>
             <label class="f" style="width:130px">Aktueller Wert in €<input type="number" id="dp-val" min="0" step="any" inputmode="decimal"></label>
             <label class="f" style="width:130px">Einstandswert in € (optional)<input type="number" id="dp-cost" min="0" step="any" inputmode="decimal"></label>
+            <label class="f" style="width:150px">Kaufdatum (optional)<input type="date" id="dp-date"></label>
             <button class="primary" type="submit">Hinzufügen</button>
           </form>
           <form id="dp-form2" class="row" autocomplete="off">
@@ -307,7 +316,7 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
           </div>
         </section>
         <section class="panel" id="dp-tablepanel" hidden>
-          <div class="tablewrap"><table class="grid"><thead><tr><th>Position</th><th class="r">Wert</th><th class="r">Anteil</th><th class="r">Gewinn / Verlust</th><th>Gesamt</th><th>Einordnung</th><th>Trendstatus</th><th class="r">1 M.</th><th class="r">12 M.</th><th class="r">Div.</th><th></th></tr></thead><tbody id="dp-rows"></tbody></table></div>
+          <div class="tablewrap"><table class="grid"><thead><tr><th>Position</th><th class="r">Wert</th><th class="r">Anteil</th><th class="r">Gewinn / Verlust</th><th class="r" title="Unterschied zum MSCI World seit dem Kaufdatum, in Prozentpunkten">ggü. MSCI World</th><th>Gesamt</th><th>Einordnung</th><th>Trendstatus</th><th class="r">1 M.</th><th class="r">12 M.</th><th class="r">Div.</th><th></th></tr></thead><tbody id="dp-rows"></tbody></table></div>
         </section>
         <div id="dp-analysis" class="left"></div>
       </div>
@@ -317,7 +326,7 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
       <section class="panel" aria-label="Methodik">
         <details class="meth" open><summary>Aufbau der Analyse</summary><div class="body">
           <p>Der Aufbau folgt professionellen Analyse-Werkzeugen. Wie bei Simply Wall St besteht jeder Themenblock aus mehreren Ja/Nein-Prüfungen, sodass eine gute Note viele einzelne Hürden nehmen muss. Wie bei den Faktornoten von Seeking Alpha stehen Wachstum, Profitabilität, Bewertung, Kursdynamik und Schätzungsänderungen getrennt nebeneinander. Wie beim Smart Score von TipRanks fließen neben Kennzahlen auch Analystenurteile und Chartsignale ein. Die Cashflow-, Bilanz- und Verwässerungsprüfungen stammen aus dem Piotroski-Score.</p>
-          <p>Fünf Bausteine ergeben den Gesamtscore (0–100): <b>Fundamental</b> (bis zu 21 Prüfungen), <b>Burggraben</b> (5 Kennzahlen), <b>Chart</b> (10 Prüfungen), <b>Renditeerwartung</b> (Rechenmodell) und <b>Analystenbild</b> (5 Prüfungen). Der Wert <b>Qualität</b> ist derselbe Score ohne den Chart-Baustein. So siehst du getrennt, wie gut das Unternehmen ist und wie gut der Zeitpunkt nach dem Kursbild aussieht.</p>
+          <p>Sechs Bausteine ergeben den Gesamtscore (0–100): <b>Fundamental</b> (bis zu 21 Prüfungen, 30 %), <b>Burggraben</b> (5 Kennzahlen, 15 %), <b>Chart</b> (10 Prüfungen, 20 %), <b>Renditeerwartung</b> (Rechenmodell, 15 %), <b>Analystenbild</b> (5 Prüfungen, 15 %) und <b>Nachrichtenlage</b> (Ton der Schlagzeilen, 5 %). Fehlt ein Baustein, weil es zu wenige Analysten oder Schlagzeilen gibt, verteilt sich sein Gewicht auf die übrigen. Der Wert <b>Qualität</b> ist derselbe Score ohne den Chart-Baustein. So siehst du getrennt, wie gut das Unternehmen ist und wie gut der Zeitpunkt nach dem Kursbild aussieht.</p>
           <p>Ab 75 „sehr stark“, ab 62 „stark“, ab 48 „solide“, darunter „schwach“.</p>
         </div></details>
         <details class="meth"><summary>Woher die Daten kommen und wie sie geprüft werden</summary><div class="body">
@@ -345,6 +354,8 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
         <details class="meth"><summary>Chartanalyse</summary><div class="body">
           <p><b>Chart-Note (0–10)</b> aus zwölf Rohpunkten: Kursentwicklung über fünf Jahre (2), Kurs über der 200-Tage-Linie (1), 200-Tage-Linie steigt (1), 50-Tage-Linie über der 200-Tage-Linie (1), kein Einbruch über 30 % in fünf Jahren (1), Kurshistorie ab zehn Jahren (1), wenig Handelsvolumen über dem Kurs (2), gleichmäßiger Aufwärtstrend (1), höchstens 15 % unter dem 52-Wochen-Hoch (1), stärker als die Hälfte des Universums in zwölf Monaten (1).</p>
           <p><b>Unterstützungszonen</b> sind Kursbereiche unter dem aktuellen Kurs, an denen der Kurs erfahrungsgemäß eher Halt findet: Volumen-Cluster (Bereiche, in denen in drei Jahren besonders viel gehandelt wurde), die 200- und 50-Tage-Linie, das Tief der letzten sechs Monate und das 52-Wochen-Tief. Liegen mehrere übereinander, werden sie zu einer Zone zusammengefasst. Chartanalysten nutzen solche Zonen als mögliche Einstiegszonen. <b>Widerstände</b> sind dasselbe über dem Kurs. Eine Zone ist keine Zusage, dass der Kurs dort dreht.</p>
+          <p><b>Mögliche Einstiegsmarken</b> im Steckbrief kommen aus drei Quellen. Aus dem Chart: die Unterstützungszonen. Aus der Bewertung: der Kurs, bei dem das KGV dem eigenen Schnitt der letzten Jahresabschlüsse entspräche, und der Kurs, bei dem die Renditeerwartung des Rechenmodells 10 % p. a. erreicht. Aus den Analystenschätzungen: das niedrigste Kursziel. Liegt der Kurs schon darunter, steht dort „erreicht“.</p>
+          <p><b>Stand der Wende</b> (bei Aktien ab 15 % unter dem 52-Wochen-Hoch): Phase 1 „Abwärtsbewegung läuft“ (neues Tief in den letzten 20 Handelstagen oder Kurs unter der 50-Tage-Linie), Phase 2 „Stabilisierung“ (20 Tage ohne neues Tief und über der 50-Tage-Linie oder mindestens 10 % über dem Tief), Phase 3 „Bodenbildung“ (über einer steigenden 50-Tage-Linie), Phase 4 „Wende bestätigt“ (über der 200-Tage-Linie). <b>Trendalter</b>: früh bis 60 Handelstage über der 200-Tage-Linie, reif ab 250 Handelstagen oder ab 25 % über der Linie, dazwischen etabliert. Bei einem reifen Trend nahe am Hoch verweist der Steckbrief auf die Rücksetzer-Marken statt auf den Ausbruch.</p>
           <p><b>Marktsymmetrie</b> vergleicht den laufenden Rückgang mit früheren Korrekturen derselben Aktie in zehn Jahren (jeweils vom Hoch bis zum Tief, ab 10 %). <b>Trendstatus</b>: Aufwärtstrend (über der 200-Tage-Linie, höchstens 10 % unter dem 52-Wochen-Hoch), Erholung (über der Linie, weiter weg vom Hoch), Korrektur (unter der Linie, höchstens 20 % unter dem Hoch), Bodenbildung (tiefer, aber über einer steigenden 50-Tage-Linie), Trendbruch und Abwärtstrend.</p>
           <p><b>Anlauf-Signale</b> (acht) und <b>Turnaround-Prüfungen</b> (sieben) stehen im Steckbrief und im Reiter „Besonders heiß und Turnaround“ einzeln mit ihren Werten.</p>
         </div></details>
@@ -353,10 +364,12 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
           <p><b>Analystenbild (0–10)</b>: Konsens der Empfehlungen (bis 3 Punkte), Abstand des mittleren Kursziels zum Kurs (bis 3), Veränderung der Gewinnschätzung in 90 Tagen (bis 2), mehr Hoch- als Abstufungen in 90 Tagen (1), mindestens zehn Analysten (1). Das sind Meinungen Dritter. Sie liegen oft daneben und fließen deshalb nur mit 15 % in den Gesamtscore ein. Bei weniger als drei Analysten entfällt der Baustein.</p>
           <p><b>Einordnung</b>: „Anlauf“ (mindestens sieben Anlauf-Signale), „Trendstark“ (Qualität ab 65 im Aufwärtstrend), „Qualität im Rücksetzer“ (Qualität ab 70, schwaches Kursbild, mindestens 15 % unter dem 52-Wochen-Hoch), „Turnaround-Kandidat“ (mindestens fünf Turnaround-Prüfungen, mindestens 25 % unter dem Hoch), „Überhitzt“ (RSI ab 78 oder 40 % über der 200-Tage-Linie), „Schwach“ (Qualität unter 45 im Abwärtstrend), sonst „Neutral“.</p>
           <p><b>Risikoklasse</b> 1 bis 5: steigt mit Kursschwankung (ab 25 % und ab 40 % pro Jahr), einem Einbruch über 40 % in fünf Jahren, hoher Verschuldung (bei Finanzwerten: zu wenig Eigenkapital) und mehreren Gewinnrückgängen.</p>
-          <p><b>Nachrichten</b> sind die jüngsten Schlagzeilen von Yahoo Finance mit Link zur Quelle. Sie werden nicht bewertet. Die Punkte unter „Worauf achten“ stammen ausschließlich aus Daten: Termine, Schätzungsänderungen, Abstufungen, Kursverlauf und Kennzahlen.</p>
+          <p><b>Nachrichtenlage (0–10)</b>: Gewertet werden die Schlagzeilen von Yahoo Finance aus den letzten 30 Tagen, die das Unternehmen beim Namen nennen. Eine Stichwortsuche ordnet jede Überschrift als positiv, negativ oder neutral ein. Die Note ist 5 plus 5 mal (positive minus negative) geteilt durch die Zahl der Schlagzeilen, mindestens vier. Unter drei Schlagzeilen gibt es keine Note. Die Suche erkennt den Ton der Überschrift, nicht den Inhalt des Artikels, und kann danebenliegen. Deshalb zählt der Baustein nur 5 %, und jede Schlagzeile steht mit ihrer Einordnung und dem Link zur Quelle im Steckbrief.</p>
         </div></details>
         <details class="meth"><summary>Depotauswertung</summary><div class="body">
-          <p>Die Auswertung prüft dein Depot gegen übliche Richtwerte der Portfoliotheorie: Gewicht einzelner Positionen, Verteilung auf Sektoren, Regionen und Währungen, Gleichlauf der Positionen (Korrelation der Wochenrenditen über bis zu drei Jahre), Schwankung, Beta zum MSCI World, größter Rückgang der heutigen Zusammensetzung in den letzten Jahren, Qualität und Bewertung nach dem Screener, Kursbild, anstehende Termine und Datenqualität. Der Depot-Score startet je Teilbereich bei 100 und verliert 25 Punkte je kritischem Befund, 12 je Warnung und 5 je Hinweis. Gewichtung: Streuung 30 %, Risiko 25 %, Qualität und Bewertung 25 %, Kursbild 15 %, Daten 5 %.</p>
+          <p>Die Auswertung prüft dein Depot gegen übliche Richtwerte der Portfoliotheorie: Gewicht einzelner Positionen, Verteilung auf Sektoren, Regionen und Währungen, Gleichlauf der Positionen (Korrelation der Wochenrenditen über bis zu drei Jahre), Schwankung, Beta zum MSCI World, größter Rückgang der heutigen Zusammensetzung in den letzten Jahren, Qualität und Bewertung nach dem Screener, Kursbild, anstehende Termine und Datenqualität. Der Depot-Score startet je Teilbereich bei 100 und verliert 25 Punkte je kritischem Befund, 12 je Warnung und 5 je Hinweis. Gewichtung: Streuung 27 %, Risiko 23 %, Qualität und Bewertung 22 %, Kursbild 13 %, Rendite gegenüber dem MSCI World 10 %, Daten 5 %.</p>
+          <p><b>Rendite gegenüber dem MSCI World</b>: Hast du für mindestens die Hälfte des Depotwerts Einstandswert und Kaufdatum eingetragen, rechnet die Auswertung, was dasselbe Geld zum selben Zeitpunkt in einem MSCI-World-ETF (iShares, Kurs in Euro umgerechnet, ohne Ausschüttungen) heute wert wäre, und vergleicht das mit dem heutigen Wert deiner Positionen. Sonst vergleicht sie die Kursentwicklung der heutigen Aktienauswahl über zwölf Monate mit dem ETF. Gleichstand gibt 50 Punkte, je Prozentpunkt Vorsprung oder Rückstand 2,5 Punkte mehr oder weniger. Die Kurse liegen wöchentlich vor, das Kaufdatum wird also auf die Woche genau zugeordnet, höchstens fünf Jahre zurück. Dividenden, Kosten und Steuern fehlen auf beiden Seiten.</p>
+          <p><b>Positionen auf dem Prüfstand</b> sind Aktien, bei denen mindestens zwei dieser Datenpunkte zutreffen: Gesamtscore unter 48, Trendbruch oder Abwärtstrend, Kurs unter der 200-Tage-Linie, Gewinnschätzung in 90 Tagen um mindestens 5 % gesenkt, mindestens 15 Prozentpunkte hinter dem MSCI World (zwölf Monate oder seit dem Kauf), Nachrichtenlage höchstens 3, Fundamental unter 5, Verlust. Dagegen stehen Erholungszeichen: Qualität ab 65, mindestens fünf Turnaround-Prüfungen, Phase 3 oder 4, positives Analystenbild, steigende Gewinnschätzung. „Stärker bewertet im selben Sektor“ nennt bis zu drei Titel, die nicht im Depot sind, mindestens 62 Punkte und mindestens 15 Punkte mehr haben und im Aufwärtstrend oder in der Erholung stehen. Der Abstand zum Einstand ist reine Rechnung. Ob und wann ein Kurs den Einstand wieder erreicht, kann niemand sagen.</p>
           <p>Nicht ausgewertet werden Kosten, Steuern, Kaufzeitpunkte und dein Handelsverhalten, weil dafür deine Transaktionen nötig wären. Kurse sind in der Währung der jeweiligen Börse gerechnet, Wechselkurseffekte auf dein Depot in Euro fehlen also. Die Richtwerte passen nicht auf jede Lebenslage.</p>
         </div></details>
       </section>
@@ -372,11 +385,11 @@ footer{color:var(--muted);font-size:12.5px;max-width:100ch}
 <script>
 (function(){
 "use strict";
-var VERSION=3,KEY="screener-gewichte-v3",WKEY="screener-watch-v1",DKEY="screener-depot-v1";
-var S={all:[],by:{},w:{f:30,m:15,t:20,r:20,a:15},sel:null,sort:"total",dir:-1,shown:100,updated:null,d:null,pre:"all",watch:{},charts:null,chartsState:0,tab:"rangliste",depot:{pos:[],profile:"bal"},hotMin:6};
+var VERSION=4,KEY="screener-gewichte-v4",WKEY="screener-watch-v1",DKEY="screener-depot-v1";
+var S={all:[],by:{},w:{f:30,m:15,t:20,r:15,a:15,n:5},sel:null,sort:"total",dir:-1,shown:100,updated:null,d:null,pre:"all",watch:{},charts:null,chartsState:0,tab:"rangliste",depot:{pos:[],profile:"bal"},hotMin:6};
 function load(k,def){try{var v=JSON.parse(localStorage.getItem(k)||"null");return v==null?def:v}catch(e){return def}}
 function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
-var sw=load(KEY,null);if(sw&&typeof sw.f==="number"&&typeof sw.a==="number")S.w=sw;
+var sw=load(KEY,null);if(sw&&typeof sw.f==="number"&&typeof sw.a==="number"&&typeof sw.n==="number")S.w=sw;
 load(WKEY,[]).forEach(function(s){S.watch[s]=1});
 var sd=load(DKEY,null);if(sd&&Array.isArray(sd.pos))S.depot=sd;
 function $(id){return document.getElementById(id)}
@@ -427,7 +440,7 @@ var PRE=[
  ["rise","Aufsteiger der Woche","Gesamtscore in sieben Tagen um mindestens 3 Punkte gestiegen.",function(x){return x.c7!=null&&x.c7>=3}],
  ["watch","Watchlist","Deine mit Stern markierten Aktien.",function(x){return !!S.watch[x.s]}]
 ];
-function comb(x,chart){var w=S.w,p=[[w.f,x.f*10],[w.m,x.m*4],[w.r,x.rs]];if(chart)p.push([w.t,x.t*10]);if(x.a!=null)p.push([w.a,x.a*10]);var ws=0,t=0;p.forEach(function(q){ws+=q[0];t+=q[0]*q[1]});return ws?t/ws:0}
+function comb(x,chart){var w=S.w,p=[[w.f,x.f*10],[w.m,x.m*4],[w.r,x.rs]];if(chart)p.push([w.t,x.t*10]);if(x.a!=null)p.push([w.a,x.a*10]);if(x.ns!=null)p.push([w.n,x.ns*10]);var ws=0,t=0;p.forEach(function(q){ws+=q[0];t+=q[0]*q[1]});return ws?t/ws:0}
 function band(t){return t>=75?4:t>=62?3:t>=48?2:1}
 function dots(r,max,c){var h='<span class="'+(c||"risk")+'" role="img" aria-label="'+r+" von "+max+'">';for(var i=1;i<=max;i++)h+='<i class="'+(i<=r?"on":"")+'"></i>';return h+"</span>"}
 function stale(x){if(!S.updated||!x.d)return false;return (new Date(S.updated)-new Date(x.d))/864e5>6}
@@ -478,11 +491,11 @@ function renderChancen(){
   var fq=$("hot-q").checked;
   var hot=S.all.filter(function(x){return x.hot>=S.hotMin&&(!fq||x.f>=6)}).sort(function(a,b){return b.hot-a.hot||(b.rs6||0)-(a.rs6||0)});
   $("cnt-hot").textContent=hot.length;
-  $("hot-rows").innerHTML=hot.map(function(x){var pf=x.pf||[];return'<tr data-id="'+esc(x.s)+'" tabindex="0" class="'+(x.s===S.sel?"sel":"")+'"><td>'+coCell(x)+"</td><td>"+dots(x.hot,8,"sig")+' <span class="num">'+x.hot+"/8</span></td>"+
+  $("hot-rows").innerHTML=hot.map(function(x){var pf=x.pf||[];return'<tr data-id="'+esc(x.s)+'" tabindex="0" class="'+(x.s===S.sel?"sel":"")+'"><td>'+coCell(x)+"</td><td>"+dots(x.hot,8,"sig")+' <span class="num">'+x.hot+"/8</span></td><td>"+(x.tm?'<span class="pill '+(x.tm==="reif"?"mid":x.tm==="früh"?"good":"neutral")+'">'+x.tm+"</span>":"–")+"</td>"+
     '<td class="r num">'+fmt(x.f,1)+'</td><td class="r num">'+fmt(x.qual,0)+'</td><td class="r num '+cls(pf[0])+'">'+sgp(pf[0])+'</td><td class="r num '+cls(pf[1])+'">'+sgp(pf[1])+'</td><td class="r num">'+fmt(x.rsi,0)+'</td><td class="r num">'+(x.vr==null?"–":fmt(x.vr,2)+"×")+'</td><td class="r num">'+pct(x.d52,0)+'</td><td class="r num">'+(x.rs6==null?"–":x.rs6)+"</td></tr>"}).join("");
   $("hot-empty").hidden=hot.length>0;
   var turn=S.all.filter(function(x){return x.su==="Qualität im Rücksetzer"||x.su==="Turnaround-Kandidat"}).sort(function(a,b){return (b.tu||0)-(a.tu||0)||b.qual-a.qual});
-  $("turn-rows").innerHTML=turn.map(function(x){var pf=x.pf||[],sy=x.sym||[];return'<tr data-id="'+esc(x.s)+'" tabindex="0" class="'+(x.s===S.sel?"sel":"")+'"><td>'+coCell(x)+'</td><td><span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+"</span></td><td>"+(x.tu==null?"–":dots(x.tu,7,"sig")+' <span class="num">'+x.tu+"/7</span>")+"</td>"+
+  $("turn-rows").innerHTML=turn.map(function(x){var pf=x.pf||[],sy=x.sym||[];return'<tr data-id="'+esc(x.s)+'" tabindex="0" class="'+(x.s===S.sel?"sel":"")+'"><td>'+coCell(x)+'</td><td><span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+"</span></td><td>"+(x.tu==null?"–":dots(x.tu,7,"sig")+' <span class="num">'+x.tu+"/7</span>")+"</td><td>"+(x.ph?'<span class="num">'+x.ph[0]+"/4</span> "+esc(x.ph[1]):"–")+"</td>"+
     '<td class="r num">'+fmt(x.qual,0)+'</td><td class="r num">'+pct(x.d52,0)+'</td><td class="r num">'+(sy[1]==null?"–":"−"+fmt(sy[1],0)+" % / "+(sy[3]==null?"–":"−"+fmt(sy[3],0)+" %"))+'</td><td class="r num">'+(x.an&&x.an.mean!=null?fmt(x.an.mean,1):"–")+'</td><td class="r num '+cls(x.an?x.an.up:null)+'">'+sgp(x.an?x.an.up:null)+'</td><td class="r num '+cls(pf[0])+'">'+sgp(pf[0])+'</td><td><span class="pill '+(STC[x.st]||"neutral")+'">'+x.st+"</span></td></tr>"}).join("");
   $("turn-empty").hidden=turn.length>0;
 }
@@ -511,22 +524,34 @@ function loadCharts(){
 var TRL=["abwärts","seitwärts","aufwärts"],TRC=["bad","neutral","good"];
 function trendPill(v){return'<span class="pill '+TRC[v+1]+'">'+TRL[v+1]+"</span>"}
 function checklist(rows,labels,valf){return'<table class="crit">'+rows.map(function(c){return"<tr><td>"+(labels[c[0]]||c[0])+(valf&&valf(c[0],c[1])?'<br><span class="muted">'+valf(c[0],c[1])+"</span>":"")+'</td><td class="num">'+(c[2]?'<span class="ok">✓</span>':'<span class="no">✗</span>')+"</td></tr>"}).join("")+"</table>"}
+var PHR={1:"Der Kurs fällt noch. Nach dem Regelwerk gibt es kein Wendezeichen; wer auf eine Bestätigung wartet, wartet hier noch.",2:"Der Kurs fällt nicht mehr, steigt aber noch nicht verlässlich. Ein Einstieg in dieser Phase setzt auf eine Wende, die noch nicht bestätigt ist.",3:"Ein Boden bildet sich. In dieser Phase erwägen Chartanalysten erste Käufe, die Bestätigung steht noch aus.",4:"Die Wende ist nach dem Regelwerk bestätigt. Das Risiko eines neuen Tiefs ist kleiner, ein Teil der Erholung ist aber schon gelaufen."};
+function ezRows(ez,cur){return ez.map(function(e){return'<span class="num">'+(e[2]==null?"–":px(e[2])+" "+esc(cur))+'</span><span class="lab">'+esc(e[1])+'</span><span class="num muted">'+(e[2]==null?"erreicht":sgp(e[3],0))+"</span>"}).join("")}
 function zoneRows(zs,cur){return zs.map(function(z){return'<span class="num">'+px(z[0])+" – "+px(z[1])+" "+esc(cur)+'</span><span class="lab">'+esc(z[2].join(", "))+'</span><span class="num muted">'+(z[3]===0?"am Kurs":sgp(z[3],0))+"</span>"}).join("")}
 function renderDetail(){
   var x=S.by[S.sel];if(!x)return;
   var b=band(x.total),w=S.w,pf=x.pf||[],tr=x.tr||[0,0,0],an=x.an||{},ev=x.ev||{},cur=CURN[x.cur]||x.cur,unit=x.cur==="GBp"?" (Kurse in Pence)":"";
-  var ws=w.f+w.m+w.t+w.r+(x.a==null?0:w.a)||1;function wp(k){return fmt(w[k]/ws*100,0)+" %"}
+  var ws=w.f+w.m+w.t+w.r+(x.a==null?0:w.a)+(x.ns==null?0:w.n)||1;function wp(k){return fmt(w[k]/ws*100,0)+" %"}
   var chart=S.chartsState===2?chartSvg(S.charts[x.s],x):S.chartsState===3?'<p class="muted">Der Kursverlauf konnte nicht geladen werden.</p>':'<p class="muted">Kursverlauf wird geladen …</p>';
   var h='<div class="dwrap"><div class="dhead"><div><h2>'+esc(x.n)+' <button class="star'+(S.watch[x.s]?" on":"")+'" data-star="'+esc(x.s)+'" aria-label="Watchlist" aria-pressed="'+(S.watch[x.s]?"true":"false")+'">★</button></h2><p class="muted">'+esc(x.s)+" · "+esc(land(x.c))+" · "+esc(sek(x.sec))+(x.ind?" · "+esc(x.ind):"")+'</p><p style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"><span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+'</span><span class="pill neutral">'+x.cat+'</span><span class="pill neutral">'+x.strat+"</span>"+(x.fin?'<span class="pill neutral">'+FINL[x.fin]+"</span>":"")+'</p></div><div><div class="big">'+fmt(x.total,0)+'<small> /100</small></div><div class="chg muted">'+BAND[b]+" · Rang "+x.rank+'</div><div class="chg muted">Qualität '+fmt(x.qual,0)+(x.sq?" · Sektor "+x.sq[0]+"/"+x.sq[1]:"")+'</div><div class="chg '+cls(x.c7)+'">'+(x.c7==null?(x.c1==null?"":"seit Vortag "+sg(x.c1,1)):"7 Tage "+sg(x.c7,1))+"</div></div></div>";
-  h+='<div class="subs"><div><span>Fundamental · '+wp("f")+"</span><b>"+fmt(x.f,1)+"/10</b></div><div><span>Burggraben · "+wp("m")+"</span><b>"+fmt(x.m,1)+"/25</b></div><div><span>Chart · "+wp("t")+"</span><b>"+fmt(x.t,1)+"/10</b></div><div><span>Rendite · "+wp("r")+"</span><b>"+pct(x.r)+"</b></div><div><span>Analysten"+(x.a==null?"":" · "+wp("a"))+"</span><b>"+(x.a==null?"–":fmt(x.a,0)+"/10")+"</b></div></div>";
+  h+='<div class="subs"><div><span>Fundamental · '+wp("f")+"</span><b>"+fmt(x.f,1)+"/10</b></div><div><span>Burggraben · "+wp("m")+"</span><b>"+fmt(x.m,1)+"/25</b></div><div><span>Chart · "+wp("t")+"</span><b>"+fmt(x.t,1)+"/10</b></div><div><span>Rendite · "+wp("r")+"</span><b>"+pct(x.r)+"</b></div><div><span>Analysten"+(x.a==null?"":" · "+wp("a"))+"</span><b>"+(x.a==null?"–":fmt(x.a,0)+"/10")+"</b></div><div><span>Nachrichten"+(x.ns==null?"":" · "+wp("n"))+"</span><b>"+(x.ns==null?"–":fmt(x.ns,1)+"/10")+"</b></div></div>";
   h+='<div class="sec"><h3>Einordnung</h3><p class="verdict">'+esc(x.txt||"")+'</p><div class="two">'+((x.pro||[]).length?'<div><h3 style="margin-bottom:4px">Was auffällt</h3><ul class="plain pro">'+x.pro.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul></div>":"")+((x.con||[]).length?'<div><h3 style="margin-bottom:4px">Worauf achten</h3><ul class="plain con">'+x.con.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul></div>":"")+"</div></div>";
+  if(x.ph){var ph=x.ph;
+    h+='<div class="sec"><h3>Stand '+(x.su==="Turnaround-Kandidat"?"der Wende":"des Rücksetzers")+" · Phase "+ph[0]+" von 4: "+esc(ph[1])+'</h3><div class="phase" role="img" aria-label="Phase '+ph[0]+' von 4">'+[1,2,3,4].map(function(i){return'<i class="'+(i<=ph[0]?"on":"")+'"></i>'}).join("")+'</div><p class="verdict">'+PHR[ph[0]]+" "+esc(ph[2])+" "+esc(ph[3])+'</p><div class="kv"><span>Unter dem 52-Wochen-Hoch</span><span class="num">'+pct(x.d52,0)+'</span><span>Über dem 52-Wochen-Tief</span><span class="num">'+pct(x.ul,0)+'</span><span>Handelstage seit dem 52-Wochen-Tief</span><span class="num">'+x.sl+"</span>"+(x.tu!=null?'<span>Turnaround-Prüfungen bestanden</span><span class="num">'+x.tu+" von 7</span>":"")+'</div><p class="muted" style="font-size:12px">Phase 1: neues Tief in den letzten 20 Handelstagen oder Kurs unter der 50-Tage-Linie. Phase 2: 20 Tage ohne neues Tief und über der 50-Tage-Linie oder mindestens 10 % über dem Tief. Phase 3: über einer steigenden 50-Tage-Linie. Phase 4: über der 200-Tage-Linie. Die Phase beschreibt den Kursverlauf bis heute und sagt nicht, wie es weitergeht.</p></div>'}
   h+='<div class="sec"><h3>Kursverlauf fünf Jahre · '+esc(x.cur)+"</h3>"+chart+'</div><div class="perf"><div><span>1 Monat</span><b class="'+cls(pf[0])+'">'+sgp(pf[0],1)+'</b></div><div><span>3 Monate</span><b class="'+cls(pf[1])+'">'+sgp(pf[1],1)+'</b></div><div><span>6 Monate</span><b class="'+cls(pf[2])+'">'+sgp(pf[2],1)+'</b></div><div><span>12 Monate</span><b class="'+cls(pf[3])+'">'+sgp(pf[3],1)+"</b></div></div>";
   // Chartanalyse
   var sy=x.sym||[],cx=x.cx;
   h+='<div class="sec"><h3>Chartanalyse'+unit+'</h3><div class="kv"><span>Trendstatus</span><span><span class="pill '+(STC[x.st]||"neutral")+'">'+x.st+'</span></span><span>Trend lang- / mittel- / kurzfristig</span><span>'+trendPill(tr[0])+" "+trendPill(tr[1])+" "+trendPill(tr[2])+'</span><span>Kurs vom '+dat(x.d)+'</span><span class="num">'+px(x.p)+" "+esc(x.cur)+'</span><span>200-Tage-Linie</span><span class="num">'+px(x.s200)+" · Kurs "+sgp((x.p/x.s200-1)*100,1)+'</span><span>50-Tage-Linie</span><span class="num">'+px(x.s50)+" · Kurs "+sgp((x.p/x.s50-1)*100,1)+"</span>"+
+    (x.d200?"<span>"+(x.d200>0?"Über":"Unter")+' der 200-Tage-Linie seit</span><span class="num">'+(Math.abs(x.d200)>=515?"mehr als zwei Jahren":Math.abs(x.d200)+" Handelstagen")+(x.tm?" · Trend "+x.tm:"")+"</span>":"")+
     (cx?"<span>"+(cx[0]>0?"Golden Cross":"Death Cross")+' (50er kreuzt 200er)</span><span class="num">vor '+cx[1]+" Handelstagen</span>":"")+
     '<span>52-Wochen-Spanne</span><span class="num">'+px(x.l52)+" – "+px(x.h52)+" · "+pct(x.d52,0)+' unter Hoch</span><span>RSI (14 Tage)</span><span class="num">'+fmt(x.rsi,0)+(x.rsi>=70?" · überkauft":x.rsi<=30?" · überverkauft":"")+'</span><span>Handelsvolumen 20 Tage / 100 Tage</span><span class="num">'+(x.vr==null?"–":fmt(x.vr,2)+"-fach")+'</span><span>Relative Stärke 6 M. / 12 M. (Rang von 100)</span><span class="num">'+(x.rs6==null?"–":x.rs6)+" / "+(x.rs12==null?"–":x.rs12)+'</span><span>Laufender Rückgang vom Hoch (10 J.)</span><span class="num">'+(sy[0]==null?"–":"−"+fmt(sy[0],0)+" %, zeitweise −"+fmt(sy[1],0)+" %")+'</span><span>Frühere Korrekturen ('+(sy[4]||0)+' ab 10 %)</span><span class="num">'+(sy[2]==null?"–":"Mittel −"+fmt(sy[2],0)+" %, tiefste −"+fmt(sy[3],0)+" %")+"</span></div>";
-  if((x.zs||[]).length)h+='<h3 style="margin-top:6px">Unterstützungszonen (mögliche Einstiegszonen laut Chart)</h3><div class="zone">'+zoneRows(x.zs,x.cur)+"</div>";
+  var zsl=x.zs||[],ezV=(x.ez||[]).filter(function(e){return e[0]==="V"}),ezA=(x.ez||[]).filter(function(e){return e[0]==="A"});
+  if(zsl.length||ezV.length||ezA.length){
+    h+='<h3 style="margin-top:8px">Mögliche Einstiegsmarken</h3>';
+    if(x.tm==="reif"&&x.st==="Aufwärtstrend")h+='<p class="muted" style="font-size:12.5px">Der Trend ist reif: Der Kurs liegt '+(x.d200>=515?"seit mehr als zwei Jahren":"seit "+x.d200+" Handelstagen")+" über der 200-Tage-Linie und "+sgp((x.p/x.s200-1)*100,0)+" darüber. Nach so einem Anstieg sind Rücksetzer üblich. Die Marken zeigen, wo der Kurs dabei auf Halt oder auf eine günstigere Bewertung träfe.</p>";
+    if(zsl.length)h+='<p class="zsub">Aus dem Chart · Unterstützungszonen</p><div class="zone">'+zoneRows(zsl,x.cur)+"</div>";
+    if(ezV.length)h+='<p class="zsub">Aus der Bewertung</p><div class="zone">'+ezRows(ezV,x.cur)+"</div>";
+    if(ezA.length)h+='<p class="zsub">Aus den Analystenschätzungen</p><div class="zone">'+ezRows(ezA,x.cur)+"</div>";
+    h+='<p class="muted" style="font-size:12px;margin-top:6px">Die Marken sind Chart- und Rechenwerte. Sie zeigen, wo sich Halt oder Bewertung ändern, nicht, dass der Kurs dorthin fällt oder dort dreht.</p>'}
   if((x.zr||[]).length)h+='<h3 style="margin-top:6px">Widerstände</h3><div class="zone">'+zoneRows(x.zr,x.cur)+"</div>";
   h+="</div>";
   h+='<details class="fold" '+(x.hot>=S.hotMin?"open":"")+'><summary>Anlauf-Signale · '+x.hot+" von 8</summary>"+checklist(x.H||[],HK,hval)+"</details>";
@@ -539,7 +564,8 @@ function renderDetail(){
     '<details class="fold"><summary>Analystenbild · '+(x.a==null?"–":fmt(x.a,0)+" von 10")+'</summary><table class="crit">'+(x.A||[]).map(function(c){var v=c[0]==="ud"?c[1][0]+" hoch / "+c[1][1]+" ab":c[0]==="cons"?fmt(c[1],2):c[0]==="cov"?c[1]:sgp(c[1],1);return"<tr><td>"+AK[c[0]]+'<br><span class="muted">'+v+'</span></td><td class="num">'+c[2]+"/"+c[3]+"</td></tr>"}).join("")+"</table></details></div>"}
   else h+='<div class="sec"><h3>Analysten</h3><p class="muted">Für diese Aktie liegen bei Yahoo Finance keine oder zu wenige Analystenschätzungen vor.</p></div>';
   if(ev.earn||ev.exdiv)h+='<div class="sec"><h3>Termine</h3><div class="kv">'+(ev.earn?"<span>Nächste Quartalszahlen</span><span class=\"num\">"+dat(ev.earn)+(ev.ed!=null&&ev.ed>=0?" · in "+ev.ed+" Tagen":"")+"</span>":"")+(ev.exdiv?"<span>Ex-Dividenden-Tag</span><span class=\"num\">"+dat(ev.exdiv)+"</span>":"")+"</div></div>";
-  h+='<div class="sec"><h3>Nachrichten der letzten Wochen</h3>'+((x.news||[]).length?'<div class="news">'+x.news.map(function(n){return'<div><a href="'+esc(n[3])+'" target="_blank" rel="noopener noreferrer">'+esc(n[0])+"</a><br><small>"+esc(n[1])+(n[2]?" · "+dat(n[2]):"")+"</small></div>"}).join("")+'</div><p class="muted" style="font-size:12px">Schlagzeilen von Yahoo Finance, nicht bewertet. Stand '+dat(x.fd)+".</p>":'<p class="muted">Yahoo Finance liefert für diese Aktie derzeit keine Schlagzeilen.</p>')+"</div>";
+  var nz=x.nz||{},NT={"1":["positiv","pos"],"-1":["negativ","neg"],"0":["neutral",""]};
+  h+='<div class="sec"><h3>Nachrichtenlage'+(x.ns==null?"":" · "+fmt(x.ns,1)+" von 10")+"</h3>"+((x.news||[]).length?(nz.n?'<p class="muted" style="font-size:12.5px">'+nz.n+" Schlagzeile"+(nz.n===1?"":"n")+" der letzten 30 Tage "+(nz.n===1?"nennt":"nennen")+" das Unternehmen: "+nz.pos+" mit positivem, "+nz.neg+" mit negativem Ton, "+(nz.n-nz.pos-nz.neg)+" neutral."+(x.ns==null?" Unter drei Schlagzeilen wird keine Note gebildet.":"")+"</p>":'<p class="muted" style="font-size:12.5px">Keine Schlagzeile der letzten 30 Tage nennt das Unternehmen beim Namen. Es wird keine Note gebildet.</p>')+'<div class="news">'+x.news.map(function(n){var t=n[4]==null?["nicht gewertet",""]:NT[String(n[4])]||["neutral",""];return'<div><span class="tag '+t[1]+'">'+t[0]+'</span><a href="'+esc(n[3])+'" target="_blank" rel="noopener noreferrer">'+esc(n[0])+"</a><br><small>"+esc(n[1])+(n[2]?" · "+dat(n[2]):"")+"</small></div>"}).join("")+'</div><p class="muted" style="font-size:12px">Schlagzeilen von Yahoo Finance. Der Ton wird per Stichwortsuche in der Überschrift bestimmt (zum Beispiel „upgrade“, „beats“, „record“ gegenüber „downgrade“, „lawsuit“, „cuts“). Das erfasst nicht den Inhalt des Artikels und kann danebenliegen, deshalb zählt der Baustein in der Voreinstellung nur 5 %. Stand '+dat(x.fd)+".</p>":'<p class="muted">Yahoo Finance liefert für diese Aktie derzeit keine Schlagzeilen.</p>')+"</div>";
   // Fundamental
   var fb=x.fb||{},lastB="";
   h+='<details class="fold" open><summary>Fundamental · '+x.fo+" von "+x.fa+" Prüfungen bestanden"+(x.fa<x.fn?" ("+(x.fn-x.fa)+" nicht auswertbar)":"")+'</summary><table class="crit">'+x.F.map(function(c){
@@ -655,28 +681,89 @@ function analyse(){
   if(sc!=null&&sc>=70)good.push("Der gewichtete Gesamtscore deiner Aktien liegt bei "+fmt(sc,0)+" von 100.");
   if(st.length&&!below.length)good.push("Alle Aktien notieren über ihrer 200-Tage-Linie.");
   if(R&&R.corr!=null&&st.length>=3&&R.corr<0.35)good.push("Die Positionen laufen wenig im Gleichschritt (mittlere Korrelation "+fmt(R.corr,2)+").");
-  var sub={},W={div:30,risk:25,qual:25,trend:15,data:5},PEN=[0,5,12,25];
+  // ----- Rendite gegenüber dem MSCI World
+  var perf=[0,1,2,3].map(function(i){var s=0,w=0;st.forEach(function(q){if(q.x.pf&&q.x.pf[i]!=null){s+=q.w*q.x.pf[i];w+=q.w}});return w?s/w:null});
+  var mw=S.chartsState===2?S.charts["_URTH"]:null,fxs=S.chartsState===2?S.charts["_EURUSD"]:null,eurOk=!!(fxs&&fxs.length>60);
+  function mwRet(wk,eur){if(!mw||wk<1||mw.length<=wk)return null;var a=mw[mw.length-1-wk],b=mw[mw.length-1];if(eur&&eurOk){if(fxs.length<=wk)return null;a/=fxs[fxs.length-1-wk];b/=fxs[fxs.length-1]}return a>0?b/a-1:null}
+  var now=S.updated?new Date(S.updated):new Date(),pV=0,pC=0,pH=0,tooOld=[];
+  P.forEach(function(q){var p=q.p;if(p.c>0&&p.d){var wk=Math.round((now-new Date(p.d))/6048e5),m=mwRet(wk,true);if(m!=null){q.vs={own:(p.v/p.c-1)*100,mw:m*100,wk:wk};q.vs.diff=q.vs.own-q.vs.mw;pV+=p.v;pC+=p.c;pH+=p.c*(1+m)}else if(mw&&wk>=mw.length)tooOld.push(q)}});
+  var PF=null,m12=mwRet(52,false),bm=((S.d&&S.d.bench)||[]).filter(function(b){return b[0]==="URTH"})[0];
+  if(m12==null&&bm&&bm[2][3]!=null)m12=bm[2][3]/100;
+  if(pC>0&&pV/tot>=0.5)PF={mode:"kauf",own:(pV/pC-1)*100,mw:(pH/pC-1)*100,val:pV,cost:pC,hyp:pH,cover:pV/tot,eur:eurOk};
+  else if(perf[3]!=null&&m12!=null)PF={mode:"12m",own:perf[3],mw:m12*100,cover:pC>0?pV/tot:0};
+  if(PF){PF.diff=PF.own-PF.mw;
+    var pt=PF.mode==="kauf"?"Seit dem Kauf stehen deine Positionen mit Kaufdatum bei "+sgp(PF.own,1)+". Dasselbe Geld zum selben Zeitpunkt im MSCI World stünde bei "+sgp(PF.mw,1)+": "+sg(PF.diff,1)+" Prozentpunkte, "+sg(PF.val-PF.hyp,0)+" €.":"Die heutige Aktienauswahl lief in zwölf Monaten "+sgp(PF.own,1)+", der MSCI World "+sgp(PF.mw,1)+": "+sg(PF.diff,1)+" Prozentpunkte.";
+    if(PF.diff<0)add("perf",PF.diff<=-15?3:PF.diff<=-5?2:1,pt,-PF.diff/100);else good.push(pt)}
+  if(tooOld.length)add("data",1,"Kaufdatum liegt mehr als fünf Jahre zurück, der Vergleich mit dem MSCI World ist dafür nicht möglich: "+names(tooOld)+".",0);
+  // ----- Positionen auf dem Prüfstand
+  var inDepot={},cand=[];st.forEach(function(q){inDepot[q.x.s]=1});
+  st.forEach(function(q){var x=q.x,an=x.an||{},neg=[],pos=[],d2=(x.p/x.s200-1)*100;
+    if(x.total<48)neg.push("Gesamtscore "+fmt(x.total,0)+" von 100 (Stufe „schwach“)");
+    if(x.st==="Abwärtstrend"||x.st==="Trendbruch")neg.push("Trendstatus "+x.st+", Kurs "+sgp(d2,0)+" zur 200-Tage-Linie");
+    else if(x.T[1][2]===0)neg.push("Kurs "+sgp(d2,0)+" zur 200-Tage-Linie");
+    if(an.rev90!=null&&an.rev90<=-5)neg.push("Gewinnschätzung fürs nächste Jahr in 90 Tagen "+sgp(an.rev90,1));
+    if(q.vs&&q.vs.diff<=-15)neg.push("Seit dem Kauf "+sgp(q.vs.own,0)+", MSCI World im selben Zeitraum "+sgp(q.vs.mw,0));
+    else if(x.pf&&x.pf[3]!=null&&m12!=null&&x.pf[3]-m12*100<=-15)neg.push("Zwölf Monate "+sgp(x.pf[3],0)+", MSCI World "+sgp(m12*100,0));
+    if(x.ns!=null&&x.ns<=3&&x.nz)neg.push("Nachrichtenlage "+fmt(x.ns,1)+" von 10 ("+x.nz.neg+" von "+x.nz.n+" Schlagzeilen mit negativem Ton)");
+    if(x.f<5)neg.push("Fundamental "+fmt(x.f,1)+" von 10");
+    if(x.es==="loss")neg.push("Verlust in den letzten zwölf Monaten");
+    if(neg.length<2)return;
+    if(x.qual>=65)pos.push("Qualität ohne Kursbild "+fmt(x.qual,0)+" von 100");
+    if(x.tu!=null&&x.tu>=5)pos.push(x.tu+" von 7 Turnaround-Prüfungen bestanden");
+    if(x.ph&&x.ph[0]>=3)pos.push("Stand der Wende: Phase "+x.ph[0]+" von 4 ("+x.ph[1]+")");
+    if(an.up!=null&&an.up>=15&&an.mean!=null&&an.mean<=2.2)pos.push("Analysten: Konsens "+fmt(an.mean,1)+", mittleres Kursziel "+sgp(an.up,0));
+    if(an.rev90!=null&&an.rev90>=2)pos.push("Gewinnschätzung in 90 Tagen "+sgp(an.rev90,1));
+    var alt=S.all.filter(function(y){return y.sec===x.sec&&!inDepot[y.s]&&y.total>=62&&y.total>=x.total+15&&(y.st==="Aufwärtstrend"||y.st==="Erholung")&&y.su!=="Überhitzt"&&y.q!=="C"}).sort(function(a,b){return b.total-a.total}).slice(0,3);
+    cand.push({q:q,neg:neg,pos:pos,alt:alt})});
+  cand.sort(function(a,b){return b.neg.length-a.neg.length||a.q.x.total-b.q.x.total});
+  var sub={},W={div:27,risk:23,qual:22,trend:13,perf:10,data:5},PEN=[0,5,12,25];
   Object.keys(W).forEach(function(k){sub[k]=100});
-  F.forEach(function(f){var k=f.g==="event"?"data":f.g;if(f.g==="event")return;sub[k]=Math.max(0,sub[k]-PEN[f.s])});
-  var score=0;Object.keys(W).forEach(function(k){score+=W[k]*sub[k]/100});
+  F.forEach(function(f){if(f.g==="event"||f.g==="perf")return;sub[f.g]=Math.max(0,sub[f.g]-PEN[f.s])});
+  sub.perf=PF?Math.max(0,Math.min(100,50+PF.diff*2.5)):null;
+  var score=0,wsm=0;Object.keys(W).forEach(function(k){if(sub[k]==null)return;score+=W[k]*sub[k];wsm+=W[k]});score=wsm?score/wsm:0;
   F.sort(function(a,b){return b.s-a.s||b.i-a.i});
   var dy=wsum(function(q){return q.x.dy||0}),divEur=0;st.forEach(function(q){divEur+=q.p.v*(q.x.dy||0)/100});
-  var perf=[0,1,2,3].map(function(i){var s=0,w=0;st.forEach(function(q){if(q.x.pf&&q.x.pf[i]!=null){s+=q.w*q.x.pf[i];w+=q.w}});return w?s/w:null});
   var cost=0,cv=0;pos.forEach(function(p){if(p.c>0){cost+=p.c;cv+=p.v}});
-  return{P:P,st:st,tot:tot,F:F,good:good,sub:sub,W:W,score:score,eff:eff,sc:sc,ql:ql,R:R,dy:dy,divEur:divEur,perf:perf,ppe:ppe,secA:secA,regA:regA,ctyA:ctyA,curA:curA,risk:risk,pl:cost?[cv-cost,(cv/cost-1)*100]:null,wst:wst};
+  return{P:P,st:st,tot:tot,F:F,good:good,sub:sub,W:W,score:score,eff:eff,sc:sc,ql:ql,R:R,dy:dy,divEur:divEur,perf:perf,ppe:ppe,secA:secA,regA:regA,ctyA:ctyA,curA:curA,risk:risk,pl:cost?[cv-cost,(cv/cost-1)*100]:null,wst:wst,PF:PF,cand:cand};
 }
 function allocHtml(title,A,limit){return'<div class="sec"><h3>'+title+'</h3><div class="alloc">'+A.slice(0,9).map(function(a){return"<span>"+esc(a[0])+'</span><span class="bar"><i class="'+(limit&&a[1]>limit?"warn":"")+'" style="width:'+(a[1]*100).toFixed(1)+'%"></i></span><span class="num">'+pct(a[1]*100,0)+"</span>"}).join("")+"</div></div>"}
+function candHtml(c){var q=c.q,x=q.x,p=q.p,an=x.an||{},cur=esc(x.cur),e,mk=[],z=x.zs||[];
+  function ul(l,k){return'<ul class="plain '+k+'">'+l.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul>"}
+  var h='<div class="cand"><div><b>'+esc(q.name)+'</b> <span class="muted">· '+pct(q.w*100,1)+" des Depots · Gesamtscore "+fmt(x.total,0)+'</span> <span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+'</span> <span class="pill '+(STC[x.st]||"neutral")+'">'+x.st+'</span> <button class="link" data-open="'+esc(x.s)+'">Steckbrief</button></div><div class="cols">';
+  h+="<div><h3>Was die Daten gegen die Position sagen</h3>"+ul(c.neg,"con")+"</div>";
+  h+="<div><h3>Was für Abwarten spricht</h3>"+(c.pos.length?ul(c.pos,"pro"):'<p class="muted">Das Regelwerk findet derzeit kein Erholungszeichen.</p>')+"</div>";
+  if(p.c>0){var pl=(p.v/p.c-1)*100;
+    if(pl<0){var need=(p.c/p.v-1)*100,l=["Stand zum Einstand: "+sgp(pl,1)+" ("+sg(p.v-p.c,0)+" €). Bis zum Einstand fehlen "+sgp(need,1)+"."];
+      if(an.up!=null&&an.n)l.push("Mittleres Kursziel der "+an.n+" Analysten: "+sgp(an.up,0)+" zum Kurs, das liegt "+(an.up>=need?"über":"unter")+" deinem Einstand.");
+      var rs=(x.zr||[]).filter(function(r){return r[3]<=need});
+      if(rs.length)l.push("Widerstände auf dem Weg dorthin: "+rs.map(function(r){return px(r[0])+" – "+px(r[1])+" "+x.cur+" ("+r[2].join(", ")+", "+sgp(r[3],0)+")"}).join("; ")+".");
+      if(x.r!=null&&x.r>0){var yrs=Math.log(1+need/100)/Math.log(1+x.r/100);l.push("Mit der Renditeerwartung des Rechenmodells ("+pct(x.r)+" p. a.) wären das rechnerisch "+(yrs<1?"weniger als ein Jahr":"rund "+fmt(yrs,yrs<3?1:0)+" Jahre")+". Das ist eine Rechengröße, keine Vorhersage.")}
+      else l.push("Das Rechenmodell kommt derzeit auf keine positive Renditeerwartung.");
+      e=ul(l,"")}
+    else e="<p>Die Position liegt "+sgp(pl,1)+" über dem Einstand ("+sg(p.v-p.c,0)+" €). Ein Verkauf wäre derzeit kein Verkauf mit Verlust.</p>";
+    if(q.vs)e+='<p class="muted" style="font-size:12.5px">Seit dem Kauf '+sgp(q.vs.own,0)+", MSCI World im selben Zeitraum "+sgp(q.vs.mw,0)+".</p>"}
+  else e='<p class="muted">Kein Einstandswert erfasst. Mit Einstandswert und Kaufdatum zeigt die Auswertung den Abstand zum Einstand und den Vergleich mit dem MSCI World.</p>';
+  h+="<div><h3>Abstand zum Einstand</h3>"+e+"</div>";
+  if(x.ph)mk.push("Stand: Phase "+x.ph[0]+" von 4 ("+x.ph[1]+"). "+x.ph[3]);
+  else if(x.p<x.s200)mk.push("Über "+px(x.s200)+" "+x.cur+" (200-Tage-Linie, "+sgp((x.s200/x.p-1)*100,0)+") läge der Kurs wieder im langfristigen Aufwärtsbereich.");
+  if(z[0])mk.push("Nächste Unterstützung: "+px(z[0][0])+" – "+px(z[0][1])+" "+x.cur+" ("+z[0][2].join(", ")+(z[0][3]===0?", am Kurs":", "+sgp(z[0][3],0))+"). "+(z[1]?"Darunter folgt die Zone "+px(z[1][0])+" – "+px(z[1][1])+" "+x.cur+" ("+sgp(z[1][3],0)+").":"Darunter zeigt der Chart keine weitere Zone in der Nähe."));
+  if(x.ev&&x.ev.ed!=null&&x.ev.ed>=0)mk.push("Nächste Quartalszahlen am "+dat(x.ev.earn)+" (in "+x.ev.ed+" Tagen): der nächste feste Termin für neue Daten.");
+  if(mk.length)h+="<div><h3>Marken und Termine, an denen sich das Bild ändert</h3>"+ul(mk,"")+"</div>";
+  h+="<div><h3>Stärker bewertet im selben Sektor · "+esc(sek(x.sec))+"</h3>"+(c.alt.length?'<ul class="plain">'+c.alt.map(function(y){return'<li><button class="link" data-open="'+esc(y.s)+'">'+esc(y.n)+'</button> <span class="muted">· Gesamtscore '+fmt(y.total,0)+", "+y.su+", "+y.st+"</span></li>"}).join("")+'</ul><p class="muted" style="font-size:12px">Vergleich nach Screener-Score, kein Tauschvorschlag. Diese Titel sind nicht in deinem Depot.</p>':'<p class="muted">Kein Titel dieses Sektors, der nicht im Depot ist, liegt mindestens 15 Punkte höher und im Aufwärtstrend.</p>')+"</div>";
+  return h+"</div></div>"}
 function renderDepot(){
   var pos=S.depot.pos;$("cnt-depot").textContent=pos.length;$("dp-profile").value=S.depot.profile||"bal";
   var A=analyse();$("dp-tablepanel").hidden=!pos.length;
   if(!A){$("dp-rows").innerHTML="";$("dp-analysis").innerHTML=pos.length?"":'<section class="panel empty">Noch keine Positionen. Füge oben deine Aktien mit ihrem aktuellen Wert hinzu, dann erscheint hier die Auswertung.</section>';return}
   $("dp-rows").innerHTML=A.P.map(function(q){var x=q.x,p=q.p,pl=p.c>0?[p.v-p.c,(p.v/p.c-1)*100]:null,pf=x&&x.pf||[];
-    return"<tr"+(x?' data-id="'+esc(x.s)+'" tabindex="0" class="'+(x.s===S.sel?"sel":"")+'"':"")+"><td>"+(x?coCell(x):'<span class="co"><b>'+esc(p.n)+"</b><small>"+esc(p.t||"nicht im Screener")+"</small></span>")+'</td><td class="r num">'+eur(p.v)+'</td><td class="r num">'+pct(q.w*100,1)+'</td><td class="r num '+cls(pl?pl[0]:null)+'">'+(pl?sg(pl[0],0)+" € · "+sgp(pl[1],0):"–")+"</td><td>"+(x?totCell(x.total):"–")+"</td><td>"+(x?'<span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+"</span>":"–")+"</td><td>"+(x?'<span class="pill '+(STC[x.st]||"neutral")+'">'+x.st+"</span>":"–")+'</td><td class="r num '+cls(pf[0])+'">'+sgp(pf[0])+'</td><td class="r num '+cls(pf[3])+'">'+sgp(pf[3])+'</td><td class="r num">'+(x?pct(x.dy):"–")+'</td><td><button class="link" data-del="'+esc(p.id)+'">entfernen</button></td></tr>'}).join("");
-  var L={div:"Streuung",risk:"Risiko",qual:"Qualität und Bewertung",trend:"Kursbild",data:"Daten"},b=band(A.score),R=A.R,bench=(S.d&&S.d.bench)||[];
-  var h='<section class="panel pad"><div class="score"><div><h3>Depot-Score</h3><div class="n">'+fmt(A.score,0)+"<small> /100</small></div><span class=\"pill "+BCLS[b]+'">'+BAND[b]+'</span></div><div class="bars">'+Object.keys(A.W).map(function(k){return"<span>"+L[k]+" · "+A.W[k]+' %</span><span class="bar"><i style="width:'+A.sub[k]+'%"></i></span><span class="num">'+fmt(A.sub[k],0)+"</span>"}).join("")+"</div></div>";
+    return"<tr"+(x?' data-id="'+esc(x.s)+'" tabindex="0" class="'+(x.s===S.sel?"sel":"")+'"':"")+"><td>"+(x?coCell(x):'<span class="co"><b>'+esc(p.n)+"</b><small>"+esc(p.t||"nicht im Screener")+"</small></span>")+'</td><td class="r num">'+eur(p.v)+'</td><td class="r num">'+pct(q.w*100,1)+'</td><td class="r num '+cls(pl?pl[0]:null)+'">'+(pl?sg(pl[0],0)+" € · "+sgp(pl[1],0):"–")+'</td><td class="r num '+cls(q.vs?q.vs.diff:null)+'">'+(q.vs?sg(q.vs.diff,0)+" Pp.":"–")+"</td><td>"+(x?totCell(x.total):"–")+"</td><td>"+(x?'<span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+"</span>":"–")+"</td><td>"+(x?'<span class="pill '+(STC[x.st]||"neutral")+'">'+x.st+"</span>":"–")+'</td><td class="r num '+cls(pf[0])+'">'+sgp(pf[0])+'</td><td class="r num '+cls(pf[3])+'">'+sgp(pf[3])+'</td><td class="r num">'+(x?pct(x.dy):"–")+'</td><td><button class="link" data-del="'+esc(p.id)+'">entfernen</button></td></tr>'}).join("");
+  var L={div:"Streuung",risk:"Risiko",qual:"Qualität und Bewertung",trend:"Kursbild",perf:"Rendite ggü. MSCI World",data:"Daten"},b=band(A.score),R=A.R,bench=(S.d&&S.d.bench)||[];
+  var h='<section class="panel pad"><div class="score"><div><h3>Depot-Score</h3><div class="n">'+fmt(A.score,0)+"<small> /100</small></div><span class=\"pill "+BCLS[b]+'">'+BAND[b]+'</span></div><div class="bars">'+Object.keys(A.W).map(function(k){return"<span>"+L[k]+" · "+A.W[k]+' %</span><span class="bar"><i style="width:'+(A.sub[k]||0)+'%"></i></span><span class="num">'+(A.sub[k]==null?"–":fmt(A.sub[k],0))+"</span>"}).join("")+"</div></div>";
   var top=A.F.filter(function(f){return f.s>=2}).slice(0,3);
   h+='<div class="sec"><h3>Die wichtigsten Befunde</h3>'+(top.length?top.map(function(f){return'<div class="finding"><span class="sev s'+f.s+'"></span><span>'+esc(f.t)+"</span></div>"}).join(""):'<p class="muted">Keine kritischen Befunde und keine Warnungen.</p>')+"</div>";
   h+='<div class="kpis"><div><span>Depotwert</span><b>'+eur(A.tot)+"</b>"+(A.pl?'<small class="'+cls(A.pl[0])+'">'+sg(A.pl[0],0)+" € · "+sgp(A.pl[1],1)+" auf erfasste Einstände</small>":"")+"</div><div><span>Positionen</span><b>"+A.P.length+"</b><small>wirken wie "+fmt(A.eff,1)+' gleich große</small></div><div><span>Gesamtscore der Aktien</span><b>'+fmt(A.sc,0)+"</b><small>Qualität "+fmt(A.ql,0)+'</small></div><div><span>Dividendenrendite der Aktien</span><b>'+pct(A.dy,2)+"</b><small>rund "+eur(A.divEur)+' im Jahr vor Steuern</small></div><div><span>Schwankung pro Jahr</span><b>'+(R?pct(R.vol,0):"–")+"</b><small>"+(R?"aus "+R.weeks+" Wochen":"Kursverläufe fehlen")+'</small></div><div><span>Beta zum MSCI World</span><b>'+(R&&R.beta!=null?fmt(R.beta,2):"–")+'</b><small>1 = wie der Weltmarkt</small></div><div><span>Größter Rückgang</span><b>'+(R?"−"+fmt(R.dd,0)+" %":"–")+'</b><small>heutige Gewichte, rückgerechnet</small></div><div><span>Mittlere Korrelation</span><b>'+(R&&R.corr!=null&&A.st.length>1?fmt(R.corr,2):"–")+"</b><small>"+(R&&R.maxc&&A.st.length>1?"höchste: "+esc(R.maxc[1])+" / "+esc(R.maxc[2])+" "+fmt(R.maxc[0],2):"")+'</small></div><div><span>KGV des Depots</span><b>'+fmt(A.ppe,0)+'</b><small>gewichtet, ohne Verlustbringer</small></div></div>';
+  var PF=A.PF;
+  h+='<div class="sec"><h3>Rendite gegenüber dem MSCI World</h3>'+(PF&&PF.mode==="kauf"?'<div class="kpis"><div><span>Deine Positionen mit Kaufdatum</span><b class="'+cls(PF.own)+'">'+sgp(PF.own,1)+"</b><small>"+eur(PF.val)+" aus "+eur(PF.cost)+' Einstand</small></div><div><span>Dasselbe Geld im MSCI World</span><b class="'+cls(PF.mw)+'">'+sgp(PF.mw,1)+"</b><small>wären heute "+eur(PF.hyp)+'</small></div><div><span>Unterschied</span><b class="'+cls(PF.diff)+'">'+sg(PF.diff,1)+" Pp.</b><small>"+sg(PF.val-PF.hyp,0)+' €</small></div></div><p class="muted" style="font-size:12px">Erfasst sind '+pct(PF.cover*100,0)+" des Depotwerts. Vergleich mit dem iShares-MSCI-World-ETF ab der Woche des Kaufdatums"+(PF.eur?", in Euro umgerechnet":", in Dollar, weil der Wechselkurs fehlt")+". Ohne Dividenden, Kosten und Steuern auf beiden Seiten. Bei mehreren Käufen einer Position zählt das eine eingetragene Datum.</p>":'<p class="muted">'+(PF?"Für weniger als die Hälfte des Depotwerts sind Einstandswert und Kaufdatum eingetragen. Bis dahin vergleicht die Auswertung die heutige Aktienauswahl über zwölf Monate: "+sgp(PF.own,1)+" gegenüber "+sgp(PF.mw,1)+" beim MSCI World ("+sg(PF.diff,1)+" Prozentpunkte). ":"Der Vergleich ist erst möglich, wenn die Kursverläufe geladen sind. ")+"Mit Einstandswert und Kaufdatum je Position rechnet sie, was dasselbe Geld im MSCI World heute wert wäre.</p>")+"</div>";
   h+='<div class="sec"><h3>Kursentwicklung der Aktien nach heutigen Gewichten</h3><div class="tablewrap"><table class="thr"><tr><th></th><th>1 Monat</th><th>3 Monate</th><th>6 Monate</th><th>12 Monate</th></tr><tr><td><b>Dein Depot (Aktien)</b></td>'+A.perf.map(function(v){return'<td class="num '+cls(v)+'">'+sgp(v,1)+"</td>"}).join("")+"</tr>"+bench.map(function(bn){return"<tr><td>"+esc(bn[1])+"</td>"+bn[2].map(function(v){return'<td class="num '+cls(v)+'">'+sgp(v,1)+"</td>"}).join("")+"</tr>"}).join("")+'</table></div><p class="muted" style="font-size:12px">Ohne Dividenden, in der Währung der jeweiligen Börse. Zeigt, wie die heutige Auswahl gelaufen ist, nicht deine tatsächliche Rendite.</p></div></section>';
   // Chancen / Risiken / läuft gut / läuft schlecht
   var st=A.st,byP=st.filter(function(q){return q.x.pf&&q.x.pf[0]!=null}).sort(function(a,b){return b.x.pf[0]-a.x.pf[0]});
@@ -684,22 +771,24 @@ function renderDepot(){
   var goodRun=byP.filter(function(q){return q.x.pf[0]>0&&q.x.T[1][2]===1}).slice(0,5),badRun=byP.slice().reverse().filter(function(q){return q.x.pf[0]<0}).slice(0,5);
   var ch=st.filter(function(q){return["Anlauf","Trendstark","Qualität im Rücksetzer","Turnaround-Kandidat"].indexOf(q.x.su)>=0}),rk=st.filter(function(q){return q.x.su==="Schwach"||q.x.su==="Überhitzt"||q.x.st==="Abwärtstrend"||q.x.st==="Trendbruch"});
   h+='<section class="panel pad"><div class="cols"><div class="sec"><h3>Was gut läuft</h3>'+(goodRun.length?'<ul class="plain pro">'+goodRun.map(function(q){return li(q,sgp(q.x.pf[0],1)+" im Monat, "+q.x.st)}).join("")+"</ul>":'<p class="muted">Derzeit keine Position mit Plus im Monat über der 200-Tage-Linie.</p>')+'</div><div class="sec"><h3>Was schlecht läuft</h3>'+(badRun.length?'<ul class="plain con">'+badRun.map(function(q){return li(q,sgp(q.x.pf[0],1)+" im Monat, "+q.x.st)}).join("")+"</ul>":'<p class="muted">Keine Position mit Minus im Monat.</p>')+'</div><div class="sec"><h3>Chancen laut Screener</h3>'+(ch.length?'<ul class="plain pro">'+ch.map(function(q){return li(q,q.x.su+", Qualität "+fmt(q.x.qual,0))}).join("")+"</ul>":'<p class="muted">Keine Position mit der Einordnung Anlauf, Trendstark, Rücksetzer oder Turnaround.</p>')+'</div><div class="sec"><h3>Risiken laut Screener</h3>'+(rk.length?'<ul class="plain con">'+rk.map(function(q){return li(q,q.x.su==="Neutral"?q.x.st:q.x.su+", "+q.x.st)}).join("")+"</ul>":'<p class="muted">Keine Position mit Trendbruch, Abwärtstrend oder der Einordnung Schwach oder Überhitzt.</p>')+"</div></div></section>";
+  h+='<section class="panel pad"><h2>Positionen auf dem Prüfstand</h2><p class="muted" style="max-width:90ch;margin-bottom:6px">Aktien aus deinem Depot, bei denen mindestens zwei Datenpunkte gegen sie sprechen. Zu jeder steht, was die Daten sagen, was für Abwarten spricht, wie weit der Einstand entfernt ist und welche Titel desselben Sektors im Screener derzeit besser abschneiden. Das ist eine regelbasierte Auswertung, keine Verkaufs- oder Kaufempfehlung.</p>'+(A.cand.length?A.cand.map(candHtml).join("")+'<p class="muted" style="font-size:12.5px">Ob und wann ein Kurs den Einstand wieder erreicht, kann niemand sagen. Für die Aussichten einer Aktie spielt der eigene Einstand keine Rolle: Entscheidend ist, ob das Geld in dieser Position bessere Aussichten hat als anderswo. Steuern und Kosten eines Tauschs sind nicht berücksichtigt.</p>':'<p class="muted">Derzeit keine Position, bei der zwei oder mehr Datenpunkte gegen sie sprechen.</p>')+"</section>";
   h+='<section class="panel pad"><div class="cols">'+allocHtml("Sektoren",A.secA,0.3)+allocHtml("Regionen",A.regA,0.7)+allocHtml("Länder",A.ctyA,0.7)+allocHtml("Währungen",A.curA,0)+"</div></section>";
-  var G={div:"Konzentration und Streuung",risk:"Risiko",qual:"Qualität und Bewertung",trend:"Kursbild",event:"Termine",data:"Daten"};
+  var G={div:"Konzentration und Streuung",risk:"Risiko",qual:"Qualität und Bewertung",trend:"Kursbild",perf:"Rendite gegenüber dem MSCI World",event:"Termine",data:"Daten"};
   h+='<section class="panel pad"><h2>Alle Befunde</h2>'+Object.keys(G).map(function(g){var l=A.F.filter(function(f){return f.g===g});return l.length?'<div class="sec"><h3>'+G[g]+"</h3>"+l.map(function(f){return'<div class="finding"><span class="sev s'+f.s+'" title="'+["gut","Hinweis","Warnung","kritisch"][f.s]+'"></span><span>'+esc(f.t)+"</span></div>"}).join("")+"</div>":""}).join("")+(A.good.length?'<div class="sec"><h3>In Ordnung</h3>'+A.good.map(function(t){return'<div class="finding"><span class="sev s0"></span><span>'+esc(t)+"</span></div>"}).join("")+"</div>":"")+'<p class="muted" style="font-size:12.5px">Rot = kritisch, gelb = Warnung, grau = Hinweis. Regelbasierte Auswertung nach üblichen Richtwerten, keine Anlageberatung. Kosten, Steuern und Kaufzeitpunkte sind nicht berücksichtigt.</p></section>';
   $("dp-analysis").innerHTML=h;
   loadCharts();
 }
 function dpMsg(t){$("dp-msg").hidden=!t;$("dp-msg").textContent=t||""}
-$("dp-form").addEventListener("submit",function(e){e.preventDefault();var name=$("dp-name").value.trim(),v=parseFloat($("dp-val").value),c=parseFloat($("dp-cost").value);
+$("dp-form").addEventListener("submit",function(e){e.preventDefault();var name=$("dp-name").value.trim(),v=parseFloat($("dp-val").value),c=parseFloat($("dp-cost").value),dt=$("dp-date").value;
+  if(dt&&!(new Date(dt)<new Date())){dpMsg("Das Kaufdatum liegt in der Zukunft.");return}
   var x=null,m=name.match(/\(([^()]+)\)\s*$/);if(m&&S.by[m[1]])x=S.by[m[1]];
   if(!x){var low=name.toLowerCase();x=S.all.filter(function(s){return s.s.toLowerCase()===low||s.n.toLowerCase()===low})[0]||null;
     if(!x&&low.length>=3){var hits=S.all.filter(function(s){return(s.n+" "+s.s).toLowerCase().indexOf(low)>=0});if(hits.length===1)x=hits[0]}}
   if(!x){dpMsg("Diese Aktie ist nicht im Screener. Wähle einen Vorschlag aus der Liste oder trage sie unten als andere Position ein.");return}
   if(!(v>0)){dpMsg("Bitte den aktuellen Wert der Position in Euro eintragen.");return}
   var ex=S.depot.pos.filter(function(p){return p.s===x.s})[0];
-  if(ex){ex.v=v;if(c>0)ex.c=c}else S.depot.pos.push({id:"p"+Date.now(),s:x.s,n:x.n,v:v,c:c>0?c:0});
-  $("dp-name").value="";$("dp-val").value="";$("dp-cost").value="";dpMsg("");saveDepot();renderDepot()});
+  if(ex){ex.v=v;if(c>0)ex.c=c;if(dt)ex.d=dt}else S.depot.pos.push({id:"p"+Date.now(),s:x.s,n:x.n,v:v,c:c>0?c:0,d:dt||""});
+  $("dp-name").value="";$("dp-val").value="";$("dp-cost").value="";$("dp-date").value="";dpMsg("");saveDepot();renderDepot()});
 $("dp-form2").addEventListener("submit",function(e){e.preventDefault();var name=$("dp-oname").value.trim(),v=parseFloat($("dp-oval").value);
   if(!name||!(v>0)){dpMsg("Bitte Bezeichnung und aktuellen Wert in Euro eintragen.");return}
   S.depot.pos.push({id:"p"+Date.now(),s:null,n:name,t:$("dp-otype").value,v:v,c:0});$("dp-oname").value="";$("dp-oval").value="";dpMsg("");saveDepot();renderDepot()});
@@ -707,7 +796,7 @@ $("dp-profile").addEventListener("change",function(){S.depot.profile=this.value;
 $("dp-clear").addEventListener("click",function(){var b=this;if(b.dataset.sure){S.depot.pos=[];delete b.dataset.sure;b.textContent="Depot leeren";saveDepot();renderDepot()}else{b.dataset.sure="1";b.textContent="Wirklich alle Positionen löschen?";setTimeout(function(){delete b.dataset.sure;b.textContent="Depot leeren"},4000)}});
 
 // ---------------------------------------------------------------- Allgemein
-function renderWeights(){var w=S.w,ws=w.f+w.m+w.t+w.r+w.a||1;["f","m","t","r","a"].forEach(function(k){$("w-"+k).value=w[k];$("wv-"+k).textContent=fmt(w[k]/ws*100,0)+" %"})}
+function renderWeights(){var w=S.w,ws=w.f+w.m+w.t+w.r+w.a+w.n||1;["f","m","t","r","a","n"].forEach(function(k){$("w-"+k).value=w[k];$("wv-"+k).textContent=fmt(w[k]/ws*100,0)+" %"})}
 function renderPresets(){
   $("presets").innerHTML=PRE.map(function(p){return'<button data-pre="'+p[0]+'" aria-pressed="'+(S.pre===p[0])+'">'+p[1]+(p[0]==="watch"?" ("+Object.keys(S.watch).length+")":"")+"</button>"}).join("");
   var d="";PRE.forEach(function(p){if(p[0]===S.pre)d=p[2]});$("predesc").textContent=d;
@@ -731,12 +820,13 @@ document.addEventListener("click",function(e){
   var st=e.target.closest("[data-star]");if(st){e.stopPropagation();toggleStar(st.dataset.star);return}
   var del=e.target.closest("[data-del]");if(del){e.stopPropagation();S.depot.pos=S.depot.pos.filter(function(p){return p.id!==del.dataset.del});saveDepot();renderDepot();return}
   var pr=e.target.closest("[data-pre]");if(pr){S.pre=pr.dataset.pre;S.shown=100;S.sort={rise:"c7",hot:"hot",div:"dy",an:"a",qual:"qual",dip:"qual"}[S.pre]||"total";S.dir=-1;renderPresets();renderTable();return}
+  var op=e.target.closest("[data-open]");if(op){S.sel=op.dataset.open;renderAll();if(window.matchMedia("(max-width:1199px)").matches)$("detail").scrollIntoView({behavior:"smooth",block:"start"});return}
   var tr=e.target.closest("tr[data-id]");if(tr){S.sel=tr.dataset.id;renderAll();if(window.matchMedia("(max-width:1199px)").matches)$("detail").scrollIntoView({behavior:"smooth",block:"start"})}});
 document.addEventListener("keydown",function(e){if(e.key==="Enter"&&e.target.tagName==="TR"&&e.target.dataset.id){S.sel=e.target.dataset.id;renderAll()}});
 document.querySelector("#grid thead").addEventListener("click",function(e){var th=e.target.closest("th");if(!th)return;var k=th.dataset.s;
   if(S.sort===k)S.dir=-S.dir;else{S.sort=k;S.dir=(k==="n"||k==="su"||k==="st"||k==="rank")?1:-1}renderTable()});
 ["q","f-reg","f-land","f-sec","f-cat","f-strat","f-min","f-risk","f-q","f-up"].forEach(function(id){$(id).addEventListener("input",function(){S.shown=100;renderTable()})});
-["f","m","t","r","a"].forEach(function(k){$("w-"+k).addEventListener("input",function(){S.w[k]=+this.value;store(KEY,S.w);renderWeights();recompute();renderAll()})});
+["f","m","t","r","a","n"].forEach(function(k){$("w-"+k).addEventListener("input",function(){S.w[k]=+this.value;store(KEY,S.w);renderWeights();recompute();renderAll()})});
 $("btn-more").addEventListener("click",function(){S.shown+=100;renderTable()});
 $("hot-q").addEventListener("change",renderChancen);
 renderWeights();renderPresets();$("cnt-depot").textContent=S.depot.pos.length;
