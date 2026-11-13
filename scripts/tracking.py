@@ -29,7 +29,7 @@ COOLDOWN_DAYS = 30
 CASE_KEEP_MONTHS = 24
 TRACK_KEEP_MONTHS = 14          # Tagesstände: reicht für 365 Tage plus Puffer
 LATE_DAYS = 30                  # so lange nach dem Horizont wird auf einen Kurs gewartet, dann „nicht messbar“
-DIMS = ["ph", "ta", "cd", "sg", "t3", "rg", "sc"]   # Unterkategorien, je einzeln ausgewertet
+DIMS = ["kl", "ph", "ta", "cd", "sg", "t3", "rg", "sc"]   # Unterkategorien, je einzeln ausgewertet
 
 # Indizes in einem Tagesstand je Aktie
 I_SU, I_TOT, I_TRI, I_F, I_M, I_T, I_R, I_A, I_N, I_PH, I_D52, I_SG = range(12)
@@ -262,7 +262,7 @@ def update_cases(cases, day, info, start=False):
                 "pe": sig5(px * fx) if px and fx else None, "x": None, "cur": inf.get("cur"),
                 "m": {"ph": row[I_PH] if k in ("Turnaround-Kandidat", "Qualität im Rücksetzer", "Qualitäts-Dip") else None,
                       "ta": inf.get("ta"), "cd": inf.get("cd"), "sg": row[I_SG], "t3": top3_in_cat(day, k, s),
-                      "rg": inf.get("rg"), "sc": inf.get("sc")},
+                      "rg": inf.get("rg"), "sc": inf.get("sc"), "kl": inf.get("kl")},
                 "r": {}})
             next_id += 1
             new += 1

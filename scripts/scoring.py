@@ -161,6 +161,102 @@ def perf(c, days):
     return float(c.iloc[-1] / c.iloc[-days - 1] - 1)
 
 
+def short_term(c, vol, weekly):
+    """Kennzahlen für die kurzfristige Lage. Alles aus Schlusskursen und Volumen der letzten Monate."""
+    if len(c) < 130:
+        return None
+    last = float(c.iloc[-1])
+    sma20 = float(c.iloc[-20:].mean())
+    sma20_prev = float(c.iloc[-25:-5].mean())
+    low60_age = int(59 - int(np.argmin(c.iloc[-60:].values)))          # Handelstage seit dem 60-Tage-Tief
+    higher_low = bool(float(c.iloc[-10:].min()) > float(c.iloc[-30:-10].min()))
+    hi3m = float(c.iloc[-63:].max())
+    ema12, ema26 = c.ewm(span=12, adjust=False).mean(), c.ewm(span=26, adjust=False).mean()
+    macd = ema12 - ema26
+    hist = macd - macd.ewm(span=9, adjust=False).mean()
+    rets = c.pct_change().iloc[-60:].dropna()
+    sd = float(rets.std()) if len(rets) > 20 else None
+    sma50 = float(c.iloc[-50:].mean())
+    stretch = (last / sma50 - 1) / (sd * np.sqrt(20)) if sd else None   # Abstand zur 50-Tage-Linie in üblichen Schwankungen
+    udv = None
+    if vol is not None:
+        d = c.diff().iloc[-20:]
+        v = vol.reindex(d.index)
+        up, dn = float(v[d > 0].sum()), float(v[d < 0].sum())
+        udv = up / dn if dn > 0 else None
+    return dict(sma20=sma20, up20=sma20 > sma20_prev, cross20=bool(float(c.iloc[-6]) < float(c.iloc[-26:-6].mean())
+                                                                   and last > sma20),
+                low60_age=low60_age, higher_low=higher_low, dd3m=1 - last / hi3m if hi3m > 0 else None,
+                macd_h=float(hist.iloc[-1]), macd_h5=float(hist.iloc[-6]), rsi5=rsi(c.iloc[:-5]),
+                rsi_w=rsi(weekly) if weekly is not None and len(weekly) >= 45 else None,
+                stretch=float(stretch) if stretch is not None else None, udv=udv)
+
+
+def lage(price, pm, rsi_d, zs, sym):
+    """Kurzfristige Lage: eine Einstufung mit Belegen. Beschreibt den Kursverlauf bis heute, keine Vorhersage.
+    Rückgabe: [Code, Bezeichnung, Satz, Belege [[Text, Wert, positiv?], ...], Überdehnt-Zähler]."""
+    st = pm.get("st")
+    if not st:
+        return None
+    s20, s50 = st["sma20"], pm["sma50"]
+    over20, over50 = price > s20, price > s50
+    rw, sx = st["rsi_w"], st["stretch"]
+    hot = [rsi_d is not None and rsi_d >= 70, rw is not None and rw >= 70, sx is not None and sx >= 2]
+    new_low = st["low60_age"] <= 4
+    rsi_up = rsi_d is not None and st["rsi5"] is not None and rsi_d > st["rsi5"] + 3
+    macd_turn = st["macd_h"] > 0 >= st["macd_h5"]
+    sup = zs[0] if zs else None
+    near_sup = sup is not None and sup[3] >= -4
+    B = [["Kurs zur 20-Tage-Linie", pct(price / s20 - 1), over20], ["Kurs zur 50-Tage-Linie", pct(price / s50 - 1), over50],
+         ["Handelstage seit dem 60-Tage-Tief", st["low60_age"], not new_low],
+         ["Tief der letzten 10 Tage höher als davor", None, st["higher_low"]],
+         ["RSI 14 Tage (vor 5 Tagen)", "%s (%s)" % (de(rsi_d, 0), de(st["rsi5"], 0)), rsi_up],
+         ["RSI 14 Wochen", de(rw, 0), None if rw is None else rw < 70],
+         ["MACD-Histogramm", "positiv" if st["macd_h"] > 0 else "negativ", st["macd_h"] > 0],
+         ["Abstand zur 50-Tage-Linie in üblichen Schwankungen", de(sx, 1), None if sx is None else sx < 2]]
+    if st["udv"] is not None:
+        B.append(["Volumen an Plus- zu Minustagen (20 Tage)", de(st["udv"], 2), st["udv"] >= 1])
+    dd = (st["dd3m"] or 0) * 100
+    med = sym[2] if sym else None
+    if sum(hot) >= 2:
+        code, lab = "U", "Überdehnt"
+        txt = ("Der Kurs ist kurzfristig weit gelaufen: %d von 3 Kriterien (RSI 14 Tage ab 70, RSI 14 Wochen ab 70, "
+               "mindestens zwei übliche Schwankungen über der 50-Tage-Linie). Nach solchen Phasen folgen oft "
+               "Verschnaufpausen; die 50-Tage-Linie liegt bei %s (%s %%)." % (sum(hot), de(s50, 2), sde((s50 / price - 1) * 100)))
+    elif not over20 and not over50 and (new_low or not st["up20"]):
+        code, lab = "F", "Fällt noch"
+        txt = ("Der Kurs liegt unter der 20- und der 50-Tage-Linie%s. Ein Wendezeichen gibt es noch nicht."
+               % (" und hat in den letzten Tagen ein neues 60-Tage-Tief markiert" if new_low else ", die 20-Tage-Linie fällt"))
+    elif over20 and (st["cross20"] or macd_turn) and (not over50 or st["higher_low"]):
+        code, lab = "D", "Dreht nach oben"
+        txt = ("Der Kurs ist über die 20-Tage-Linie (%s) zurückgekehrt%s%s. Bestätigt wäre die Wende mit einem Kurs über "
+               "der 50-Tage-Linie (%s)." % (de(s20, 2), ", das letzte Tief liegt höher als das vorige" if st["higher_low"] else "",
+                                            ", das MACD-Histogramm ist ins Plus gedreht" if macd_turn else "", de(s50, 2))
+               if not over50 else
+               "Der Kurs ist über die 20-Tage-Linie zurückgekehrt und liegt auch über der 50-Tage-Linie; das letzte Tief "
+               "liegt höher als das vorige.")
+    elif not new_low and not over20 and near_sup and (rsi_up or (st["udv"] is not None and st["udv"] >= 1)):
+        code, lab = "A", "Rücksetzer läuft aus"
+        txt = ("Seit %d Handelstagen kein neues Tief, der Kurs steht nahe der Unterstützung %s – %s (%s), und der "
+               "Verkaufsdruck lässt nach. Ein Wendezeichen wäre ein Kurs über der 20-Tage-Linie (%s)."
+               % (st["low60_age"], de(sup[0], 2), de(sup[1], 2), ", ".join(sup[2]), de(s20, 2)))
+    elif over20 and over50:
+        code, lab = "S", "Läuft stabil"
+        txt = "Der Kurs liegt über der 20- und der 50-Tage-Linie, ohne überdehnt zu sein."
+    else:
+        code, lab = "N", "Uneinheitlich"
+        txt = ("Die Signale zeigen in verschiedene Richtungen: Kurs %s der 20-Tage-Linie und %s der 50-Tage-Linie."
+               % ("über" if over20 else "unter", "über" if over50 else "unter"))
+    if dd >= 5 and code != "U":
+        txt += " Der Kurs steht %s %% unter dem Hoch der letzten drei Monate" % de(dd, 0)
+        if med is not None:
+            txt += "; frühere Korrekturen dieser Aktie lagen im Mittel bei %s %%" % de(med, 0)
+        if sup is not None and sup[3] < 0:
+            txt += ", die nächste Unterstützung liegt %s %% tiefer" % de(-sup[3], 0)
+        txt += "."
+    return [code, lab, txt, [[b[0], b[1], None if b[2] is None else bool(b[2])] for b in B], int(sum(hot))]
+
+
 def rsi(c, n=14):
     d = c.diff().dropna()
     if len(d) < n * 3:
@@ -302,6 +398,9 @@ def price_metrics(df):
                 cross = [int(sign[i]), len(sign) - 1 - i]
                 break
 
+    # Kurzfristige Lage: Kennzahlen der letzten Wochen
+    st_ = short_term(c, vol, w)
+
     # Abstand zum 52-Wochen-Tief und Alter des laufenden Trends
     since_low = int(len(c52) - 1 - int(np.argmin(c52.values)))
     s200 = c.rolling(200).mean().iloc[-520:].dropna()
@@ -355,7 +454,8 @@ def price_metrics(df):
                 r2=r2, slope=slope, vola=vola, div_ttm=div_ttm, div_growth=div_growth, series=c, tr=tr,
                 p1m=perf(c, 21), p3m=perf(c, 63), p6m=perf(c, 126), p1y=perf(c, 252),
                 hi52=hi52, lo52=lo52, rsi=rsi(c), vol_ratio=vol_ratio, cross=cross, since_high=since_high,
-                since_low=since_low, days200=days200, capped200=capped200,
+                since_low=since_low, days200=days200, capped200=capped200, st=st_,
+                p1d=perf(c, 1), p1w=perf(c, 5),
                 sym=sym, zs=zs, zr=zr, weekly=[float("%.4g" % v) for v in w.values])
 
 
@@ -940,7 +1040,10 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
                 rev30=[er.get("up30"), er.get("down30")], ud=ud[:6]),
         ev=dict(earn=earn, ed=earn_days, exdiv=fund.get("exDiv")),
         news=news[:8], nz=nz, ns=ns10, q=quality_grade, qn=notes, po=pct(payout, 0), nd=r1(nd),
+        p1d=pct(pm.get("p1d")), p1w=pct(pm.get("p1w")),
+        rsiw=r1((pm.get("st") or {}).get("rsi_w"), 0),
     )
+    rec["kl"] = lage(price, pm, pm["rsi"], pm["zs"], pm["sym"])
     rec["_x"] = dict(above=above, up200=up200, up50=bool(pm["sma50_prev"] and pm["sma50"] > pm["sma50_prev"]),
                      over50=price > pm["sma50"], since_high=pm["since_high"], ext=price / pm["sma200"] - 1,
                      upside=upside, rmean=rmean, rev90=rev90, ups=ups, downs=downs, margin=margin, roic=roic,
@@ -1187,7 +1290,7 @@ def texts(r, x):
     nz0 = r.get("nz") or {}
     if nz0.get("neg", 0) >= 3 and nz0["neg"] > nz0.get("pos", 0):
         con.append("%d von %d Schlagzeilen der letzten 30 Tage mit negativem Ton" % (nz0["neg"], nz0["n"]))
-    if r.get("tm") == "reif" and r["st"].startswith("Aufwärtstrend") and x["ext"] >= 0.25:
+    if r.get("tm") == "reif" and r["st"].startswith("Aufwärtstrend") and 0.25 <= x["ext"] < 0.35:
         con.append("Kurs %s %% über der 200-Tage-Linie: Rücksetzer sind nach so einem Anstieg üblich"
                    % de(x["ext"] * 100, 0))
     if r["q"] == "C":

@@ -409,7 +409,8 @@ def run_tracking(stocks, adj, rates, meta):
         base, factor = SUBUNIT.get(x.get("cur"), (x.get("cur"), 1))
         m = meta.get(x["s"]) or {}
         info[x["s"]] = {"cur": base, "px": x["p"] * factor if x.get("p") else None, "rg": m.get("region"),
-                        "sc": x.get("sec") or None, "ta": x.get("tm"), "cd": 1 if x.get("tc") else 0}
+                        "sc": x.get("sec") or None, "ta": x.get("tm"), "cd": 1 if x.get("tc") else 0,
+                        "kl": x["kl"][1] if x.get("kl") else None}
     return tracking.run(today, VERSION, stocks, adj, fx, mw, info, TRACK_PATHS, extra_adj)
 
 
@@ -515,6 +516,10 @@ def main():
         rec.update(s=s, n=fund.get("name") or meta[s]["name"], c=fund.get("country") or meta[s].get("country") or "",
                    sec=fund.get("sector") or meta[s].get("sector") or "", ind=fund.get("industry") or "",
                    cur=cur or "", fd=datetime.fromtimestamp(fund["ts"], timezone.utc).strftime("%Y-%m-%d"))
+        # Kurs in Euro (Börsenkurs mal Wechselkurs; Pence und andere Untereinheiten zuerst umgerechnet)
+        sub = SUBUNIT.get(cur, (cur, 1))
+        rec["pxe"] = (float("%.5g" % (rec["p"] * sub[1] * rates[sub[0]] / rates["EUR"]))
+                      if rec.get("p") and sub[0] in rates and rates.get("EUR") else None)
         fresh.append(rec)
 
     stocks.extend(finalize(fresh))
