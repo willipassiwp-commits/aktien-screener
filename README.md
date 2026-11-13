@@ -9,9 +9,10 @@ Keine Anlageberatung, keine Kauf- oder Verkaufsempfehlung.
 | --- | --- |
 | `docs/index.html` | Die Website. Lädt `docs/data.json`. |
 | `scripts/build_universe.py` | Bestimmt die 1000 größten Unternehmen (monatlich). |
-| `scripts/update.py` | Lädt Kurse und Fundamentaldaten von Yahoo Finance, schreibt `docs/data.json` (täglich). |
-| `scripts/scoring.py` | Die Bewertungsregeln und alle Schwellen. |
-| `.github/workflows/update.yml` | Startet den Lauf jeden Morgen automatisch. |
+| `scripts/update.py` | Lädt Kurse und Fundamentaldaten von Yahoo Finance, schreibt `docs/data.json`, `docs/charts.json`, `docs/history.json`. |
+| `scripts/scoring.py` | Die Bewertungsregeln, alle Schwellen und die Datenprüfungen. |
+| `scripts/selftest.py` | Prüft die Rechenregeln an festen Beispielen. Läuft vor jedem Datenlauf. |
+| `.github/workflows/update.yml` | Startet den Lauf dreimal täglich automatisch. |
 
 ## Einrichtung
 
