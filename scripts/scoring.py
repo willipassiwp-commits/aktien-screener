@@ -56,7 +56,7 @@ CYC_INDUSTRIES = {"Auto Manufacturers", "Auto Parts", "Airlines", "Residential C
 G_CAP = {"Slow Grower": 0.08, "Average Grower": 0.15, "Fast Grower": 0.20, "Zykliker": 0.08}
 SUBUNIT = {"GBp": 0.01, "GBX": 0.01, "ZAc": 0.01, "ILA": 0.01}
 WEIGHTS = dict(f=30, m=15, t=20, r=20, a=15)
-HOT_MIN = 6        # von 8 Anlauf-Signalen
+HOT_MIN = 7        # von 8 Anlauf-Signalen
 T_MAX = 12         # Rohpunkte der Chart-Prüfungen, auf 10 umgerechnet
 
 
