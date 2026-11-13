@@ -196,6 +196,62 @@ def main():
                 (down["su"], down["ph"]))
     ok &= check("Qualitäts-Dip: sechs Prüfungen ausgewiesen", down["D"] is None or len(down["D"]) == 6, down["D"])
 
+    # 10. Trefferquote: Eintritt, Sperrfrist, Horizont mit Währung, Überrendite, Einfrieren, Löschen, Größe
+    import tracking as TK
+    import tempfile
+    import os as _os
+
+    def tday(d, rows, fx_usd=0.9, mw=100.0):
+        # rows: {Kürzel: (Einordnung, Gesamtscore, tri)}; 60 Füllaktien für den Durchschnitt
+        p = {s: [TK.SU_CODES.index(su), tot, tri] + [None] * 9 for s, (su, tot, tri) in rows.items()}
+        for k in range(60):
+            p["F%02d" % k] = [0, 10, 100.0 * (1.1 if d > "2026-11-20" else 1.0)] + [None] * 9
+        return {"d": d, "v": 5, "fx": {"USD": fx_usd, "EUR": 1.0}, "mw": mw, "p": p, "o": {}}
+    curs = {"AAA": "USD", "BBB": "EUR"}
+    curs.update({"F%02d" % k: "EUR" for k in range(60)})
+    cs = []
+    d1 = tday("2026-11-13", {"AAA": ("Anlauf", 80, 100.0), "BBB": ("Neutral", 50, 100.0)})
+    TK.update_cases(cs, d1, {"AAA": {"cur": "USD", "px": 50.0}}, start=True)
+    ok &= check("Trefferquote: Startbestand mit Merkmal start",
+                any(c["s"] == "AAA" and c["k"] == "Anlauf" and c["st"] == 1 for c in cs)
+                and not any(c["s"] == "BBB" and c["k"] == "Anlauf" for c in cs), [(c["s"], c["k"], c["st"]) for c in cs])
+    ok &= check("Trefferquote: Eintrittskurs in Euro", next(c for c in cs if c["k"] == "Anlauf")["pe"] == 45.0)
+    d2 = tday("2026-11-20", {"AAA": ("Neutral", 60, 110.0), "BBB": ("Anlauf", 81, 105.0)}, fx_usd=0.99, mw=102.0)
+    TK.update_cases(cs, d2, {})
+    a_case = next(c for c in cs if c["s"] == "AAA" and c["k"] == "Anlauf")
+    ok &= check("Trefferquote: Austritt und neuer Eintritt erkannt", a_case["x"] == "2026-11-20"
+                and any(c["s"] == "BBB" and c["k"] == "Anlauf" and c["st"] == 0 for c in cs))
+    d3 = tday("2026-12-05", {"AAA": ("Anlauf", 82, 112.0), "BBB": ("Anlauf", 81, 106.0)}, fx_usd=0.99, mw=103.0)
+    n_before = len(cs)
+    TK.update_cases(cs, d3, {})
+    ok &= check("Trefferquote: Rückkehr in 30 Tagen öffnet den alten Fall", len(cs) == n_before and a_case["x"] is None,
+                (len(cs), n_before, a_case["x"]))
+    TK.fill_results(cs, [d1, d2, d3], curs, "2026-12-05")
+    r7 = a_case["r"].get("7")
+    # AAA: tri 100 -> 110 (+10 %), Dollar 0,90 -> 0,99 Euro (+10 %): in Euro +21 %. MSCI: 100 -> 102 und +10 %
+    ok &= check("Trefferquote: Horizont 7 Tage mit Währungsumrechnung", r7 is not None and r7[0] == 21.0
+                and r7[1] == 12.2 and r7[2] is not None, r7)
+    st = TK._stats([(r7[0], r7[1], r7[2], "AAA"), (5.0, 12.2, 9.0, "BBB")])
+    ok &= check("Trefferquote: Überrendite und Anteile", st[0] == 2 and st[3] == round((21.0 - 12.2 + 5.0 - 12.2) / 2, 2)
+                and st[4] == 50.0, st)
+    # Einfrieren und Löschen: ein Fall mit allen Horizonten
+    full = dict(a_case, i=99, d="2024-01-10", r={str(h): [1.0, 0.5, 0.2] for h in TK.HORIZONS}, st=0)
+    sm = TK.build_summary([full], None, [], "2026-12-05", "2024-01-10")
+    ok &= check("Trefferquote: fertiger Monat wird eingefroren", "2024-01" in sm["frozen"] and "2024-01" not in sm["months"])
+    kept = TK.prune_cases([full, a_case], sm, "2026-12-05")
+    ok &= check("Trefferquote: Fälle nach 24 Monaten gelöscht, wenn eingefroren", len(kept) == 1 and kept[0] is a_case)
+    kept2 = TK.prune_cases([full], {"frozen": {}}, "2026-12-05")
+    ok &= check("Trefferquote: ohne Einfrieren wird nichts gelöscht", len(kept2) == 1)
+    sm2 = TK.build_summary([a_case], sm, [], "2026-12-06", "2024-01-10")
+    ok &= check("Trefferquote: Eingefrorenes bleibt erhalten und zählt seit Start mit",
+                sm2["frozen"]["2024-01"] == sm["frozen"]["2024-01"]
+                and sm2["win"]["all"]["a"]["Anlauf"]["alle"]["365"][0] == 1, sm2["win"]["all"]["a"].get("Anlauf"))
+    with tempfile.TemporaryDirectory() as td:
+        TK.save_cases(td, [dict(a_case, i=k) for k in range(3000)])
+        size = sum(_os.path.getsize(_os.path.join(td, f)) for f in _os.listdir(td))
+    ok &= check("Trefferquote: 3000 Fälle bleiben unter 1,5 MB", size < 1.5e6, size)
+    ok &= check("Trefferquote: Rangkorrelation", TK.spearman(list(range(40)), [v * 2 for v in range(40)]) == 1.0)
+
     try:
         import json
         json.dumps([r, down, weak, none])

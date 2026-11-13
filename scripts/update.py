@@ -7,6 +7,7 @@ Anfragen bekommt.
 
 Umgebungsvariablen: FUND_LIMIT (Standard 150) = wie viele Aktien pro Lauf neue Fundamentaldaten bekommen.
 """
+import bisect
 import json
 import os
 import sys
@@ -28,7 +29,10 @@ FUND_PATH = os.path.join(DATA, "fundamentals.json")
 OUT_PATH = os.path.join(DOCS, "data.json")
 CHART_PATH = os.path.join(DOCS, "charts.json")
 HIST_PATH = os.path.join(DOCS, "history.json")
-TRACK_PATH = os.path.join(DATA, "track.json")
+TRACK_PATH = os.path.join(DATA, "track.json")          # altes Format, wird nur noch einmal gelesen
+TRACK_PATHS = {"track": os.path.join(DATA, "track"), "cases": os.path.join(DOCS, "cases"),
+               "summary": os.path.join(DOCS, "track_summary.json"), "meta": os.path.join(DATA, "track", "meta.json"),
+               "legacy": TRACK_PATH}
 FUND_LIMIT = int(os.environ.get("FUND_LIMIT") or 0)  # 0 = automatisch: fehlende und veraltete zuerst, sonst 150
 BATCH = 40
 HISTORY_YEARS = 21
@@ -359,69 +363,54 @@ def find_dupes(symbols, cache):
     return dupes
 
 
-TRACK_KEEP = 400                 # Tage, die die Trefferquote zurückblickt
-TRACK_H = [["1 Woche", 7], ["1 Monat", 30], ["3 Monate", 91], ["6 Monate", 182], ["1 Jahr", 365]]
-TRACK_BANDS = [["Gesamtscore ab 75", 75, 101], ["Gesamtscore 62 bis 74", 62, 75], ["Gesamtscore 48 bis 61", 48, 62],
-               ["Gesamtscore unter 48", -1, 48]]
-
-
-def add_track(stocks, bench):
-    """Trefferquote: Hält je Tag Kurs, Einordnung und Gesamtscore jeder Aktie fest (data/track.json) und misst, wie
-    sich die Aktien jeder Einordnung danach entwickelt haben, verglichen mit dem Durchschnitt aller Aktien im selben
-    Zeitraum. Gezählt wird höchstens ein Starttag je Kalenderwoche, damit sich die Zeiträume weniger überlappen.
-    Nur Tage mit dem aktuellen Regelwerk zählen, weil sich die Einordnungen mit dem Regelwerk ändern."""
-    try:
-        tr = json.load(open(TRACK_PATH))
-    except Exception:
-        tr = {"days": []}
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    days = [d for d in tr.get("days", []) if d["d"] != today]
-    days.append({"d": today, "v": VERSION, "p": {x["s"]: [x["p"], x["su"], round(x["tot"])] for x in stocks
-                                                if x.get("p") and x.get("tot") is not None}})
-    days = days[-TRACK_KEEP:]
-    os.makedirs(DATA, exist_ok=True)
-    with open(TRACK_PATH, "w") as f:
-        json.dump({"days": days}, f, ensure_ascii=False, separators=(",", ":"), default=plain)
-
-    cur = [d for d in days if d.get("v") == VERSION]
-    if not cur:
+def adj_lookup(df):
+    """Funktion Datum -> dividendenbereinigter Schlusskurs (Adjusted Close) am Datum oder am letzten Handelstag davor."""
+    if df is None or "Adj Close" not in df:
         return None
-    dt = [datetime.strptime(d["d"], "%Y-%m-%d") for d in cur]
-    starts, seen = [], set()
-    for i, d in enumerate(dt):
-        wk = d.isocalendar()[:2]
-        if wk not in seen:
-            seen.add(wk)
-            starts.append(i)
-    out = {"since": cur[0]["d"], "n": len(cur), "h": []}
-    for label, h in TRACK_H:
-        groups, pairs = {}, 0
-        for i in starts:
-            j = next((k for k in range(i + 1, len(cur)) if (dt[k] - dt[i]).days >= h), None)
-            if j is None or (dt[j] - dt[i]).days > h + 7:
-                continue
-            a, b = cur[i]["p"], cur[j]["p"]
-            rets = {s: b[s][0] / a[s][0] - 1 for s in a if s in b and a[s][0] > 0 and b[s][0] > 0}
-            rets = {s: r for s, r in rets.items() if -0.9 < r < 5}           # Kursfehler und Splits aussortieren
-            if len(rets) < 50:
-                continue
-            avg = sum(rets.values()) / len(rets)
-            pairs += 1
-            for s, r in rets.items():
-                su, tot = a[s][1], a[s][2]
-                keys = [su] + [bl for bl, lo, hi in TRACK_BANDS if lo <= tot < hi]
-                for k in keys:
-                    g = groups.setdefault(k, [0, 0.0, 0.0, 0, set()])
-                    g[0] += 1
-                    g[1] += r
-                    g[2] += r - avg
-                    g[3] += 1 if r > avg else 0
-                    g[4].add(s)
-        if pairs:
-            out["h"].append([label, h, pairs, {k: [g[0], len(g[4]), round(g[1] / g[0] * 100, 1),
-                                                   round(g[2] / g[0] * 100, 1), round(g[3] / g[0] * 100)]
-                                               for k, g in groups.items()}])
-    return out
+    a = df["Adj Close"].dropna().iloc[-400:]
+    if a.empty:
+        return None
+    idx = [d.strftime("%Y-%m-%d") for d in a.index]
+    vals = [float(v) for v in a.values]
+
+    def at(day):
+        i = bisect.bisect_right(idx, day) - 1
+        return vals[i] if i >= 0 else None
+    return at
+
+
+def run_tracking(stocks, adj, rates, meta):
+    """Trefferquote fortschreiben (höchstens einmal je Kalendertag, siehe tracking.py)."""
+    import tracking
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if not rates.get("EUR"):
+        print("Kein Euro-Kurs, Trefferquote ausgelassen.")
+        return None
+    fx = {c: v / rates["EUR"] for c, v in rates.items() if v}
+    cases = tracking.load_cases(TRACK_PATHS["cases"])
+    have = {x["s"] for x in stocks}
+    extra = sorted({c["s"] for c in cases if c["x"] is None or len(c["r"]) < len(tracking.HORIZONS)} - have)
+    px = None
+    try:
+        px = yf.download(["URTH"] + extra, period="1y", auto_adjust=False, group_by="ticker", progress=False,
+                         threads=True)
+    except Exception as e:  # noqa: BLE001
+        print("Zusatzkurse nicht geladen:", type(e).__name__, flush=True)
+
+    def pick(sym):
+        try:
+            return adj_lookup(px[sym].dropna(how="all"))
+        except Exception:
+            return None
+    mw = pick("URTH") if px is not None else None
+    extra_adj = {s: f for s in extra for f in [pick(s) if px is not None else None] if f}
+    info = {}
+    for x in stocks:
+        base, factor = SUBUNIT.get(x.get("cur"), (x.get("cur"), 1))
+        m = meta.get(x["s"]) or {}
+        info[x["s"]] = {"cur": base, "px": x["p"] * factor if x.get("p") else None, "rg": m.get("region"),
+                        "sc": x.get("sec") or None, "ta": x.get("tm"), "cd": 1 if x.get("tc") else 0}
+    return tracking.run(today, VERSION, stocks, adj, fx, mw, info, TRACK_PATHS, extra_adj)
 
 
 def add_history(stocks):
@@ -490,9 +479,10 @@ def main():
 
     dupes = find_dupes(symbols, cache)
     print("Doppelnotierungen entfernt:", len(dupes), flush=True)
-    charts = {}
+    charts, adj = {}, {}
     stocks, fresh, priced, skipped = [], [], 0, 0
     for s, df in download_prices(symbols):
+        adj[s] = adj_lookup(df)
         if s in dupes:
             continue
         fund = cache.get(s)
@@ -529,17 +519,23 @@ def main():
 
     stocks.extend(finalize(fresh))
     bench = benchmarks(charts)
-    track = add_track(stocks, bench)
     print("Bewertet:", priced, "| ohne ausreichende Daten:", skipped, flush=True)
     if priced < 0.5 * len(symbols):
         print("Weniger als die Hälfte der Kurse geladen. data.json bleibt unverändert.")
         sys.exit(1 if priced == 0 else 0)
     os.makedirs(DOCS, exist_ok=True)
     add_history(stocks)
+    try:
+        tk = run_tracking(stocks, adj, rates, meta)
+        print("Trefferquote:", tk or "heute schon erfasst", flush=True)
+    except Exception as e:  # noqa: BLE001  Die Bewertung soll nie an der Trefferquote scheitern
+        import traceback
+        traceback.print_exc()
+        print("Trefferquote nicht aktualisiert:", type(e).__name__, flush=True)
     out = {"v": VERSION, "updated": datetime.now(timezone.utc).isoformat(timespec="minutes"),
            "universe": len(symbols), "dupes": len(dupes), "skipped": skipped,
            "th": TH, "thAll": TH_ALL, "finTh": FIN_TH, "finPe": FIN_PE_FACTOR, "gCap": G_CAP, "weights": WEIGHTS,
-           "hotMin": HOT_MIN, "bench": bench, "track": track, "stocks": stocks}
+           "hotMin": HOT_MIN, "bench": bench, "stocks": stocks}
     with open(OUT_PATH, "w") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"), default=plain)
     if charts:
