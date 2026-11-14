@@ -87,8 +87,18 @@ def sig(v, n=4):
 
 
 def de(v, d=1):
-    """Zahl in deutscher Schreibweise für Texte."""
-    return ("%.*f" % (d, v)).replace(".", ",")
+    """Zahl in deutscher Schreibweise für Texte: kaufmännisch gerundet (wie auf der Website), Tausenderpunkt,
+    echtes Minuszeichen."""
+    if v is None:
+        return "–"
+    from decimal import Decimal, ROUND_HALF_UP
+    q = Decimal(repr(float(v))).quantize(Decimal(1).scaleb(-d), rounding=ROUND_HALF_UP)
+    neg = q < 0
+    txt = "{:,.{}f}".format(abs(q), d)                     # 24,392.00
+    ip, _, fp = txt.partition(".")
+    ip = ip.replace(",", ".")
+    out = ip + ("," + fp if fp else "")
+    return ("−" if neg and float(q) != 0 else "") + out
 
 
 def sde(v, d=0):
@@ -248,9 +258,14 @@ def lage(price, pm, rsi_d, zs, sym):
         txt = ("Seit %d Handelstagen kein neues Tief, der Kurs steht nahe der Unterstützung %s – %s (%s), und der "
                "Verkaufsdruck lässt nach. Ein Wendezeichen wäre ein Kurs über der 20-Tage-Linie (%s)."
                % (st["low60_age"], de(sup[0], 2), de(sup[1], 2), ", ".join(sup[2]), de(s20, 2)))
-    elif over20 and over50:
+    elif over20 and over50 and price > pm["sma200"] and s50 >= pm["sma200"]:
         code, lab = "S", "Läuft stabil"
-        txt = "Der Kurs liegt über der 20- und der 50-Tage-Linie, ohne überdehnt zu sein."
+        txt = "Der Kurs liegt über der 20-, der 50- und der 200-Tage-Linie, ohne überdehnt zu sein."
+    elif over20 and over50:
+        code, lab = "N", "Uneinheitlich"
+        txt = ("Kurzfristig erholt: Der Kurs liegt über der 20- und der 50-Tage-Linie. Langfristig ist das Bild noch "
+               "schwach: %s." % ("der Kurs liegt unter der 200-Tage-Linie (%s)" % de(pm["sma200"], 2)
+                                 if price <= pm["sma200"] else "die 50-Tage-Linie liegt noch unter der 200-Tage-Linie"))
     else:
         code, lab = "N", "Uneinheitlich"
         txt = ("Die Signale zeigen in verschiedene Richtungen: Kurs %s der 20-Tage-Linie und %s der 50-Tage-Linie."
@@ -428,6 +443,11 @@ def price_metrics(df):
     # Marktsymmetrie: laufende Korrektur gegen frühere Korrekturen der letzten zehn Jahre
     w10 = c[c.index >= end - pd.DateOffset(years=10)].resample("W").last().dropna().values
     past, cur_dd, cur_depth = corrections(list(w10)) if len(w10) > 60 else ([], 0.0, 0.0)
+    # Wochenschlusskurse glätten Spitzen weg: Die laufende Korrektur ist nie kleiner als der Abstand zum
+    # 52-Wochen-Hoch aus Tagesschlusskursen.
+    if hi52 > 0:
+        cur_dd = max(cur_dd, 1 - last / hi52)
+        cur_depth = max(cur_depth, cur_dd)
     sym = [pct(cur_dd), pct(cur_depth), pct(float(np.median(past))) if past else None,
            pct(max(past)) if past else None, len(past)]
 
@@ -704,6 +724,11 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
     ebit0, rev0 = pair(ebit, rev)
     margin = ebit0 / rev0 if ebit0 is not None and rev0 and rev0 > 0 else y.get("operatingMargins")
     margin = bounded(margin, -2, 1)
+    # Weicht die Marge aus dem Jahresabschluss stark von Yahoos Angabe für die letzten zwölf Monate ab, ist oft eine
+    # der Zeilen falsch zugeordnet (z. B. Bruttogewinn statt EBIT). Dann zählt vorsichtshalber der niedrigere Wert.
+    margin_raw, ym0 = margin, bounded(y.get("operatingMargins"), -2, 1)
+    if margin is not None and ym0 is not None and abs(margin - ym0) > 0.12:
+        margin = min(margin, ym0)
     ni_a, assets_n = pair(ni, fund.get("assets"))
     roa = bounded(ni_a / assets_n if ni_a is not None and assets_n else None, -1, 1)
     ni_r, rev_n = pair(ni, rev)
@@ -800,6 +825,7 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
         ["niH", pct(ni_h), T["niH"], ge(ni_h, T["niH"] / 100)],
         ["epsE", pct(eps_e), T["epsE"], ge(eps_e, T["epsE"] / 100)],
     ]
+    # Negatives Eigenkapital (oft durch Aktienrückkäufe) gilt wie in der Vorlage als nicht erfüllt.
     roe_ok = False if eq is not None and eq <= 0 else ge(roe, T["roe"] / 100)
     pe_row = ["pe5", r1(pe5), pe5_th, (False if eps_src == "loss" else le(pe5, pe5_th))]
     rev_row = ["rev90", pct(rev90), A["rev90"], ge(rev90, A["rev90"] / 100)]
@@ -954,6 +980,12 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
     ups = sum(1 for u in ud if u[4] == "up")
     downs = sum(1 for u in ud if u[4] == "down")
     recs = fund.get("rec") or {}
+    if rmean is None:
+        # Yahoo liefert den Konsens manchmal nicht, die Verteilung der Empfehlungen aber schon: dann daraus berechnen
+        # (Stark kaufen = 1 bis Stark verkaufen = 5, wie Yahoos eigener Wert).
+        rc = recs.get("0m")
+        if n_an and rc and len(rc) == 5 and sum(rc) >= 3:
+            rmean = bounded(sum((i + 1) * v for i, v in enumerate(rc)) / sum(rc), 1, 5)
     An, a10 = None, None
     if n_an and n_an >= 3 and rmean is not None:
         An = [
@@ -1001,9 +1033,12 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
 
     # ---------- Datenqualität ----------
     ym, yr = y.get("operatingMargins"), y.get("returnOnEquity")
-    if not fin and margin is not None and ym is not None and abs(margin - ym) > 0.12:
-        notes.append("EBIT-Marge im letzten Jahresabschluss %s %%, laut Yahoo in den letzten zwölf Monaten %s %%"
-                     % (de(margin * 100), de(ym * 100)))
+    if eq is not None and eq <= 0:
+        notes.append("Eigenkapital negativ (oft durch Aktienrückkäufe): Eigenkapitalrendite hat keinen Wert und gilt "
+                     "wie in der Vorlage als nicht erfüllt")
+    if not fin and margin_raw is not None and ym is not None and abs(margin_raw - ym) > 0.12:
+        notes.append("EBIT-Marge im letzten Jahresabschluss %s %%, laut Yahoo in den letzten zwölf Monaten %s %%; "
+                     "gewertet wird der niedrigere Wert" % (de(margin_raw * 100), de(ym * 100)))
     if roe is not None and yr is not None and abs(roe) < 1 and abs(yr) < 1 and abs(roe - yr) > 0.15:
         notes.append("Eigenkapitalrendite im letzten Jahresabschluss %s %%, laut Yahoo zuletzt %s %%"
                      % (de(roe * 100), de(yr * 100)))
@@ -1187,31 +1222,34 @@ def finalize(recs):
                        % (an["n"], de(an["lo"], 2)), None, None])
         r["ez"] = ez
 
-        # Einordnung: feste Reihenfolge, die erste zutreffende Regel gilt
+        # Einordnung: feste Reihenfolge, die erste zutreffende Regel gilt. Verglichen wird mit den Werten, wie die
+        # Website sie zeigt (ganze Zahlen, kaufmännisch gerundet), damit eine angezeigte 65 auch als 65 zählt.
         d52, ph, an_ = r["d52"], r["ph"], r["an"]
+        hr = lambda v: int(math.floor(v + 0.5))                # noqa: E731
         ql_nn = _parts(dict(r, ns=None), WEIGHTS, False)      # Qualität ohne Nachrichtenlage
+        qr, dr = hr(r["ql"]), hr(d52)
         floor_ok = x["above"] or x["since_low"] >= 10
-        D = [["ql", round(ql_nn, 1), ql_nn >= 85], ["moat", r["m"], r["m"] >= 20],
-             ["dd", d52, d52 is not None and 12 <= d52 <= 35],
+        D = [["ql", round(ql_nn, 1), hr(ql_nn) >= 85], ["moat", r["m"], r["m"] >= 20],
+             ["dd", d52, d52 is not None and 12 <= dr <= 35],
              ["rev", an_.get("rev90"), an_.get("rev90") is not None and an_["rev90"] >= 0],
              ["cash", None, x["ocf_ok"]], ["floor", x["since_low"], floor_ok]]
         D = [[c[0], c[1], bool(c[2])] for c in D]
         dip = all(c[2] for c in D)
-        r["D"] = D if (d52 is not None and 12 <= d52 <= 35 and ql_nn >= 70) else None
+        r["D"] = D if (d52 is not None and 12 <= dr <= 35 and ql_nn >= 70) else None
         early = ph is not None and ph[0] <= 3
         if (rsi_v is not None and rsi_v >= 78) or x["ext"] >= 0.40:
             setup = "Überhitzt"
-        elif r["hot"] >= HOT_MIN and d52 <= 10:
+        elif r["hot"] >= HOT_MIN and dr <= 10:
             setup = "Anlauf"
-        elif r["ql"] >= 65 and x["above"] and x["over50"] and d52 <= 10:
+        elif qr >= 65 and x["above"] and x["over50"] and dr <= 10:
             setup = "Trendstark"
         elif dip:
             setup = "Qualitäts-Dip"
-        elif U and r["tu"] >= 5 and 15 <= d52 <= 50 and early:
+        elif U and r["tu"] >= 5 and 15 <= dr <= 50 and early:
             setup = "Turnaround-Kandidat"
-        elif r["ql"] >= 70 and 15 <= d52 <= 40 and early:
+        elif qr >= 70 and 15 <= dr <= 40 and early:
             setup = "Qualität im Rücksetzer"
-        elif r["ql"] < 45 and not x["above"]:
+        elif qr < 45 and not x["above"]:
             setup = "Schwach"
         else:
             setup = "Neutral"
@@ -1232,6 +1270,26 @@ def finalize(recs):
         for i, r in enumerate(rows):
             r["sq"] = [i + 1, len(rows)]
     return recs
+
+
+def neutral_text(r, x):
+    """Begründung für „neutral“: welche Bedingung für eine andere Einordnung fehlt."""
+    q, d52 = int(math.floor(r["ql"] + 0.5)), r["d52"] or 0
+    if q >= 65 and x["above"]:
+        miss = []
+        if not x["over50"]:
+            miss.append("der Kurs liegt unter der 50-Tage-Linie")
+        if d52 > 10.5:
+            miss.append("der Kurs steht %s %% unter dem 52-Wochen-Hoch (erlaubt sind höchstens 10 %%)" % de(d52, 0))
+        if miss:
+            return ("Einordnung: neutral. Die Kennzahlen sind stark (Qualität %d), für „trendstark“ fehlt aber: %s."
+                    % (q, " und ".join(miss)))
+    if q >= 65 and not x["above"] and d52 < 14.5:
+        return ("Einordnung: neutral. Die Kennzahlen sind stark (Qualität %d), der Kurs liegt aber unter der "
+                "200-Tage-Linie; für einen Rücksetzer oder Turnaround ist er nicht weit genug gefallen." % q)
+    if q >= 65:
+        return "Einordnung: neutral. Die Kennzahlen sind stark (Qualität %d), keine der Sonderlagen trifft zu." % q
+    return "Einordnung: neutral. Keine der Sonderlagen trifft zu, die Kennzahlen sind mittelmäßig (Qualität %d)." % q
 
 
 def texts(r, x):
@@ -1322,14 +1380,16 @@ def texts(r, x):
         "Anlauf": "Einordnung: Anlauf. %d von 8 Anlauf-Signalen sind erfüllt." % r["hot"],
         "Trendstark": "Einordnung: trendstark. Kennzahlen und Kursbild zeigen in dieselbe Richtung.",
         "Qualitäts-Dip": "Einordnung: Qualitäts-Dip. Sehr starke Kennzahlen, Rücksetzer von %s %%, die Gewinnschätzungen "
-                         "wurden in 90 Tagen nicht gesenkt und der Kurs fällt nicht mehr frei." % de(r["d52"], 0),
+                         "wurden in 90 Tagen nicht gesenkt und %s." % (de(r["d52"], 0), "der Kurs liegt über der "
+                         "200-Tage-Linie" if x["above"] else "seit %d Handelstagen gab es kein neues 52-Wochen-Tief"
+                         % x["since_low"]),
         "Qualität im Rücksetzer": "Einordnung: Qualität im Rücksetzer. Die Kennzahlen sind stark, das Kursbild "
                                   "ist es derzeit nicht.",
         "Turnaround-Kandidat": "Einordnung: Turnaround-Kandidat. %d von 7 Turnaround-Prüfungen sind erfüllt."
                                % (r["tu"] or 0),
         "Überhitzt": "Einordnung: überhitzt. Der Kurs ist kurzfristig weit vorausgelaufen.",
         "Schwach": "Einordnung: schwach. Weder Kennzahlen noch Kursbild überzeugen.",
-        "Neutral": "Einordnung: neutral. Kein klares Bild aus Kennzahlen und Kurs.",
+        "Neutral": neutral_text(r, x),
     }[su]
     sym = r["sym"]
     if su in ("Qualität im Rücksetzer", "Turnaround-Kandidat", "Qualitäts-Dip") and sym[2] is not None:

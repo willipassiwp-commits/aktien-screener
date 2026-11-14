@@ -481,6 +481,11 @@ def main():
     dupes = find_dupes(symbols, cache)
     print("Doppelnotierungen entfernt:", len(dupes), flush=True)
     charts, adj = {}, {}
+    stale_kept = 0
+    try:
+        old_charts = json.load(open(CHART_PATH))
+    except Exception:
+        old_charts = {}
     stocks, fresh, priced, skipped = [], [], 0, 0
     for s, df in download_prices(symbols):
         adj[s] = adj_lookup(df)
@@ -488,6 +493,14 @@ def main():
             continue
         fund = cache.get(s)
         pm = price_metrics(df)
+        if (pm is not None and fund and s in old and old_version == VERSION and old_charts.get(s)
+                and str(old[s].get("d") or "") > str(pm["date"])):
+            # Yahoo liefert manchmal vorübergehend Kurse, die älter sind als die schon veröffentlichten (z. B. nachts
+            # am Wochenende für europäische Börsen). Dann bleibt der neuere, bereits veröffentlichte Stand stehen.
+            stocks.append(old[s])
+            charts[s] = old_charts[s]
+            stale_kept += 1
+            continue
         if pm is None or not fund:
             # alten Stand weiterzeigen, die Seite markiert ihn über das Kursdatum als veraltet
             if s in old and fund and old_version == VERSION:
@@ -524,7 +537,7 @@ def main():
 
     stocks.extend(finalize(fresh))
     bench = benchmarks(charts)
-    print("Bewertet:", priced, "| ohne ausreichende Daten:", skipped, flush=True)
+    print("Bewertet:", priced, "| ohne ausreichende Daten:", skipped, "| neuerer Stand behalten:", stale_kept, flush=True)
     if priced < 0.5 * len(symbols):
         print("Weniger als die Hälfte der Kurse geladen. data.json bleibt unverändert.")
         sys.exit(1 if priced == 0 else 0)
