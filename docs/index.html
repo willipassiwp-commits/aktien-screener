@@ -79,6 +79,15 @@ table.grid td{padding:7px 8px;border-bottom:1px solid var(--line);white-space:no
 table.grid tbody tr[data-id]{cursor:pointer}
 table.grid tbody tr[data-id]:hover{background:var(--sunken)}
 table.grid tbody tr.sel{background:var(--accent-soft)}
+#grid th:nth-child(-n+3),#grid td:nth-child(-n+3){position:sticky;z-index:1;background:var(--surface)}
+#grid th:nth-child(-n+3){background:var(--sunken);z-index:2}
+#grid th:nth-child(1),#grid td:nth-child(1){left:0;width:34px;min-width:34px;max-width:34px}
+#grid th:nth-child(2),#grid td:nth-child(2){left:34px;width:44px;min-width:44px;max-width:44px}
+#grid th:nth-child(3),#grid td:nth-child(3){left:78px;box-shadow:1px 0 0 var(--line)}
+#grid tbody tr.sel td:nth-child(-n+3){background:var(--accent-soft)}
+#grid tbody tr[data-id]:hover td:nth-child(-n+3){background:var(--sunken)}
+.backlist{display:none;margin:0 0 8px} @media (max-width:1199px){.backlist{display:inline-block}}
+.phs{font-size:10.5px;color:var(--muted);margin-left:4px;white-space:nowrap}
 .star{background:none;border:0;padding:2px 4px;font-size:16px;line-height:1;color:var(--line);cursor:pointer}
 .star.on{color:var(--mid)}
 .co{display:flex;flex-direction:column;max-width:240px}
@@ -193,7 +202,8 @@ details.meth + details.meth{border-top:1px solid var(--line)}
 .alloc .bar i.warn{background:var(--mid)}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
 footer{color:var(--muted);font-size:12.5px;max-width:100ch}
-@media (max-width:520px){ h1{font-size:23px} .subs{grid-template-columns:repeat(3,minmax(0,1fr))} .stand{text-align:left} }
+@media (max-width:520px){ h1{font-size:23px} .subs{grid-template-columns:repeat(3,minmax(0,1fr))} }
+@media (max-width:900px){ .stand{text-align:left} }
 </style>
 </head>
 <body>
@@ -422,7 +432,7 @@ load(WKEY,[]).forEach(function(s){S.watch[s]=1});
 var sd=load(DKEY,null);if(sd&&Array.isArray(sd.pos))S.depot=sd;
 function $(id){return document.getElementById(id)}
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
-function fmt(v,d){return v==null?"–":Number(v).toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function fmt(v,d){return v==null?"–":Number(v).toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d}).replace("-","−")}
 function pct(v,d){return v==null?"–":fmt(v,d==null?1:d)+" %"}
 function sg(v,d){return v==null?"–":(v>0?"+":v<0?"−":"±")+fmt(Math.abs(v),d==null?0:d)}
 function sgp(v,d){return v==null?"–":sg(v,d)+" %"}
@@ -472,7 +482,7 @@ var PRE=[
  ["watch","Watchlist","Deine mit Stern markierten Aktien.",function(x){return !!S.watch[x.s]}]
 ];
 function comb(x,chart){var w=S.w,p=[[w.f,x.f*10],[w.m,x.m*4],[w.r,x.rs]];if(chart)p.push([w.t,x.t*10]);if(x.a!=null)p.push([w.a,x.a*10]);if(x.ns!=null)p.push([w.n,x.ns*10]);var ws=0,t=0;p.forEach(function(q){ws+=q[0];t+=q[0]*q[1]});return ws?t/ws:0}
-function band(t){return t>=75?4:t>=62?3:t>=48?2:1}
+function band(t){t=Math.round(t);return t>=75?4:t>=62?3:t>=48?2:1}
 function dots(r,max,c){var h='<span class="'+(c||"risk")+'" role="img" aria-label="'+r+" von "+max+'">';for(var i=1;i<=max;i++)h+='<i class="'+(i<=r?"on":"")+'"></i>';return h+"</span>"}
 function stale(x){if(!S.updated||!x.d)return false;return (new Date(S.updated)-new Date(x.d))/864e5>6}
 function val(x,k){switch(k){case"n":return x.n.toLowerCase();case"w":return S.watch[x.s]?1:0;case"p1":return x.pf?x.pf[0]:null;case"pxe":return x.pxe;case"d1":return x.p1d;case"w1":return x.p1w;case"p6":return x.pf?x.pf[2]:null;case"p12":return x.pf?x.pf[3]:null;case"q":return{A:3,B:2,C:1}[x.q]||0;default:return x[k]}}
@@ -504,7 +514,7 @@ function renderTable(){
     return'<tr data-id="'+esc(x.s)+'" tabindex="0" class="'+(x.s===S.sel?"sel":"")+'">'+
     '<td><button class="star'+(S.watch[x.s]?" on":"")+'" data-star="'+esc(x.s)+'" aria-label="Watchlist" aria-pressed="'+(S.watch[x.s]?"true":"false")+'">★</button></td>'+
     '<td class="r num muted">'+x.rank+"</td><td>"+coCell(x)+"</td><td>"+totCell(x.total)+"</td>"+
-    '<td><span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+"</span></td>"+
+    '<td><span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+"</span>"+(x.ph&&["Turnaround-Kandidat","Qualität im Rücksetzer","Qualitäts-Dip"].indexOf(x.su)>=0?'<span class="phs" title="Stand der Wende: Phase '+x.ph[0]+" von 4, "+esc(x.ph[1])+'">Phase '+x.ph[0]+"/4</span>":"")+"</td>"+
     '<td class="r num">'+fmt(x.qual,0)+'</td><td class="r num">'+fmt(x.f,1)+'</td><td class="r num">'+fmt(x.m,1)+'</td><td class="r num">'+fmt(x.t,1)+'</td><td class="r num">'+(x.a==null?"–":fmt(x.a,0))+"</td>"+
     '<td class="r num">'+pct(x.r)+"</td>"+
     '<td><span class="pill '+(STC[x.st]||"neutral")+'">'+x.st+"</span>"+(stale(x)?' <span class="pill bad">veraltet</span>':"")+"</td>"+
@@ -570,7 +580,9 @@ function zoneRows(zs,cur){return zs.map(function(z){return'<span class="num">'+p
 function renderDetail(){
   var x=S.by[S.sel];if(!x)return;
   var b=band(x.total),w=S.w,pf=x.pf||[],tr=x.tr||[0,0,0],an=x.an||{},ev=x.ev||{},cur=CURN[x.cur]||x.cur,unit=x.cur==="GBp"?" (Kurse in Pence)":"";
-  var ws=w.f+w.m+w.t+w.r+(x.a==null?0:w.a)+(x.ns==null?0:w.n)||1;function wp(k){return fmt(w[k]/ws*100,0)+" %"}
+  var ws=w.f+w.m+w.t+w.r+(x.a==null?0:w.a)+(x.ns==null?0:w.n)||1,WK=["f","m","t","r"].concat(x.a==null?[]:["a"]).concat(x.ns==null?[]:["n"]),WP={};
+  (function(){var raw=WK.map(function(k){return[k,w[k]/ws*100]}),sum=0;raw.forEach(function(e){WP[e[0]]=Math.floor(e[1]);sum+=WP[e[0]]});raw.sort(function(a,b){return(b[1]-Math.floor(b[1]))-(a[1]-Math.floor(a[1]))});for(var i=0;i<100-sum&&i<raw.length;i++)WP[raw[i][0]]++})();
+  function wp(k){return(WP[k]==null?fmt(w[k]/ws*100,0):WP[k])+" %"}
   var chart=S.chartsState===2?chartSvg(S.charts[x.s],x):S.chartsState===3?'<p class="muted">Der Kursverlauf konnte nicht geladen werden.</p>':'<p class="muted">Kursverlauf wird geladen …</p>';
   var h='<div class="dwrap"><div class="dhead"><div><h2>'+esc(x.n)+' <button class="star'+(S.watch[x.s]?" on":"")+'" data-star="'+esc(x.s)+'" aria-label="Watchlist" aria-pressed="'+(S.watch[x.s]?"true":"false")+'">★</button></h2><p class="muted">'+esc(x.s)+" · "+esc(land(x.c))+" · "+esc(sek(x.sec))+(x.ind?" · "+esc(x.ind):"")+'</p><p style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"><span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+'</span><span class="pill neutral">'+x.cat+'</span><span class="pill neutral">'+x.strat+"</span>"+(x.fin?'<span class="pill neutral">'+FINL[x.fin]+"</span>":"")+'</p></div><div><div class="big">'+fmt(x.total,0)+'<small> /100</small></div><div class="chg muted">'+BAND[b]+" · Rang "+x.rank+'</div><div class="chg muted">Qualität '+fmt(x.qual,0)+(x.sq?" · Sektor "+x.sq[0]+"/"+x.sq[1]:"")+'</div><div class="chg '+cls(x.c7)+'">'+(x.c7==null?(x.c1==null?"":"Score seit Vortag "+sg(x.c1,1)):"Score 7 Tage "+sg(x.c7,1))+"</div></div></div>";
   h+='<div class="subs"><div><span>Fundamental · '+wp("f")+"</span><b>"+fmt(x.f,1)+"/10</b></div><div><span>Burggraben · "+wp("m")+"</span><b>"+fmt(x.m,1)+"/25</b></div><div><span>Chart · "+wp("t")+"</span><b>"+fmt(x.t,1)+"/10</b></div><div><span>Rendite · "+wp("r")+"</span><b>"+pct(x.r)+"</b></div><div><span>Analysten"+(x.a==null?"":" · "+wp("a"))+"</span><b>"+(x.a==null?"–":fmt(x.a,0)+"/10")+"</b></div><div><span>Nachrichten"+(x.ns==null?"":" · "+wp("n"))+"</span><b>"+(x.ns==null?(x.nsx!=null?"zählt nicht":"–"):fmt(x.ns,1)+"/10")+"</b></div></div>";
@@ -601,7 +613,7 @@ function renderDetail(){
   if(x.U)h+='<details class="fold" open><summary>Turnaround-Prüfungen · '+x.tu+" von 7</summary>"+checklist(x.U,UK,uval)+"</details>";
   // Analysten
   if(an.n){var rc=an.rec,tot=rc?rc[0]+rc[1]+rc[2]+rc[3]+rc[4]:0;
-    h+='<div class="sec"><h3>Analysten · '+an.n+" Einschätzungen</h3>"+(tot?'<div class="recbar" role="img" aria-label="Verteilung der Empfehlungen">'+["sb","b","h","s","ss"].map(function(c,i){return'<i class="'+c+'" style="width:'+(rc[i]/tot*100).toFixed(1)+'%"></i>'}).join("")+'</div><p class="muted" style="font-size:12.5px">'+(rc[0]+rc[1])+" Kaufen · "+rc[2]+" Halten · "+(rc[3]+rc[4])+" Verkaufen"+(an.rec3?" (vor drei Monaten: "+(an.rec3[0]+an.rec3[1])+" · "+an.rec3[2]+" · "+(an.rec3[3]+an.rec3[4])+")":"")+"</p>":"")+
+    h+='<div class="sec"><h3>Analysten · '+an.n+" mit Kursziel</h3>"+(tot?'<div class="recbar" role="img" aria-label="Verteilung der Empfehlungen">'+["sb","b","h","s","ss"].map(function(c,i){return'<i class="'+c+'" style="width:'+(rc[i]/tot*100).toFixed(1)+'%"></i>'}).join("")+'</div><p class="muted" style="font-size:12.5px">'+"Empfehlungen von "+tot+" Analysten: "+(rc[0]+rc[1])+" Kaufen · "+rc[2]+" Halten · "+(rc[3]+rc[4])+" Verkaufen"+(an.rec3?" (vor drei Monaten: "+(an.rec3[0]+an.rec3[1])+" · "+an.rec3[2]+" · "+(an.rec3[3]+an.rec3[4])+")":"")+"</p>":"")+
     '<div class="kv"><span>Konsens (1 = klar kaufen, 5 = klar verkaufen)</span><span class="num">'+fmt(an.mean,2)+'</span><span>Mittleres Kursziel</span><span class="num">'+px(an.tgt)+" "+esc(x.cur)+' · <span class="'+cls(an.up)+'">'+sgp(an.up,0)+'</span></span><span>Spanne der Kursziele</span><span class="num">'+px(an.lo)+" – "+px(an.hi)+'</span><span>Gewinnschätzung nächstes Jahr, 90 Tage</span><span class="num '+cls(an.rev90)+'">'+sgp(an.rev90,1)+'</span><span>Schätzungen in 30 Tagen angehoben / gesenkt</span><span class="num">'+(an.rev30&&an.rev30[0]!=null?fmt(an.rev30[0],0)+" / "+fmt(an.rev30[1],0):"–")+"</span></div>"+
     ((an.ud||[]).length?'<table class="crit">'+an.ud.map(function(u){var k={up:["Hochstufung","ok"],down:["Abstufung","no"],init:["Neu","na"],keep:["Bestätigt","na"]}[u[4]]||["","na"];return"<tr><td>"+esc(u[1])+'<br><span class="muted">'+dat(u[0])+(u[2]?" · "+esc(u[2])+" → ":" · ")+esc(u[3])+'</span></td><td><span class="'+k[1]+'">'+k[0]+"</span></td></tr>"}).join("")+"</table>":"")+
     '<details class="fold"><summary>Analystenbild · '+(x.a==null?"–":fmt(x.a,0)+" von 10")+'</summary><table class="crit">'+(x.A||[]).map(function(c){var v=c[0]==="ud"?c[1][0]+" hoch / "+c[1][1]+" ab":c[0]==="cons"?fmt(c[1],2):c[0]==="cov"?c[1]:sgp(c[1],1);return"<tr><td>"+AK[c[0]]+'<br><span class="muted">'+v+'</span></td><td class="num">'+c[2]+"/"+c[3]+"</td></tr>"}).join("")+"</table></details></div>"}
@@ -615,7 +627,7 @@ function renderDetail(){
     var k=FK[c[1]]||[c[1],"",1,"≥"],head="";
     if(c[0]!==lastB){lastB=c[0];head='<tr class="blk"><td>'+BLK[c[0]]+'</td><td class="num">'+(fb[c[0]]?fb[c[0]][0]+" / "+fb[c[0]][1]:"")+"</td></tr>"}
     var st=c[4]==null?'<span class="na">nicht auswertbar</span>':c[4]?'<span class="ok">✓</span>':'<span class="no">✗</span>';
-    var thr=c[1]==="fcfPos"?"alle Jahre":k[3]+" "+fmt(c[3],c[3]%1?1:0)+k[1],v=c[2]==null?"–":c[1]==="fcfPos"?c[2]+" von "+c[3]:fmt(c[2],k[2])+k[1];
+    var thr=c[1]==="fcfPos"?"alle Jahre":k[3]+" "+fmt(c[3],c[3]%1?1:0)+k[1],v=c[2]==null?(c[4]===false?(c[1]==="roe"?"Eigenkapital negativ":c[1]==="pe5"?"Verlust":"kein Wert"):"–"):c[1]==="fcfPos"?c[2]+" von "+c[3]:c[1]==="cov"&&c[2]>=99?"über 99":fmt(c[2],k[2])+k[1];
     return head+"<tr><td>"+k[0]+'<br><span class="muted">Schwelle '+thr+'</span></td><td class="num">'+v+" "+st+"</td></tr>"}).join("")+"</table></details>";
   h+='<details class="fold"><summary>Burggraben · '+fmt(x.m,1)+" von 25 ("+(x.m>=18?"stark":x.m>=14?"solide":"schwach")+')</summary><table class="crit">'+x.M.map(function(c){var k=MK[c[0]]||[c[0],"",1];return"<tr><td>"+k[0]+'</td><td class="num">'+(c[1]==null?"–":fmt(c[1],k[2])+k[1])+" · "+(c[2]==null?'<span class="na">entfällt</span>':c[2]+"/5")+"</td></tr>"}).join("")+"</table></details>";
   h+='<details class="fold"><summary>Chart-Prüfungen · '+fmt(x.t,1)+" von 10"+(x.tc?" (gedeckelt: Kurs unter der 50-Tage-Linie)":"")+'</summary><table class="crit">'+x.T.map(function(c){var k=c[0],v=k==="hist"?fmt(c[1],0)+" Jahre":k==="qual"?(c[1]==null?"–":"R² "+fmt(c[1],2)):k==="up200"?(c[1]?"ja":"nein"):k==="rs"?(c[1]==null?"–":"Rang "+c[1]+" von 100"):k==="vol"?(c[1]==null?"keine Volumendaten":pct(c[1],0)+" des Volumens"):k==="stab"?"größter Einbruch −"+fmt(c[1],0)+" %":k==="hi52"?pct(c[1],0)+" unter Hoch":sgp(c[1],1);
@@ -623,7 +635,7 @@ function renderDetail(){
   var es={t:"letzte zwölf Monate",f:"Schätzung nächstes Jahr",a:"letzter Jahresabschluss",loss:"Verlust"}[x.es]||"–",gs={L:"Langfristschätzung der Analysten",K:"Schätzung laufendes und nächstes Jahr",U:"Umsatzwachstum"}[x.gs]||"–";
   h+='<details class="fold"><summary>Bewertung und Renditeerwartung</summary><div class="kv"><span>KGV aktuell</span><span class="num">'+fmt(x.pe,1)+'</span><span>Gewinn je Aktie aus</span><span>'+es+'</span><span>KGV zu den letzten Abschlüssen (Median)</span><span class="num">'+fmt(x.hpe,1)+'</span><span>Ziel-KGV in 5 J.</span><span class="num">'+fmt(x.kgve,1)+'</span><span>Angesetztes Gewinnwachstum p. a.</span><span class="num">'+pct(x.g)+'</span><span>Grundlage des Wachstums</span><span>'+gs+'</span><span>Dividendenrendite</span><span class="num">'+pct(x.dy,2)+'</span><span>Ausschüttungsquote</span><span class="num">'+pct(x.po,0)+'</span><span>Renditeerwartung p. a.</span><span class="num">'+pct(x.r)+'</span><span>Szenario-Spanne Kurs in 5 J.</span><span class="num">'+(x.lo==null?"–":sgp(x.lo)+" bis "+sgp(x.hi))+"</span></div></details>";
   h+='<details class="fold"'+((x.qn||[]).length?" open":"")+'><summary>Daten · Qualität '+x.q+'</summary><div class="kv"><span>Risikoklasse (1 defensiv, 5 offensiv)</span><span>'+dots(x.risk,5)+' <span class="num">'+x.risk+'</span></span><span>Kursschwankung pro Jahr</span><span class="num">'+pct(x.vo,0)+'</span><span>Börsenwert</span><span class="num">'+(x.mc==null?"–":fmt(x.mc,1)+" Mrd. $")+'</span><span>Fundamentaldaten vom</span><span class="num">'+dat(x.fd)+"</span></div>"+((x.qn||[]).length?'<ul class="notes" style="margin-top:6px">'+x.qn.map(function(n){return"<li>"+esc(n)+"</li>"}).join("")+"</ul>":"")+"</details></div>";
-  $("detail").innerHTML=h;
+  $("detail").innerHTML='<button class="link backlist" data-back="1">← Zurück zur Liste</button>'+h;
   loadCharts();
 }
 
@@ -795,7 +807,7 @@ function candHtml(c){var q=c.q,x=q.x,p=q.p,an=x.an||{},cur=esc(x.cur),e,mk=[],z=
   h+="<div><h3>Stärker bewertet im selben Sektor · "+esc(sek(x.sec))+"</h3>"+(c.alt.length?'<ul class="plain">'+c.alt.map(function(y){return'<li><button class="link" data-open="'+esc(y.s)+'">'+esc(y.n)+'</button> <span class="muted">· Gesamtscore '+fmt(y.total,0)+", "+y.su+", "+y.st+"</span></li>"}).join("")+'</ul><p class="muted" style="font-size:12px">Vergleich nach Screener-Score, kein Tauschvorschlag. Diese Titel sind nicht in deinem Depot.</p>':'<p class="muted">Kein Titel dieses Sektors, der nicht im Depot ist, liegt mindestens 15 Punkte höher und im Aufwärtstrend.</p>')+"</div>";
   return h+"</div></div>"}
 // ---------------------------------------------------------------- Trefferquote
-var TRK_N_MIN=20,TRK_N_OK=50,TRK_WEEKS=10,TRK_HL={"7":"1 Woche","30":"1 Monat","91":"3 Monate","182":"6 Monate","365":"12 Monate"};
+var TRK_N_MIN=20,TRK_N_OK=50,TRK_WEEKS=10,TRK_HL={"7":"1 Woche","30":"1 Monat","91":"3 Monaten","182":"6 Monaten","365":"12 Monaten"};
 var TRK_DIM={alle:"Alle Fälle",kl:"Kurzfristige Lage bei Eintritt",ph:"Turnaround-Phase",ta:"Trendalter",cd:"Chart-Deckel",sg:"Anzahl erfüllter Signale",t3:"Unter den besten 3 der Kategorie",rg:"Region",sc:"Sektor"};
 function trkVal(dm,v){if(dm==="cd"||dm==="t3")return v==="1"?"ja":"nein";if(dm==="ph")return"Phase "+v;if(dm==="sc")return sek(v);return v}
 function trkLoad(){if(S.trk!=null)return;S.trk=0;fetch("track_summary.json?t="+Date.now()).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){S.trk=j;renderTrack()}).catch(function(){S.trk=false;renderTrack()})}
@@ -804,7 +816,7 @@ function renderTrack(){
   trkLoad();var t=S.trk;
   if(!t){$("trk-ctl").innerHTML="";$("trk-more").hidden=true;$("trk-body").innerHTML='<p class="muted">'+(t===false?"Die Messung beginnt mit dem nächsten täglichen Datenlauf.":"Wird geladen …")+"</p>";return}
   if(t.schema!==2){$("trk-body").innerHTML='<p class="notice">Das Format der Trefferquote wird gerade umgestellt. Bitte später neu laden.</p>';return}
-  var c=S.tc||(S.tc={w:"all",h:"30",ex:false,dm:"alle",dv:"alle"}),weeks=Math.floor((new Date(t.updated)-new Date(t.since))/6048e5);
+  var c=S.tc||(S.tc={w:"all",h:"7",ex:false,dm:"alle",dv:"alle"}),weeks=Math.floor((new Date(t.updated)-new Date(t.since))/6048e5);
   var W=t.win[c.w]||{},V=(c.ex&&W.e)?W.e:W.a||{};
   var vals={};t.cats.forEach(function(k){var g=V[k]&&V[k][c.dm];if(g&&c.dm!=="alle")Object.keys(g).forEach(function(v){vals[v]=1})});
   var vlist=Object.keys(vals).sort();if(c.dm!=="alle"&&vlist.indexOf(c.dv)<0)c.dv=vlist[0]||"";
@@ -835,7 +847,7 @@ function trkPath(t,V){var hs=[0].concat(t.horizons),W=600,H=220,L=6,R=60,T=8,B=2
   var mn=Infinity,mx=-Infinity;lines.forEach(function(l){l.v.forEach(function(v){if(v!=null){mn=Math.min(mn,v);mx=Math.max(mx,v)}})});var pad=(mx-mn)*0.08||1;mn-=pad;mx+=pad;
   function X(i){return L+(W-L-R)*i/(hs.length-1)}function Y(v){return T+(H-T-B)*(1-(v-mn)/(mx-mn))}
   var g="";for(var j=0;j<=3;j++){var v=mn+(mx-mn)*j/3,y=Y(v);g+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+y.toFixed(1)+'" y2="'+y.toFixed(1)+'"/><text x="'+(W-R+5)+'" y="'+(y+3).toFixed(1)+'">'+fmt(v,0)+"</text>"}
-  hs.forEach(function(h,i){g+='<text x="'+(X(i)-(i===hs.length-1?34:i?14:0)).toFixed(1)+'" y="'+(H-6)+'">'+(h?TRK_HL[h].replace(" Monate"," M.").replace(" Monat"," M.").replace(" Woche"," W."):"Eintritt")+"</text>"});
+  hs.forEach(function(h,i){g+='<text x="'+(X(i)-(i===hs.length-1?34:i?14:0)).toFixed(1)+'" y="'+(H-6)+'">'+(h?TRK_HL[h].replace(" Monaten"," M.").replace(" Monat"," M.").replace(" Woche"," W."):"Eintritt")+"</text>"});
   var paths=lines.map(function(l){var d="",on=false;l.v.forEach(function(v,i){if(v==null){on=false;return}d+=(on?"L":"M")+X(i).toFixed(1)+" "+Y(v).toFixed(1);on=true});return'<path class="'+(l.bm?"bm":"ln")+'" d="'+d+'"'+(l.bm?"":' style="stroke:'+l.c+'"')+"/>"}).join("");
   return'<div class="sec"><h3>Wert 100 bei Eintritt: durchschnittlicher Verlauf je Kategorie</h3><svg class="chart" viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Durchschnittlicher Verlauf je Kategorie ab Eintritt">'+g+paths+'</svg><div class="legend">'+lines.map(function(l){return'<span><i class="c" style="border-top-color:'+(l.bm?"var(--muted)":l.c)+(l.bm?";border-top-style:dashed":"")+'"></i>'+esc(l.n)+"</span>"}).join("")+'</div><p class="muted" style="font-size:12px">Punkte nur ab fünf abgeschlossenen Fällen. Die Fälle sind je Zeitraum nicht dieselben, weil jüngere Fälle die langen Zeiträume noch nicht erreicht haben.</p></div>'}
 function trkQuarters(t,c){var M={},key=c.ex?"e":"a";[t.frozen||{},t.months||{}].forEach(function(o){Object.keys(o).forEach(function(m){M[m]=o[m]})});
@@ -854,7 +866,7 @@ function trkCases(t){var body=$("trk-cases-body");if(S.trkCases){trkCasesRender(
 function trkCasesRender(){var c=S.tc,cs=S.trkCases.filter(function(x){return(!c.ex||!x.st)&&(S.tcK?x.k===S.tcK:true)}),tot=cs.length;cs=cs.slice(0,300);
   function last(x){var hs=["365","182","91","30","7"];for(var i=0;i<hs.length;i++){var r=x.r[hs[i]];if(r&&r!=="na")return[hs[i],r]}return null}
   var cats=S.trk.cats;
-  $("trk-cases-body").innerHTML='<label class="f" style="width:260px;margin:6px 0">Kategorie<select id="trk-ck"><option value="">Alle</option>'+cats.map(function(k){return'<option'+(S.tcK===k?" selected":"")+">"+esc(k)+"</option>"}).join("")+'</select></label><div class="tablewrap"><table class="grid trk"><thead><tr><th>Eintritt</th><th>Aktie</th><th>Kategorie</th><th class="r">Kurs bei Eintritt</th><th class="r">Score</th><th class="r">Rang</th><th class="r">Entwicklung</th><th class="r">MSCI World</th><th>Status</th></tr></thead><tbody>'+cs.map(function(x){var l=last(x);return"<tr><td class=\"num\">"+dat(x.d)+"</td><td>"+esc(trkName(x.s))+'</td><td>'+esc(x.k)+(x.st?' <span class="muted">(Start)</span>':"")+'</td><td class="r num">'+(x.pe==null?"–":fmt(x.pe,x.pe<10?2:x.pe<1000?1:0)+" €")+'</td><td class="r num">'+(x.t==null?"–":x.t)+'</td><td class="r num">'+(x.rk||"–")+'</td><td class="r num '+cls(l?l[1][0]:null)+'">'+(l?sgp(l[1][0],1)+' <span class="muted">('+TRK_HL[l[0]]+")</span>":"–")+'</td><td class="r num">'+(l&&l[1][1]!=null?sgp(l[1][1],1):"–")+"</td><td>"+(x.x?"verlassen "+dat(x.x):"in der Kategorie")+"</td></tr>"}).join("")+"</tbody></table></div>"+(tot>300?'<p class="muted" style="font-size:12px">Die neuesten 300 von '+tot+" Fällen.</p>":"");
+  $("trk-cases-body").innerHTML='<label class="f" style="width:260px;margin:6px 0">Kategorie<select id="trk-ck"><option value="">Alle</option>'+cats.map(function(k){return'<option'+(S.tcK===k?" selected":"")+">"+esc(k)+"</option>"}).join("")+'</select></label><div class="tablewrap"><table class="grid trk"><thead><tr><th>Eintritt</th><th>Aktie</th><th>Kategorie</th><th class="r">Kurs bei Eintritt</th><th class="r">Score</th><th class="r">Rang</th><th class="r">Entwicklung</th><th class="r">MSCI World</th><th>Status</th></tr></thead><tbody>'+cs.map(function(x){var l=last(x);return"<tr><td class=\"num\">"+dat(x.d)+"</td><td>"+esc(trkName(x.s))+'</td><td>'+esc(x.k)+(x.st?' <span class="muted">(Start)</span>':"")+'</td><td class="r num">'+(x.pe==null?"–":fmt(x.pe,x.pe<10?2:x.pe<1000?1:0)+" €")+'</td><td class="r num">'+(x.t==null?"–":x.t)+'</td><td class="r num">'+(x.rk||"–")+'</td><td class="r num '+cls(l?l[1][0]:null)+'">'+(l?sgp(l[1][0],1)+' <span class="muted">(nach '+TRK_HL[l[0]]+")</span>":"–")+'</td><td class="r num">'+(l&&l[1][1]!=null?sgp(l[1][1],1):"–")+"</td><td>"+(x.x?"verlassen "+dat(x.x):"in der Kategorie")+"</td></tr>"}).join("")+"</tbody></table></div>"+(tot>300?'<p class="muted" style="font-size:12px">Die neuesten 300 von '+tot+" Fällen.</p>":"");
   $("trk-ck").addEventListener("change",function(){S.tcK=this.value||null;trkCasesRender()})}
 // ---------------------------------------------------------------- Depot-Chart
 var LCOL=["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)","var(--c8)"];
@@ -956,9 +968,10 @@ document.addEventListener("click",function(e){
   var st=e.target.closest("[data-star]");if(st){e.stopPropagation();toggleStar(st.dataset.star);return}
   var del=e.target.closest("[data-del]");if(del){e.stopPropagation();S.depot.pos=S.depot.pos.filter(function(p){return p.id!==del.dataset.del});saveDepot();renderDepot();return}
   var pr=e.target.closest("[data-pre]");if(pr){S.pre=pr.dataset.pre;S.shown=100;S.sort={rise:"c7",hot:"hot",div:"dy",an:"a",qual:"qual",dip:"qual",qdip:"qual"}[S.pre]||"total";S.dir=-1;renderPresets();renderTable();return}
-  var tw=e.target.closest("[data-tw],[data-th]");if(tw){S.tc=S.tc||{w:"all",h:"30",ex:false,dm:"alle",dv:"alle"};if(tw.dataset.tw)S.tc.w=tw.dataset.tw;else S.tc.h=tw.dataset.th;renderTrack();return}
+  var tw=e.target.closest("[data-tw],[data-th]");if(tw){S.tc=S.tc||{w:"all",h:"7",ex:false,dm:"alle",dv:"alle"};if(tw.dataset.tw)S.tc.w=tw.dataset.tw;else S.tc.h=tw.dataset.th;renderTrack();return}
   var dn=e.target.closest("[data-dpn],[data-dpm]");if(dn){S.dpc=S.dpc||{n:52,m:"sum"};if(dn.dataset.dpn)S.dpc.n=+dn.dataset.dpn;else S.dpc.m=dn.dataset.dpm;var A=analyse();if(A)$("dp-chart").innerHTML=depotChart(A);return}
   var op=e.target.closest("[data-open]");if(op){S.sel=op.dataset.open;renderAll();if(window.matchMedia("(max-width:1199px)").matches)$("detail").scrollIntoView({behavior:"smooth",block:"start"});return}
+  if(e.target.closest("[data-back]")){var row=document.querySelector('tr[data-id="'+CSS.escape(S.sel||"")+'"]');(row&&row.offsetParent?row:$("main")).scrollIntoView({behavior:"smooth",block:"center"});return}
   var tr=e.target.closest("tr[data-id]");if(tr){S.sel=tr.dataset.id;renderAll();if(window.matchMedia("(max-width:1199px)").matches)$("detail").scrollIntoView({behavior:"smooth",block:"start"})}});
 document.addEventListener("keydown",function(e){if(e.key==="Enter"&&e.target.tagName==="TR"&&e.target.dataset.id){S.sel=e.target.dataset.id;renderAll()}});
 document.querySelector("#grid thead").addEventListener("click",function(e){var th=e.target.closest("th");if(!th)return;var k=th.dataset.s;
@@ -979,7 +992,7 @@ fetch("data.json?t="+Date.now()).then(function(r){if(!r.ok)throw new Error(r.sta
   fill("f-sec",uniq("sec").sort(function(a,b){return sek(a).localeCompare(sek(b),"de")}),sek);
   $("dp-list").innerHTML=S.all.slice().sort(function(a,b){return a.n.localeCompare(b.n)}).map(function(x){return'<option value="'+esc(x.n+" ("+x.s+")")+'">'}).join("");
   var up=new Date(d.updated),age=(Date.now()-up)/864e5,qa=0;S.all.forEach(function(x){if(x.q==="A")qa++});
-  $("stand").innerHTML="Datenstand <b>"+up.toLocaleString("de-DE",{dateStyle:"medium",timeStyle:"short"})+" Uhr</b><br><span class=\"muted\">"+S.all.length+" von "+(d.universe-(d.dupes||0))+" Unternehmen bewertet · "+qa+" mit Datenqualität A</span>";
+  $("stand").innerHTML="Datenstand <b>"+up.toLocaleString("de-DE",{dateStyle:"medium",timeStyle:"short"})+" Uhr</b> <span class=\"muted\">("+(function(){try{return Intl.DateTimeFormat("de-DE",{timeZoneName:"short"}).formatToParts(up).filter(function(p){return p.type==="timeZoneName"})[0].value}catch(e){return"Ortszeit"}})()+")</span><br><span class=\"muted\">"+S.all.length+" von "+(d.universe-(d.dupes||0))+" Unternehmen bewertet · "+qa+" mit Datenqualität A</span>";
   if(age>2){$("msg").hidden=false;$("msg").textContent="Der letzte erfolgreiche Datenabruf ist "+Math.floor(age)+" Tage her. Die Listen zeigen den alten Stand."}
   renderThr();setTab((location.hash||"").replace("#","")||"rangliste");renderAll();
 }).catch(function(){
