@@ -41,7 +41,7 @@ FUND_VERSION = 3  # Einträge im Cache mit älterem Format werden zuerst neu gel
 Y_KEYS = ["trailingPE", "forwardPE", "priceToBook", "returnOnEquity", "returnOnAssets", "operatingMargins",
           "profitMargins", "ebitda", "totalDebt", "totalCash", "totalRevenue", "payoutRatio", "beta",
           "recommendationMean", "numberOfAnalystOpinions", "targetMeanPrice", "targetHighPrice", "targetLowPrice",
-          "targetMedianPrice"]
+          "targetMedianPrice", "shortPercentOfFloat", "shortRatio", "heldPercentInsiders"]
 BENCH = {"^GSPC": "S&P 500", "URTH": "MSCI World (ETF)", "^STOXX": "STOXX Europe 600", "^GDAXI": "DAX",
          "^N225": "Nikkei 225"}
 # Börsenkürzel am Ende des Symbols -> Land der Börse (für die Wahl der Heimatnotiz bei Doppelnotierungen)
@@ -143,6 +143,72 @@ def up_downgrades(df):
     return out
 
 
+def insider_items(df):
+    """Insidergeschäfte der letzten zwölf Monate: [Datum, Name, Position, "B"/"S", Stückzahl, Wert]. Nur echte Käufe
+    und Verkäufe am Markt; Zuteilungen, Optionsausübungen und Schenkungen zählen nicht. Yahoo liefert das fast nur
+    für US-Aktien. None = Yahoo liefert nichts, [] = keine Käufe oder Verkäufe im Zeitraum."""
+    try:
+        if df is None or not hasattr(df, "iterrows") or df.empty:
+            return None
+        cut = datetime.now(timezone.utc) - timedelta(days=365)
+        out = []
+        for _, r in df.iterrows():
+            text = str(r.get("Text") or "") + " " + str(r.get("Transaction") or "")
+            low = text.lower()
+            if any(w in low for w in ("exercise", "award", "grant", "gift", "conversion", "option")):
+                continue
+            kind = "B" if ("purchase" in low or "buy" in low) else "S" if ("sale" in low or "sell" in low) else None
+            if kind is None:
+                continue
+            d = r.get("Start Date")
+            try:
+                d = pd.Timestamp(d)
+                d = d.tz_localize("UTC") if d.tzinfo is None else d
+            except Exception:
+                continue
+            if d < cut:
+                continue
+            sh, val = num(r.get("Shares")), num(r.get("Value"))
+            out.append([d.strftime("%Y-%m-%d"), str(r.get("Insider") or "")[:60].title(),
+                        str(r.get("Position") or "")[:60], kind, int(sh) if sh else None,
+                        float("%.4g" % val) if val else None])
+        out.sort(key=lambda v: v[0], reverse=True)
+        return out[:40]
+    except Exception:
+        return None
+
+
+def surprises(hist, dates_fn=None):
+    """Die letzten vier gemeldeten Quartale: [Datum, Schätzung, Ergebnis je Aktie, Abweichung in %]."""
+    out = []
+    try:
+        if hist is not None and hasattr(hist, "iterrows") and not hist.empty:
+            for idx, r in hist.iterrows():
+                est, act = num(r.get("epsEstimate")), num(r.get("epsActual"))
+                if est is None or act is None:
+                    continue
+                out.append([pd.Timestamp(idx).strftime("%Y-%m-%d"), est, act])
+    except Exception:
+        out = []
+    if not out and dates_fn is not None:
+        try:
+            dates_df = dates_fn()
+            if dates_df is not None and hasattr(dates_df, "iterrows") and not dates_df.empty:
+                for idx, r in dates_df.iterrows():
+                    est, act = num(r.get("EPS Estimate")), num(r.get("Reported EPS"))
+                    if est is None or act is None:
+                        continue
+                    out.append([pd.Timestamp(idx).strftime("%Y-%m-%d"), est, act])
+        except Exception:
+            out = []
+    out.sort(key=lambda v: v[0], reverse=True)
+    res = []
+    for d, est, act in out[:4]:
+        sp = (act - est) / abs(est) * 100 if est else None
+        res.append([d, float("%.4g" % est), float("%.4g" % act), None if sp is None else round(sp, 1)])
+    return res or None
+
+
 def news_items(items):
     """Schlagzeilen der letzten 30 Tage: [Titel, Quelle, Datum, Link]"""
     out = []
@@ -236,6 +302,8 @@ def fetch_fund(sym):
         "updown": up_downgrades(safe(lambda: t.upgrades_downgrades)),
         "earn": earn, "exDiv": exdiv,
         "news": news_items(safe(lambda: t.news)),
+        "ins": insider_items(safe(lambda: t.insider_transactions)),
+        "surp": surprises(safe(lambda: t.earnings_history), lambda: safe(lambda: t.get_earnings_dates(limit=12))),
     }
 
 
@@ -447,14 +515,66 @@ def add_history(stocks):
         idx = [i for i, d in enumerate(dates[:-1]) if d <= limit]
         return idx[-1] if idx else None
 
-    i1, i7 = (len(dates) - 2 if len(dates) > 1 else None), back(7)
+    i1, i7, i30 = (len(dates) - 2 if len(dates) > 1 else None), back(7), back(30)
     for x in stocks:
         row = tot.get(x["s"]) or []
         cur = x.get("tot")
         x["c1"] = round(cur - row[i1], 1) if i1 is not None and cur is not None and row[i1] is not None else None
         x["c7"] = round(cur - row[i7], 1) if i7 is not None and cur is not None and row[i7] is not None else None
+        x["c30"] = round(cur - row[i30], 1) if i30 is not None and cur is not None and row[i30] is not None else None
     with open(HIST_PATH, "w") as f:
         json.dump(hist, f, separators=(",", ":"), default=plain)
+
+
+def market_context(stocks):
+    """Marktbreite, Lage je Sektor und Rang jeder Aktie in ihrem Sektor. Reine Anzeige, ohne Einfluss auf den Score.
+    Rückgabe: Zusammenfassung für data.json; je Aktie werden "sv" (Branchenvergleich) und "sr" ergänzt."""
+    def med(v):
+        v = sorted(x for x in v if x is not None)
+        return None if not v else round((v[len(v) // 2] if len(v) % 2 else (v[len(v) // 2 - 1] + v[len(v) // 2]) / 2), 1)
+
+    def share(v):
+        v = [x for x in v if x is not None]
+        return round(100 * sum(1 for x in v if x) / len(v)) if v else None
+    ok = [x for x in stocks if x.get("p") and x.get("s200") and x.get("s50")]
+    pf = lambda x, i: (x.get("pf") or [None] * 4)[i]   # noqa: E731
+    mkt = {"n": len(ok), "a200": share([x["p"] > x["s200"] for x in ok]), "a50": share([x["p"] > x["s50"] for x in ok]),
+           "nh5": share([(x.get("d52") or 99) <= 5 for x in ok]), "med1": med([pf(x, 0) for x in ok]),
+           "med3": med([pf(x, 1) for x in ok]), "med12": med([pf(x, 3) for x in ok]), "sec": {}}
+    by = {}
+    for x in ok:
+        by.setdefault(x.get("sec") or "", []).append(x)
+    for sec, xs in by.items():
+        if not sec or len(xs) < 5:
+            continue
+        mkt["sec"][sec] = [len(xs), share([x["p"] > x["s200"] for x in xs]), med([pf(x, 0) for x in xs]),
+                           med([pf(x, 1) for x in xs]), med([pf(x, 3) for x in xs])]
+    # Branchenvergleich: Anteil der Sektorkollegen, die schlechter abschneiden (KGV: niedriger ist besser).
+    # Banken und Versicherer werden nur untereinander verglichen, weil sie andere Kennzahlen haben.
+    keys = [("revH", True), ("margin", True), ("nm", True), ("roic", True), ("roe", True), ("pe", False)]
+
+    def val(x, k):
+        if k == "pe":
+            return x.get("pe") if x.get("pe") and x["pe"] > 0 else None
+        return next((c[2] for c in x.get("F") or [] if c[1] == k), None)
+    groups = {}
+    for x in ok:
+        groups.setdefault((x.get("sec") or "", bool(x.get("fin"))), []).append(x)
+    for (sec, fin), xs in groups.items():
+        for x in xs:
+            x["sv"] = []
+        for k, hi in keys:
+            vals = [(x, val(x, k)) for x in xs]
+            vals = [(x, v) for x, v in vals if v is not None]
+            if len(vals) < 8:
+                continue
+            for x, v in vals:
+                worse = sum(1 for _, w in vals if (w < v if hi else w > v))
+                x["sv"].append([k, v, round(100 * worse / (len(vals) - 1)), len(vals)])
+        r3 = [(x, pf(x, 1)) for x in xs if pf(x, 1) is not None]
+        for x, v in r3:
+            x["sr"] = round(100 * sum(1 for _, w in r3 if w < v) / max(len(r3) - 1, 1)) if len(r3) >= 5 else None
+    return mkt
 
 
 def main():
@@ -544,6 +664,11 @@ def main():
     os.makedirs(DOCS, exist_ok=True)
     add_history(stocks)
     try:
+        mkt = market_context(stocks)
+    except Exception as e:  # noqa: BLE001  Zusatzanzeige darf den Lauf nie aufhalten
+        print("Marktumfeld nicht berechnet:", type(e).__name__, flush=True)
+        mkt = None
+    try:
         tk = run_tracking(stocks, adj, rates, meta)
         print("Trefferquote:", tk or "heute schon erfasst", flush=True)
     except Exception as e:  # noqa: BLE001  Die Bewertung soll nie an der Trefferquote scheitern
@@ -553,7 +678,7 @@ def main():
     out = {"v": VERSION, "updated": datetime.now(timezone.utc).isoformat(timespec="minutes"),
            "universe": len(symbols), "dupes": len(dupes), "skipped": skipped,
            "th": TH, "thAll": TH_ALL, "finTh": FIN_TH, "finPe": FIN_PE_FACTOR, "gCap": G_CAP, "weights": WEIGHTS,
-           "hotMin": HOT_MIN, "bench": bench, "stocks": stocks}
+           "hotMin": HOT_MIN, "bench": bench, "mkt": mkt, "stocks": stocks}
     with open(OUT_PATH, "w") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"), default=plain)
     if charts:

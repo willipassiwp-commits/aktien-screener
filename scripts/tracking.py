@@ -570,6 +570,10 @@ def run(today, version, stocks, adj, fx, mw_adj, info, paths, extra_adj=None):
     corr = update_corr(list((old_summary or {}).get("corr", [])), days, curs)
     since = days[0]["d"]
     summary = build_summary(cases, old_summary, corr, today, (old_summary or {}).get("since") or since)
+    # Wechsel seit dem letzten Messtag (für die Liste „Neu seit dem letzten Messtag“)
+    summary["chg"] = {"d": today, "prev": prev["d"] if prev is not None else None,
+                      "in": [[c["s"], c["k"]] for c in cases if c["d"] == today and not c["st"]],
+                      "out": [[c["s"], c["k"]] for c in cases if c["x"] == today]}
     cases = prune_cases(cases, summary, today)
     days = save_days(paths["track"], days, today)
     save_cases(paths["cases"], cases)

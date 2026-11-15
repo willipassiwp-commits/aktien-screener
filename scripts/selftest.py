@@ -203,6 +203,17 @@ def main():
     ok &= check("Lage: nach Einbruch nicht 'läuft stabil' oder 'überdehnt'", down["kl"][0] not in ("S", "U"), down["kl"][:2])
     ok &= check("Tages- und Wochenbewegung vorhanden", r["p1d"] is not None and r["p1w"] is not None, (r["p1d"], r["p1w"]))
 
+    # 12. Zusatzsignale und Unterzeile
+    from datetime import date as _d
+    isum = scoring.insider_summary([["2026-11-01", "A", "CEO", "B", 100, 2e6], ["2026-10-01", "B", "Director", "B", 10, 5e4],
+                                    ["2026-09-01", "C", "CFO", "S", 50, 3e6], ["2025-01-01", "D", "CEO", "B", 9, 9e6]],
+                                   _d(2026, 11, 15))
+    ok &= check("Insider: nur sechs Monate, Käufe und Verkäufe getrennt",
+                isum["nb"] == 2 and isum["nbp"] == 2 and isum["vb"] == 2.05e6 and isum["ns"] == 1 and isum["top"][0][1] == "A",
+                isum)
+    ok &= check("Unterzeile nur bei neutral", (r["nu"] is None) or r["su"] == "Neutral", (r["su"], r["nu"]))
+    ok &= check("Rücksetzer-Tief liegt nicht über dem Kurs", down["ul"] is None or down["ul"] >= 0, down["ul"])
+
     # 10. Trefferquote: Eintritt, Sperrfrist, Horizont mit Währung, Überrendite, Einfrieren, Löschen, Größe
     import tracking as TK
     import tempfile
