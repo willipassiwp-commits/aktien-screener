@@ -202,21 +202,22 @@ def short_term(c, vol, weekly):
                 stretch=float(stretch) if stretch is not None else None, udv=udv)
 
 
-ENTITY = re.compile(r"\b(plc|inc|corp|corporation|ltd|limited|llc|l\.?p|lp|ag|sa|nv|n\.v|se|bank|holdings?|group|"
-                    r"trust|fund|partners|capital|management|company|co)\b\.?", re.I)
-
-
-def is_person(i):
-    """Nur Geschäfte von Personen zählen. Rückkäufe des Unternehmens selbst (Position „Issuer“) und Geschäfte von
-    Gesellschaften oder Fonds werden ausgelassen."""
+def is_insider(i, company=""):
+    """Zählt Geschäfte von Insidern: Vorstände, Aufsichtsräte, Großaktionäre (auch deren Gesellschaften, etwa ein
+    Familienbüro). Nicht gezählt werden Aktienrückkäufe des Unternehmens selbst: Position „Issuer“ oder der Name des
+    Unternehmens als Käufer."""
     pos = (i[2] or "").strip().lower()
-    return pos != "issuer" and not ENTITY.search(i[1] or "")
+    if pos == "issuer":
+        return False
+    words = [w for w in re.sub(r"[^a-z0-9 ]", " ", (company or "").lower()).split() if len(w) >= 3 and w != "the"]
+    name = " " + re.sub(r"[^a-z0-9 ]", " ", (i[1] or "").lower()) + " "
+    return not (words and " %s " % words[0] in name)
 
 
-def insider_summary(items, today, days=182):
+def insider_summary(items, today, days=182, company=""):
     """Insiderkäufe und -verkäufe der letzten sechs Monate. items: [Datum, Name, Position, "B"/"S", Stück, Wert]."""
     cut = (today - timedelta(days=days)).strftime("%Y-%m-%d")
-    rows = [i for i in items if i and i[0] >= cut and is_person(i)]
+    rows = [i for i in items if i and i[0] >= cut and is_insider(i, company)]
     buys = [i for i in rows if i[3] == "B"]
     sells = [i for i in rows if i[3] == "S"]
     vb = sum(i[5] or 0 for i in buys)
@@ -1127,7 +1128,8 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
     )
     rec["kl"] = lage(price, pm, pm["rsi"], pm["zs"], pm["sym"])
     # Zusatzsignale (nur Anzeige und Texte, kein Einfluss auf den Score)
-    rec["ins"] = insider_summary(fund["ins"], today) if "ins" in fund and fund["ins"] is not None else None
+    rec["ins"] = (insider_summary(fund["ins"], today, company=fund.get("name") or "")
+                  if "ins" in fund and fund["ins"] is not None else None)
     rec["eq"] = fund.get("surp") or None
     sf, sr = bounded(y.get("shortPercentOfFloat"), 0, 1), bounded(y.get("shortRatio"), 0, 100)
     rec["sh"] = [pct(sf), r1(sr, 1)] if sf is not None or sr is not None else None
@@ -1477,12 +1479,12 @@ def texts(r, x):
     ins, cur = r.get("ins"), r.get("cur")
     if ins and ins["nb"] and (ins["vb"] >= 1e6 or ins["nbp"] >= 2):
         t0 = ins["top"][0]
-        pro.insert(0, "Insiderkäufe in sechs Monaten: %d Kauf%s von %d Person%s, zusammen %s; größter: %s (%s), %s am %s"
-                   % (ins["nb"], "" if ins["nb"] == 1 else "e", ins["nbp"], "" if ins["nbp"] == 1 else "en",
+        pro.insert(0, "Insiderkäufe in sechs Monaten: %d %s von %d %s, zusammen %s; größter: %s (%s), %s am %s"
+                   % (ins["nb"], "Kauf" if ins["nb"] == 1 else "Käufe", ins["nbp"], "Insider" if ins["nbp"] == 1 else "Insidern",
                       money(ins["vb"], cur), t0[1], t0[2] or "Insider", money(t0[5] or 0, cur),
                       ".".join(reversed(t0[0].split("-")))))
     elif ins and not ins["nb"] and ins["nsp"] >= 3 and ins["vs"] >= 2e7:
-        con.append("Insider haben in sechs Monaten für %s verkauft (%d Personen), ohne einen Kauf; Verkäufe sind "
+        con.append("Insider haben in sechs Monaten für %s verkauft (%d Insider), ohne einen Kauf; Verkäufe sind "
                    "oft planmäßig und weniger aussagekräftig als Käufe" % (money(ins["vs"], cur), ins["nsp"]))
     eq = [e for e in (r.get("eq") or []) if e[3] is not None]
     if len(eq) >= 4:
