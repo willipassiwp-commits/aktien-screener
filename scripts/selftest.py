@@ -206,7 +206,9 @@ def main():
     # 12. Zusatzsignale und Unterzeile
     from datetime import date as _d
     isum = scoring.insider_summary([["2026-11-01", "A", "CEO", "B", 100, 2e6], ["2026-10-01", "B", "Director", "B", 10, 5e4],
-                                    ["2026-09-01", "C", "CFO", "S", 50, 3e6], ["2025-01-01", "D", "CEO", "B", 9, 9e6]],
+                                    ["2026-09-01", "C", "CFO", "S", 50, 3e6], ["2025-01-01", "D", "CEO", "B", 9, 9e6],
+                                    ["2026-11-02", "The Toronto-Dominion Bank", "Issuer", "B", 1, 5e8],
+                                    ["2026-11-03", "Unilever Plc", "", "B", 1, 4e8]],
                                    _d(2026, 11, 15))
     ok &= check("Insider: nur sechs Monate, Käufe und Verkäufe getrennt",
                 isum["nb"] == 2 and isum["nbp"] == 2 and isum["vb"] == 2.05e6 and isum["ns"] == 1 and isum["top"][0][1] == "A",

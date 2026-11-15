@@ -202,10 +202,21 @@ def short_term(c, vol, weekly):
                 stretch=float(stretch) if stretch is not None else None, udv=udv)
 
 
+ENTITY = re.compile(r"\b(plc|inc|corp|corporation|ltd|limited|llc|l\.?p|lp|ag|sa|nv|n\.v|se|bank|holdings?|group|"
+                    r"trust|fund|partners|capital|management|company|co)\b\.?", re.I)
+
+
+def is_person(i):
+    """Nur Geschäfte von Personen zählen. Rückkäufe des Unternehmens selbst (Position „Issuer“) und Geschäfte von
+    Gesellschaften oder Fonds werden ausgelassen."""
+    pos = (i[2] or "").strip().lower()
+    return pos != "issuer" and not ENTITY.search(i[1] or "")
+
+
 def insider_summary(items, today, days=182):
     """Insiderkäufe und -verkäufe der letzten sechs Monate. items: [Datum, Name, Position, "B"/"S", Stück, Wert]."""
     cut = (today - timedelta(days=days)).strftime("%Y-%m-%d")
-    rows = [i for i in items if i and i[0] >= cut]
+    rows = [i for i in items if i and i[0] >= cut and is_person(i)]
     buys = [i for i in rows if i[3] == "B"]
     sells = [i for i in rows if i[3] == "S"]
     vb = sum(i[5] or 0 for i in buys)
@@ -1196,7 +1207,7 @@ def finalize(recs):
         # Gezählt wird ab dem Tief des laufenden Rücksetzers (tiefster Kurs seit dem 52-Wochen-Hoch), nicht ab dem
         # 52-Wochen-Tief: Bei einer Aktie, die ein Jahr gestiegen ist, liegt das 52-Wochen-Tief vor dem Anstieg.
         r["sl"] = x["pb_age"]
-        r["ul"] = pct(r["p"] / x["pb_low"] - 1) if x["pb_low"] else None
+        r["ul"] = pct(max(0.0, r["p"] / x["pb_low"] - 1)) if x["pb_low"] else None
         ph = None
         if r["d52"] is not None and r["d52"] >= 15:
             new_low = x["pb_age"] <= 20
