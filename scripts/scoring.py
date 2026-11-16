@@ -228,6 +228,26 @@ def insider_summary(items, today, days=182, company=""):
                 top=top, last=rows[:8], n12=len(items))
 
 
+def revenue_view(fund):
+    """Umsatz der letzten Geschäftsjahre mit Wachstum zum Vorjahr und die Analystenschätzung für das laufende und das
+    nächste Jahr. Nur Anzeige. Werte in der Berichtswährung."""
+    revs, dates = fund.get("revenue") or [], fund.get("incDates") or []
+    h = []
+    for i, (d, v) in enumerate(zip(dates, revs)):
+        if v is None or v <= 0:
+            continue
+        prev = revs[i + 1] if i + 1 < len(revs) else None
+        g = (v / prev - 1) * 100 if prev and prev > 0 else None
+        h.append([str(d)[:4], float("%.4g" % v), None if g is None or abs(g) > 500 else round(g, 1)])
+    e = fund.get("revEstYrs")
+    e = [None if v is None or abs(v) > 3 else round(v * 100, 1) for v in e] if e else None
+    ea = fund.get("revGrowthEst")
+    ea = None if ea is None or abs(ea) > 3 else round(ea * 100, 1)
+    if not h and not e and ea is None:
+        return None
+    return {"h": h[:4], "e": e, "ea": ea, "cur": fund.get("finCurrency") or fund.get("currency")}
+
+
 def money(v, cur):
     cur = {"GBp": "GBP", "ZAc": "ZAR", "ILA": "ILS"}.get(cur, cur or "")
     if v >= 1e9:
@@ -241,7 +261,7 @@ def lage(price, pm, rsi_d, zs, sym):
     """Kurzfristige Lage: eine Einstufung mit Belegen. Beschreibt den Kursverlauf bis heute, keine Vorhersage.
     Rückgabe: [Code, Bezeichnung, Satz, Belege [[Text, Wert, positiv?], ...], Überdehnt-Zähler].
     Codes: U überdehnt, G Gegenbewegung, F fällt noch, D dreht nach oben, A Rücksetzer läuft aus, S läuft stabil,
-    N uneinheitlich."""
+    E Erholung im Abwärtstrend (kurzfristig über den Linien, langfristig noch nicht), N uneinheitlich."""
     st = pm.get("st")
     if not st:
         return None
@@ -297,7 +317,7 @@ def lage(price, pm, rsi_d, zs, sym):
         code, lab = "S", "Läuft stabil"
         txt = "Der Kurs liegt über der 20-, der 50- und der 200-Tage-Linie, ohne überdehnt zu sein."
     elif over20 and over50:
-        code, lab = "N", "Uneinheitlich"
+        code, lab = "E", "Erholung im Abwärtstrend"
         txt = ("Kurzfristig erholt: Der Kurs liegt über der 20- und der 50-Tage-Linie. Langfristig ist das Bild noch "
                "schwach: %s." % ("der Kurs liegt unter der 200-Tage-Linie (%s)" % de(pm["sma200"], 2)
                                  if price <= pm["sma200"] else "die 50-Tage-Linie liegt noch unter der 200-Tage-Linie"))
@@ -995,6 +1015,9 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
                 notes.append("Historisches KGV über Jahresgewinn und Aktienzahl gerechnet, weil der Gewinn je Aktie "
                              "alter Abschlüsse nicht zum Kurs passt (meist ein Aktiensplit)")
     dy = pm["div_ttm"] / price
+    if 0.08 < dy <= 0.15:
+        notes.append("Dividendenrendite von %s %% aus den Zahlungen der letzten zwölf Monate; kann eine "
+                     "Sonderdividende enthalten" % de(dy * 100, 1))
     if dy > 0.15:
         notes.append("Dividendenrendite von %s %% unplausibel und auf 0 gesetzt" % de(dy * 100, 0))
         dy = 0.0
@@ -1027,11 +1050,18 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
         if n_an and rc and len(rc) == 5 and sum(rc) >= 3:
             rmean = bounded(sum((i + 1) * v for i, v in enumerate(rc)) / sum(rc), 1, 5)
     An, a10 = None, None
+    # Nach einem starken Kursrutsch hinken die Kursziele oft hinterher. Dann zählt ein großes Kurspotenzial höchstens
+    # wie ein knapp positives (1 von 3 Punkten), damit veraltete Ziele den Score nicht heben.
+    stale_tgt = bool(upside is not None and upside >= 0.6 and pm.get("p3m") is not None and pm["p3m"] <= -0.25)
+    if stale_tgt:
+        notes.append("Kursziel %s %% über dem Kurs nach einem Kursrückgang von %s %% in drei Monaten; die Ziele sind "
+                     "vermutlich noch nicht angepasst und zählen nur eingeschränkt" % (de(upside * 100, 0),
+                                                                                    de(-pm["p3m"] * 100, 0)))
     if n_an and n_an >= 3 and rmean is not None:
         An = [
             ["cons", r1(rmean, 2), 3 if rmean <= 1.8 else 2 if rmean <= 2.2 else 1 if rmean <= 2.6 else 0, 3],
-            ["tgt", pct(upside), 0 if upside is None else 3 if upside >= 0.20 else 2 if upside >= 0.10
-             else 1 if upside >= 0 else 0, 3],
+            ["tgt", pct(upside), 0 if upside is None else 1 if stale_tgt else 3 if upside >= 0.20 else 2
+             if upside >= 0.10 else 1 if upside >= 0 else 0, 3],
             ["rev", pct(rev90), 0 if rev90 is None else 2 if rev90 >= 0.02 else 1 if rev90 >= -0.01 else 0, 2],
             ["ud", [ups, downs], 1 if ups > downs else 0, 1],
             ["cov", int(n_an), 1 if n_an >= 10 else 0, 1],
@@ -1117,7 +1147,7 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
         vo=pct(pm["vola"], 0), rsi=r1(pm["rsi"], 0), s50=sig(pm["sma50"], 5), s200=sig(pm["sma200"], 5),
         h52=sig(pm["hi52"], 5), l52=sig(pm["lo52"], 5), vr=r1(pm["vol_ratio"], 2), cx=pm["cross"],
         sym=pm["sym"], zs=pm["zs"], zr=pm["zr"],
-        an=dict(n=int(n_an) if n_an else None, mean=r1(rmean, 2), tgt=sig(tgt, 5), up=pct(upside),
+        an=dict(n=int(n_an) if n_an else None, mean=r1(rmean, 2), tgt=sig(tgt, 5), up=pct(upside), stale=stale_tgt,
                 hi=sig(y.get("targetHighPrice"), 5), lo=sig(y.get("targetLowPrice"), 5),
                 rec=recs.get("0m"), rec3=recs.get("-3m"), rev90=pct(rev90),
                 rev30=[er.get("up30"), er.get("down30")], ud=ud[:6]),
@@ -1131,6 +1161,9 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
     rec["ins"] = (insider_summary(fund["ins"], today, company=fund.get("name") or "")
                   if "ins" in fund and fund["ins"] is not None else None)
     rec["eq"] = fund.get("surp") or None
+    rec["rv"] = revenue_view(fund)
+    if rec["rv"] and rev_e is None:          # vom Regelwerk als unplausibel verworfen: auch nicht anzeigen
+        rec["rv"]["ea"], rec["rv"]["e"] = None, None
     sf, sr = bounded(y.get("shortPercentOfFloat"), 0, 1), bounded(y.get("shortRatio"), 0, 100)
     rec["sh"] = [pct(sf), r1(sr, 1)] if sf is not None or sr is not None else None
     rec["_x"] = dict(above=above, up200=up200, up50=bool(pm["sma50_prev"] and pm["sma50"] > pm["sma50_prev"]),
@@ -1227,11 +1260,14 @@ def finalize(recs):
                       "Nächster Schritt wäre ein Kurs über einer steigenden 50-Tage-Linie (derzeit %s)."
                       % de(r["s50"], 2)]
             else:
-                ph = [1, "Abwärtsbewegung läuft", ("Das Tief des Rücksetzers ist erst %d Handelstage alt."
-                                                   % x["pb_age"]) if new_low else
-                      "Der Kurs liegt unter einer fallenden 50-Tage-Linie.",
-                      "Ein erstes Zeichen wäre: 20 Handelstage ohne neues Tief und ein Kurs über der 50-Tage-Linie "
-                      "(%s)." % de(r["s50"], 2)]
+                if new_low:
+                    ph = [1, "Abwärtsbewegung läuft", "Das Tief des Rücksetzers ist erst %d Handelstage alt."
+                          % x["pb_age"], "Ein erstes Zeichen wäre: 20 Handelstage ohne neues Tief und ein Kurs über "
+                          "der 50-Tage-Linie (%s)." % de(r["s50"], 2)]
+                else:
+                    ph = [1, "Kein neues Tief, Trend noch abwärts", "Seit %d Handelstagen kein neues Tief, der Kurs "
+                          "liegt aber unter einer fallenden 50-Tage-Linie." % x["pb_age"],
+                          "Ein erstes Zeichen wäre ein Kurs über der 50-Tage-Linie (%s)." % de(r["s50"], 2)]
         r["ph"] = ph
 
         # Alter des Trends: Wie lange liegt der Kurs schon über der 200-Tage-Linie?
@@ -1375,8 +1411,9 @@ def texts(r, x):
     if x["rev90"] is not None and x["rev90"] >= 0.03:
         pro.append("Gewinnschätzung in 90 Tagen um %s %% angehoben" % de(x["rev90"] * 100, 0))
     if x["upside"] is not None and x["upside"] >= 0.20 and r["an"]["n"]:
-        pro.append("Mittleres Kursziel von %d Analysten liegt %s %% über dem Kurs"
-                   % (r["an"]["n"], de(x["upside"] * 100, 0)))
+        pro.append("Mittleres Kursziel von %d Analysten liegt %s %% über dem Kurs%s"
+                   % (r["an"]["n"], de(x["upside"] * 100, 0), " (nach dem Kursrutsch vermutlich noch nicht angepasst)"
+                      if r["an"].get("stale") else ""))
     if r["st"] == "Aufwärtstrend":
         pro.append("Intakter Aufwärtstrend, %s %% unter dem 52-Wochen-Hoch" % de(r["d52"], 0))
     if r["rs12"] is not None and r["rs12"] >= 80:

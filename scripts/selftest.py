@@ -198,8 +198,8 @@ def main():
 
     # 11. Kurzfristige Lage und Tagesbewegung
     ok &= check("Lage: Einstufung mit Belegen", r["kl"] is not None and len(r["kl"]) == 5 and len(r["kl"][3]) >= 8
-                and r["kl"][0] in "UGFDASN", r["kl"] and r["kl"][:3])
-    ok &= check("Lage: Aufwärtstrend ist weder 'fällt noch' noch 'läuft aus'", r["kl"][0] in ("S", "U", "D", "N"), r["kl"][:2])
+                and r["kl"][0] in "UGFDASEN", r["kl"] and r["kl"][:3])
+    ok &= check("Lage: Aufwärtstrend ist weder 'fällt noch' noch 'läuft aus'", r["kl"][0] in ("S", "U", "D", "N", "E"), r["kl"][:2])
     ok &= check("Lage: nach Einbruch nicht 'läuft stabil' oder 'überdehnt'", down["kl"][0] not in ("S", "U"), down["kl"][:2])
     ok &= check("Tages- und Wochenbewegung vorhanden", r["p1d"] is not None and r["p1w"] is not None, (r["p1d"], r["p1w"]))
 

@@ -83,6 +83,15 @@ def est_growth(df):
         return None
 
 
+def est_years(df):
+    """Erwartetes Umsatzwachstum laut Analysten für das laufende und das nächste Geschäftsjahr, je einzeln."""
+    try:
+        out = [num(df.loc[k, "growth"]) if k in df.index else None for k in ("0y", "+1y")]
+        return out if any(v is not None for v in out) else None
+    except Exception:
+        return None
+
+
 def long_term_growth(df):
     """Langfristige Gewinnwachstumsschätzung der Analysten, falls Yahoo sie liefert."""
     try:
@@ -287,6 +296,7 @@ def fetch_fund(sym):
         "totalDebt": row(bal, ["Total Debt"]),
         "cash": row(bal, ["Cash Cash Equivalents And Short Term Investments", "Cash And Cash Equivalents"]),
         "revGrowthEst": est_growth(rev_est), "epsGrowthEst": est_growth(eps_est),
+        "revEstYrs": est_years(rev_est),
         "ltg": None,  # Yahoo liefert keine Langfristschätzung mehr
         "y": {k: num(info.get(k)) for k in Y_KEYS},
         "fv": FUND_VERSION,
