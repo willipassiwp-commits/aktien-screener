@@ -1052,11 +1052,11 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
     An, a10 = None, None
     # Nach einem starken Kursrutsch hinken die Kursziele oft hinterher. Dann zählt ein großes Kurspotenzial höchstens
     # wie ein knapp positives (1 von 3 Punkten), damit veraltete Ziele den Score nicht heben.
-    stale_tgt = bool(upside is not None and upside >= 0.6 and pm.get("p3m") is not None and pm["p3m"] <= -0.25)
+    drop = max(-(pm.get("p3m") or 0), dist52 or 0)          # Rückgang in drei Monaten oder vom 52-Wochen-Hoch
+    stale_tgt = bool(upside is not None and upside >= 0.6 and ((pm.get("p3m") or 0) <= -0.25 or (dist52 or 0) >= 0.35))
     if stale_tgt:
-        notes.append("Kursziel %s %% über dem Kurs nach einem Kursrückgang von %s %% in drei Monaten; die Ziele sind "
-                     "vermutlich noch nicht angepasst und zählen nur eingeschränkt" % (de(upside * 100, 0),
-                                                                                    de(-pm["p3m"] * 100, 0)))
+        notes.append("Kursziel %s %% über dem Kurs nach einem Kursrückgang von %s %%; die Ziele sind vermutlich noch "
+                     "nicht angepasst und zählen nur eingeschränkt" % (de(upside * 100, 0), de(drop * 100, 0)))
     if n_an and n_an >= 3 and rmean is not None:
         An = [
             ["cons", r1(rmean, 2), 3 if rmean <= 1.8 else 2 if rmean <= 2.2 else 1 if rmean <= 2.6 else 0, 3],
