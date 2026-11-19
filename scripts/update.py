@@ -21,13 +21,16 @@ from yfinance.exceptions import YFRateLimitError
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from build_universe import SUBUNIT, fx_rates  # noqa: E402
 from scoring import (FIN_PE_FACTOR, FIN_TH, G_CAP, HOT_MIN, TH, TH_ALL, VERSION, WEIGHTS, finalize, num, pct,  # noqa: E402
-                     price_metrics, score)
+                     price_metrics, score, short_analysis)
+import external  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA, DOCS = os.path.join(ROOT, "data"), os.path.join(ROOT, "docs")
 FUND_PATH = os.path.join(DATA, "fundamentals.json")
 OUT_PATH = os.path.join(DOCS, "data.json")
 CHART_PATH = os.path.join(DOCS, "charts.json")
+DAILY_PATH = os.path.join(DOCS, "daily.json")          # Tageskurse der letzten Monate für den Kurzfrist-Chart
+EXT_PATH = os.path.join(DATA, "ext.json")              # Cache der externen Chartanalysen
 HIST_PATH = os.path.join(DOCS, "history.json")
 TRACK_PATH = os.path.join(DATA, "track.json")          # altes Format, wird nur noch einmal gelesen
 TRACK_PATHS = {"track": os.path.join(DATA, "track"), "cases": os.path.join(DOCS, "cases"),
@@ -616,6 +619,11 @@ def main():
         old_charts = json.load(open(CHART_PATH))
     except Exception:
         old_charts = {}
+    try:
+        old_daily = json.load(open(DAILY_PATH))
+    except Exception:
+        old_daily = {}
+    daily = {}
     stocks, fresh, priced, skipped = [], [], 0, 0
     for s, df in download_prices(symbols):
         adj[s] = adj_lookup(df)
@@ -629,12 +637,16 @@ def main():
             # am Wochenende für europäische Börsen). Dann bleibt der neuere, bereits veröffentlichte Stand stehen.
             stocks.append(old[s])
             charts[s] = old_charts[s]
+            if old_daily.get(s):
+                daily[s] = old_daily[s]
             stale_kept += 1
             continue
         if pm is None or not fund:
             # alten Stand weiterzeigen, die Seite markiert ihn über das Kursdatum als veraltet
             if s in old and fund and old_version == VERSION:
                 stocks.append(old[s])
+                if old_daily.get(s):
+                    daily[s] = old_daily[s]
             else:
                 skipped += 1
             continue
@@ -656,6 +668,13 @@ def main():
             rec["qn"].append("Fundamentaldaten seit über drei Wochen nicht aktualisiert")
             rec["q"] = "C" if rec["q"] == "B" else "B" if rec["q"] == "A" else rec["q"]
         charts[s] = pm["weekly"]
+        try:                                       # Kurzfristige Chartanalyse, nur Anzeige
+            sa = short_analysis(df)
+        except Exception as e:  # noqa: BLE001
+            print("Kurzfristanalyse fehlgeschlagen:", s, type(e).__name__, flush=True)
+            sa = None
+        if sa:
+            rec["ka"], daily[s] = sa
         rec.update(s=s, n=fund.get("name") or meta[s]["name"], c=fund.get("country") or meta[s].get("country") or "",
                    sec=fund.get("sector") or meta[s].get("sector") or "", ind=fund.get("industry") or "",
                    cur=cur or "", fd=datetime.fromtimestamp(fund["ts"], timezone.utc).strftime("%Y-%m-%d"))
@@ -685,6 +704,16 @@ def main():
         import traceback
         traceback.print_exc()
         print("Trefferquote nicht aktualisiert:", type(e).__name__, flush=True)
+    try:                                           # Externe Chartanalysen, nur Anzeige
+        ext = external.run([x["s"] for x in stocks], EXT_PATH)
+        for x in stocks:
+            xt = external.view(x["s"], ext)
+            if xt:
+                x["xt"] = xt
+            else:
+                x.pop("xt", None)
+    except Exception as e:  # noqa: BLE001
+        print("Externe Analysen übersprungen:", type(e).__name__, flush=True)
     out = {"v": VERSION, "updated": datetime.now(timezone.utc).isoformat(timespec="minutes"),
            "universe": len(symbols), "dupes": len(dupes), "skipped": skipped,
            "th": TH, "thAll": TH_ALL, "finTh": FIN_TH, "finPe": FIN_PE_FACTOR, "gCap": G_CAP, "weights": WEIGHTS,
@@ -694,6 +723,9 @@ def main():
     if charts:
         with open(CHART_PATH, "w") as f:
             json.dump(charts, f, separators=(",", ":"), default=plain)
+    if daily:
+        with open(DAILY_PATH, "w") as f:
+            json.dump(daily, f, separators=(",", ":"), default=plain)
     q = {k: sum(1 for x in stocks if x.get("q") == k) for k in "ABC"}
     print("Geschrieben:", OUT_PATH, len(stocks), "Aktien | Datenqualität", q)
 

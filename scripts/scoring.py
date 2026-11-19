@@ -712,6 +712,293 @@ def rec_word(mean):
 
 
 # ----------------------------------------------------------------------------------------------------------------
+# Kurzfristige Chartanalyse (nur Anzeige, fließt nicht in den Gesamtscore ein)
+# ----------------------------------------------------------------------------------------------------------------
+
+def _ema(s, n):
+    return s.ewm(span=n, adjust=False).mean()
+
+
+def _rsi_series(c, n=14):
+    d = c.diff()
+    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False).mean()
+    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False).mean()
+    rs = up / dn.replace(0, np.nan)
+    return (100 - 100 / (1 + rs)).fillna(100)
+
+
+def _f(v, d=1, unit=""):
+    return "–" if v is None else de(v, d) + unit
+
+
+def _sp(v, d=1):
+    """Vorzeichen-Prozent als Text, v als Anteil (0,05 = +5 %)."""
+    if v is None:
+        return "–"
+    return ("+" if v >= 0 else "−") + de(abs(v) * 100, d) + " %"
+
+
+def short_analysis(df):
+    """Ausführliche kurzfristige Chartanalyse aus Tageskursen (Eröffnung, Hoch, Tief, Schluss, Volumen).
+    Rückgabe: dict mit Kurzfrist-Note 0–10, Einstufung, Zusammenfassung, Signalgruppen, kurzfristigen Marken und den
+    Tagesreihen für den Chart. None, wenn zu wenig Daten da sind. Beschreibt den Kursverlauf bis heute, sagt nichts
+    Sicheres über die Zukunft."""
+    if df is None or "Close" not in df:
+        return None
+    df = df.copy()
+    if getattr(df.index, "tz", None) is not None:
+        df.index = df.index.tz_localize(None)
+    c = pd.to_numeric(df["Close"], errors="coerce")
+    ok = c.notna() & (c > 0)
+    df, c = df[ok], c[ok]
+    if len(c) < 130:
+        return None
+    h = pd.to_numeric(df["High"], errors="coerce").fillna(c) if "High" in df else c
+    l = pd.to_numeric(df["Low"], errors="coerce").fillna(c) if "Low" in df else c
+    o = pd.to_numeric(df["Open"], errors="coerce").fillna(c) if "Open" in df else c
+    h, l = np.maximum(h, c), np.minimum(l, c)
+    v = pd.to_numeric(df["Volume"], errors="coerce").fillna(0) if "Volume" in df else None
+    if v is not None and float(v.iloc[-60:].sum()) <= 0:
+        v = None
+    last = float(c.iloc[-1])
+    rows = {"Trend": [], "Momentum": [], "Volatilität": [], "Volumen": [], "Kursmuster": []}
+    flags = []
+
+    def add(g, label, value, sig, note):
+        rows[g].append([label, value, sig, note])
+
+    # ---------------- Trend
+    e10, e20, s50 = _ema(c, 10), _ema(c, 20), c.rolling(50).mean()
+    e20_now, e20_prev = float(e20.iloc[-1]), float(e20.iloc[-6])
+    if last > e20_now and e20_now > e20_prev:
+        s, t = 1, "Kurs über der steigenden EMA 20"
+    elif last < e20_now and e20_now < e20_prev:
+        s, t = -1, "Kurs unter der fallenden EMA 20"
+    else:
+        s, t = 0, "Kurs und EMA 20 uneinheitlich"
+    add("Trend", "Kurs zur EMA 20", _sp(last / e20_now - 1), s, t)
+    diff = (e10 - e20).iloc[-30:]
+    sign = np.sign(diff.values)
+    xd = None
+    for i in range(len(sign) - 1, 0, -1):
+        if sign[i] != sign[i - 1] and sign[i] != 0:
+            xd = len(sign) - 1 - i
+            break
+    s = 1 if sign[-1] > 0 else -1
+    t = ("EMA 10 über EMA 20" if s > 0 else "EMA 10 unter EMA 20") + (
+        ", gekreuzt vor %d Handelstag%s" % (xd, "" if xd == 1 else "en") if xd is not None and xd <= 10 else "")
+    add("Trend", "EMA 10 gegen EMA 20", "Abstand " + _sp(float(e10.iloc[-1] / e20.iloc[-1] - 1)), s, t)
+    s50n = float(s50.iloc[-1])
+    add("Trend", "Kurs zur 50-Tage-Linie", _sp(last / s50n - 1), 1 if last > s50n else -1,
+        "über der 50-Tage-Linie" if last > s50n else "unter der 50-Tage-Linie")
+    y = np.log(c.iloc[-20:].values)
+    x = np.arange(20)
+    slope, icpt = np.polyfit(x, y, 1)
+    ss = float(((y - y.mean()) ** 2).sum())
+    r2 = 1 - float(((y - (slope * x + icpt)) ** 2).sum()) / ss if ss > 0 else 0.0
+    m20 = math.exp(slope * 19) - 1
+    s = 1 if m20 > 0.02 and r2 >= 0.5 else -1 if m20 < -0.02 and r2 >= 0.5 else 0
+    add("Trend", "Steigung 20 Tage", "%s (Gleichmäßigkeit %s)" % (_sp(m20), de(r2, 2)), s,
+        "gleichmäßiger Anstieg" if s > 0 else "gleichmäßiger Rückgang" if s < 0 else "kein gleichmäßiger Verlauf")
+    # ADX
+    up_m, dn_m = h.diff(), -l.diff()
+    pdm = up_m.where((up_m > dn_m) & (up_m > 0), 0.0)
+    ndm = dn_m.where((dn_m > up_m) & (dn_m > 0), 0.0)
+    tr = pd.concat([h - l, (h - c.shift()).abs(), (l - c.shift()).abs()], axis=1).max(axis=1)
+    atr = tr.ewm(alpha=1 / 14, adjust=False).mean()
+    pdi = 100 * pdm.ewm(alpha=1 / 14, adjust=False).mean() / atr.replace(0, np.nan)
+    ndi = 100 * ndm.ewm(alpha=1 / 14, adjust=False).mean() / atr.replace(0, np.nan)
+    dx = (100 * (pdi - ndi).abs() / (pdi + ndi).replace(0, np.nan)).fillna(0)
+    adx = float(dx.ewm(alpha=1 / 14, adjust=False).mean().iloc[-1])
+    pd_, nd_ = float(pdi.iloc[-1] or 0), float(ndi.iloc[-1] or 0)
+    if adx >= 25:
+        s = 1 if pd_ > nd_ else -1
+        t = "kräftiger Trend nach " + ("oben" if s > 0 else "unten")
+    elif adx < 20:
+        s, t = 0, "kein ausgeprägter Trend, eher Seitwärtsphase"
+    else:
+        s, t = 0, "Trend schwach ausgeprägt (nach " + ("oben)" if pd_ > nd_ else "unten)")
+    add("Trend", "ADX (Trendstärke)", "%s · +DI %s / −DI %s" % (de(adx, 0), de(pd_, 0), de(nd_, 0)), s, t)
+
+    # ---------------- Momentum
+    rs = _rsi_series(c)
+    r_now, r_5 = float(rs.iloc[-1]), float(rs.iloc[-6])
+    if r_now >= 70:
+        s, t = 0, "überkauft (über 70), Rücksetzer häufiger"
+        flags.append("überkauft")
+    elif r_now <= 30:
+        s, t = 0, "überverkauft (unter 30), Gegenbewegungen häufiger"
+        flags.append("überverkauft")
+    elif r_now >= 50:
+        s, t = (1, "über 50 und steigend") if r_now >= r_5 else (0, "über 50, aber fallend")
+    else:
+        s, t = (-1, "unter 50 und fallend") if r_now < r_5 else (0, "unter 50, aber steigend")
+    add("Momentum", "RSI 14", "%s (vor 5 Tagen %s)" % (de(r_now, 0), de(r_5, 0)), s, t)
+    macd = _ema(c, 12) - _ema(c, 26)
+    sigl = _ema(macd, 9)
+    hist = macd - sigl
+    hs = np.sign(hist.iloc[-30:].values)
+    md = None
+    for i in range(len(hs) - 1, 0, -1):
+        if hs[i] != hs[i - 1] and hs[i] != 0:
+            md = len(hs) - 1 - i
+            break
+    s = 1 if hs[-1] > 0 else -1
+    t = ("MACD über der Signallinie" if s > 0 else "MACD unter der Signallinie") + (
+        ", Kreuzung vor %d Handelstag%s" % (md, "" if md == 1 else "en") if md is not None and md <= 10 else "")
+    add("Momentum", "MACD (12, 26, 9)", "%s / Signal %s" % (de(float(macd.iloc[-1]), 2), de(float(sigl.iloc[-1]), 2)), s, t)
+    h3 = hist.iloc[-4:].values
+    s = 1 if h3[-1] > h3[-2] > h3[-3] else -1 if h3[-1] < h3[-2] < h3[-3] else 0
+    add("Momentum", "MACD-Histogramm", "3 Tage " + ("steigend" if s > 0 else "fallend" if s < 0 else "gemischt"), s,
+        "Schwung nimmt zu" if s > 0 else "Schwung lässt nach" if s < 0 else "Schwung ohne klare Richtung")
+    ll, hh = l.rolling(14).min(), h.rolling(14).max()
+    k_raw = 100 * (c - ll) / (hh - ll).replace(0, np.nan)
+    k = k_raw.rolling(3).mean()
+    dd = k.rolling(3).mean()
+    kn, dn_ = float(k.iloc[-1]), float(dd.iloc[-1])
+    if kn >= 80:
+        s, t = 0, "überkauft (über 80)"
+    elif kn <= 20:
+        s, t = (1, "überverkauft, %K dreht über %D") if kn > dn_ else (0, "überverkauft (unter 20)")
+    else:
+        s, t = (1, "%K über %D") if kn > dn_ else (-1, "%K unter %D")
+    add("Momentum", "Stochastik (14, 3)", "%%K %s / %%D %s" % (de(kn, 0), de(dn_, 0)), s, t)
+    roc = float(c.iloc[-1] / c.iloc[-11] - 1)
+    add("Momentum", "Veränderung 10 Tage", _sp(roc), 1 if roc > 0.03 else -1 if roc < -0.03 else 0,
+        "deutlich gestiegen" if roc > 0.03 else "deutlich gefallen" if roc < -0.03 else "kaum verändert")
+
+    # ---------------- Volatilität
+    m20s, sd20 = c.rolling(20).mean(), c.rolling(20).std()
+    up_b, lo_b = m20s + 2 * sd20, m20s - 2 * sd20
+    pb = float((c.iloc[-1] - lo_b.iloc[-1]) / (up_b.iloc[-1] - lo_b.iloc[-1])) if float(up_b.iloc[-1] - lo_b.iloc[-1]) > 0 else 0.5
+    if pb > 1:
+        s, t = 0, "über dem oberen Band, kurzfristig überdehnt"
+        flags.append("über dem oberen Bollinger-Band")
+    elif pb < 0:
+        s, t = 0, "unter dem unteren Band, kurzfristig stark gefallen"
+    elif pb >= 0.5:
+        s, t = 1, "obere Hälfte der Bänder"
+    else:
+        s, t = -1, "untere Hälfte der Bänder"
+    add("Volatilität", "Bollinger-Bänder (20, 2)", "Position %s %%" % de(pb * 100, 0), s, t)
+    bw = ((up_b - lo_b) / m20s).iloc[-120:].dropna()
+    bwr = float((bw < bw.iloc[-1]).mean()) if len(bw) > 30 else None
+    if bwr is not None:
+        add("Volatilität", "Bandbreite", "enger als %s %% der letzten 6 Monate" % de((1 - bwr) * 100, 0), None,
+            "Bänder sehr eng: oft folgt eine größere Bewegung, Richtung offen" if bwr <= 0.15 else
+            "Bänder weit: hohe Schwankung" if bwr >= 0.85 else "normale Bandbreite")
+    atr_n = float(atr.iloc[-1])
+    atrp = atr_n / last
+    add("Volatilität", "ATR 14 (übliche Tagesspanne)", "%s · %s %% vom Kurs" % (de(atr_n, 2 if atr_n < 100 else 0),
+                                                                           de(atrp * 100, 1)), None,
+        "sehr ruhig" if atrp < 0.012 else "ruhig" if atrp < 0.02 else "lebhaft" if atrp < 0.035 else "sehr schwankungsreich")
+
+    # ---------------- Volumen
+    if v is not None:
+        obv = (np.sign(c.diff()).fillna(0) * v).cumsum()
+        ob = obv.iloc[-20:].values
+        ob_s = np.polyfit(np.arange(20), ob, 1)[0] * 20
+        vavg = float(v.iloc[-60:].mean()) or 1
+        rel = ob_s / (vavg * 20)
+        s = 1 if rel > 0.1 else -1 if rel < -0.1 else 0
+        add("Volumen", "On-Balance-Volumen 20 Tage", "steigend" if s > 0 else "fallend" if s < 0 else "seitwärts", s,
+            "Volumen fließt eher in Anstiege" if s > 0 else "Volumen fließt eher in Rückgänge" if s < 0 else "keine klare Richtung")
+        d20 = c.diff().iloc[-20:]
+        vv = v.reindex(d20.index)
+        upv, dnv = float(vv[d20 > 0].sum()), float(vv[d20 < 0].sum())
+        udr = upv / dnv if dnv > 0 else None
+        s = 0 if udr is None else 1 if udr > 1.2 else -1 if udr < 0.8 else 0
+        add("Volumen", "Volumen an Plus- gegen Minustagen", "–" if udr is None else de(udr, 2) + " : 1", s,
+            "mehr Volumen an Plustagen" if s > 0 else "mehr Volumen an Minustagen" if s < 0 else "ausgeglichen")
+        v20 = float(v.iloc[-21:-1].mean())
+        vr = float(v.iloc[-1]) / v20 if v20 > 0 else None
+        d1 = float(c.iloc[-1] - c.iloc[-2])
+        if vr is not None and vr >= 1.5:
+            s = 1 if d1 > 0 else -1 if d1 < 0 else 0
+            t = "hohes Volumen am " + ("Plustag" if d1 > 0 else "Minustag" if d1 < 0 else "Handelstag")
+        else:
+            s, t = 0, "normales Volumen" if vr is None or vr >= 0.6 else "geringes Volumen"
+        add("Volumen", "Volumen letzter Handelstag", "–" if vr is None else de(vr, 1) + "-fach des 20-Tage-Schnitts", s, t)
+
+    # ---------------- Kursmuster
+    h20p, l20p = float(c.iloc[-21:-1].max()), float(c.iloc[-21:-1].min())
+    s = 1 if last > h20p else -1 if last < l20p else 0
+    add("Kursmuster", "20-Tage-Spanne", "Hoch %s · Tief %s" % (_f(h20p, 2), _f(l20p, 2)), s,
+        "Schlusskurs über dem 20-Tage-Hoch (Ausbruch)" if s > 0 else "Schlusskurs unter dem 20-Tage-Tief" if s < 0
+        else "innerhalb der Spanne, %s %% vom Tief zum Hoch" % de((last - l20p) / (h20p - l20p) * 100 if h20p > l20p else 50, 0))
+    hh_ = float(h.iloc[-10:].max()) > float(h.iloc[-20:-10].max())
+    hl_ = float(l.iloc[-10:].min()) > float(l.iloc[-20:-10].min())
+    s = 1 if hh_ and hl_ else -1 if (not hh_ and not hl_) else 0
+    add("Kursmuster", "Hochs und Tiefs (10 gegen 10 Tage)",
+        ("höheres" if hh_ else "tieferes") + " Hoch, " + ("höheres" if hl_ else "tieferes") + " Tief", s,
+        "Aufwärtsstruktur" if s > 0 else "Abwärtsstruktur" if s < 0 else "gemischte Struktur")
+    rng = (h - l).iloc[-3:]
+    clv = ((2 * c - h - l) / (h - l).replace(0, np.nan)).iloc[-3:].fillna(0)
+    cm = float(clv.mean()) if float(rng.sum()) > 0 else 0.0
+    s = 1 if cm > 0.3 else -1 if cm < -0.3 else 0
+    add("Kursmuster", "Schlusskurs in der Tagesspanne (3 Tage)", "Ø %s %% der Spanne" % de((cm + 1) * 50, 0), s,
+        "Schluss meist nahe am Tageshoch" if s > 0 else "Schluss meist nahe am Tagestief" if s < 0 else "Schluss meist in der Mitte")
+    gap = float(o.iloc[-1] / c.iloc[-2] - 1)
+    streak, sgn = 0, np.sign(float(c.iloc[-1] - c.iloc[-2]))
+    for i in range(len(c) - 1, 0, -1):
+        if np.sign(float(c.iloc[i] - c.iloc[i - 1])) == sgn and sgn != 0:
+            streak += 1
+        else:
+            break
+    info = []
+    if abs(gap) >= 0.02:
+        info.append("Kurslücke %s zur Eröffnung" % _sp(gap))
+    if streak >= 4:
+        info.append("%d %s in Folge" % (streak, "Plustage" if sgn > 0 else "Minustage"))
+    add("Kursmuster", "Letzte Tage", ("unverändert" if sgn == 0 else "%s %s in Folge" % (
+        streak, ("Plustag" if sgn > 0 else "Minustag") + ("" if streak == 1 else "e"))),
+        None, "; ".join(info) if info else "keine Kurslücke, keine auffällige Serie")
+
+    # ---------------- Note und Text
+    scored = [r for g in rows.values() for r in g if r[2] is not None]
+    pos = sum(1 for r in scored if r[2] > 0)
+    neg = sum(1 for r in scored if r[2] < 0)
+    note = round(5 + 5 * (pos - neg) / len(scored), 1) if scored else 5.0
+    lb = ("kurzfristig positiv" if note >= 7 else "kurzfristig eher positiv" if note >= 5.8 else
+          "kurzfristig neutral" if note > 4.2 else "kurzfristig eher negativ" if note > 3 else "kurzfristig negativ")
+    tr_s = sum(r[2] for r in rows["Trend"] if r[2] is not None)
+    mo_s = sum(r[2] for r in rows["Momentum"] if r[2] is not None)
+    part = []
+    part.append("Der kurzfristige Trend zeigt " + ("nach oben" if tr_s >= 2 else "nach unten" if tr_s <= -2 else "keine klare Richtung"))
+    if (tr_s <= -2 and mo_s >= 2):
+        part.append("das Momentum dreht aber schon nach oben")
+    elif (tr_s >= 2 and mo_s <= -1):
+        part.append("das Momentum lässt aber nach")
+    else:
+        part.append("das Momentum ist " + ("positiv" if mo_s >= 2 else "negativ" if mo_s <= -2 else "gemischt"))
+    txt = "%s von %s Signalen positiv, %s negativ. %s, %s." % (pos, len(scored), neg, part[0], part[1])
+    if flags:
+        txt += " Hinweis: " + ", ".join(dict.fromkeys(flags)) + "."
+
+    # ---------------- Marken
+    wk = pd.DataFrame({"h": h, "l": l, "c": c}).resample("W-FRI").agg({"h": "max", "l": "min", "c": "last"}).dropna()
+    if len(wk) >= 2 and wk.index[-1] >= c.index[-1]:
+        wk = wk.iloc[:-1] if c.index[-1].weekday() < 4 else wk          # laufende Woche nicht verwenden
+    pw = wk.iloc[-1]
+    pp = (pw.h + pw.l + pw.c) / 3
+    lv = {"pp": sig(pp), "r1": sig(2 * pp - pw.l), "s1": sig(2 * pp - pw.h), "r2": sig(pp + (pw.h - pw.l)),
+          "s2": sig(pp - (pw.h - pw.l)), "h20": sig(float(h.iloc[-20:].max())), "l20": sig(float(l.iloc[-20:].min())),
+          "atr": sig(atr_n), "e20": sig(e20_now), "s50": sig(s50n)}
+    # ---------------- Reihen für den Tageschart (170 Tage, die Seite rechnet Linien und Indikatoren selbst)
+    cc = c.iloc[-170:]
+    months, prev = [], None
+    for i, d in enumerate(cc.index):
+        if d.month != prev:
+            months.append([i, int(d.month)])
+            prev = d.month
+    ser = {"c": [sig(float(q), 5) for q in cc.values],
+           "v": [int(q) for q in v.reindex(cc.index).fillna(0).values] if v is not None else None,
+           "m": months, "d": str(cc.index[-1].date())}
+    return {"n": note, "lb": lb, "txt": txt, "pos": pos, "neg": neg, "cnt": len(scored),
+            "g": [[k, r] for k, r in rows.items() if r], "lv": lv, "fl": list(dict.fromkeys(flags))}, ser
+
+
+# ----------------------------------------------------------------------------------------------------------------
 # Bewertung einer Aktie
 # ----------------------------------------------------------------------------------------------------------------
 

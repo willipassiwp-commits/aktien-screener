@@ -272,6 +272,32 @@ def main():
     ok &= check("Trefferquote: 3000 Fälle bleiben unter 1,5 MB", size < 1.5e6, size)
     ok &= check("Trefferquote: Rangkorrelation", TK.spearman(list(range(40)), [v * 2 for v in range(40)]) == 1.0)
 
+    # Kurzfristige Chartanalyse
+    kix = pd.bdate_range("2025-01-01", periods=300)
+    def kframe(step):
+        cc = 100 * np.exp(np.arange(300) * step + 0.004 * np.sin(np.arange(300)))
+        return pd.DataFrame({"Open": cc * 0.999, "High": cc * 1.01, "Low": cc * 0.99, "Close": cc,
+                             "Volume": np.where(np.arange(300) % 2 == 0, 2e6, 1e6)}, index=kix)
+    ka_up, ser_up = scoring.short_analysis(kframe(0.003))
+    ka_dn, _ = scoring.short_analysis(kframe(-0.003))
+    ok &= check("Kurzfristanalyse: Anstieg ergibt Note über 6", ka_up["n"] > 6, ka_up["n"])
+    ok &= check("Kurzfristanalyse: Rückgang ergibt Note unter 4", ka_dn["n"] < 4, ka_dn["n"])
+    ok &= check("Kurzfristanalyse: Note zwischen 0 und 10, Signale gezählt",
+                0 <= ka_dn["n"] <= 10 and ka_up["pos"] + ka_up["neg"] <= ka_up["cnt"])
+    ok &= check("Kurzfristanalyse: Pivot-Marken geordnet",
+                ka_up["lv"]["s2"] <= ka_up["lv"]["s1"] <= ka_up["lv"]["pp"] <= ka_up["lv"]["r1"] <= ka_up["lv"]["r2"], ka_up["lv"])
+    ok &= check("Kurzfristanalyse: 170 Tageskurse für den Chart", len(ser_up["c"]) == 170 and len(ser_up["v"]) == 170)
+    ok &= check("Kurzfristanalyse: zu wenig Daten ergibt nichts", scoring.short_analysis(kframe(0.001).iloc[:100]) is None)
+    import external as EX
+    ok &= check("Extern: TradingView-Kürzel", EX.tv_ticker("0700.HK") == ["HKEX:700"] and EX.tv_ticker("VOLV-B.ST") == ["OMXSTO:VOLV_B"]
+                and EX.tv_ticker("BRK-B")[0] == "NASDAQ:BRK.B" and EX.tv_ticker("X.ZZ") == [])
+    tcp = EX._tc_parse({"finance": {"result": {"instrumentInfo": {"technicalEvents": {"shortTermOutlook": {"direction": "Bullish", "score": 3}},
+                        "keyTechnicals": {"support": 10, "resistance": 12}}, "events": []}}})
+    ok &= check("Extern: Trading Central gelesen", tcp["s"][:2] == ["Bullish", 3] and tcp["sup"] == 10, tcp)
+    ok &= check("Extern: leere Antwort ergibt nichts", EX._tc_parse({"finance": {"result": {}}}) is None)
+    old_c = {"tc": {"AAA": {"s": ["Bullish", 1], "ts": 0}}, "tv": {}}
+    ok &= check("Extern: veraltete Werte werden nicht angezeigt", EX.view("AAA", old_c, now=10 * 86400) is None)
+
     try:
         import json
         json.dumps([r, down, weak, none])
