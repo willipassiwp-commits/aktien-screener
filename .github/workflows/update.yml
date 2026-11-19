@@ -2,11 +2,10 @@ name: Daten aktualisieren
 
 on:
   schedule:
-    # Zeiten in UTC. GitHub startet geplante Läufe manchmal verspätet oder lässt einzelne aus,
-    # deshalb drei Läufe am Tag: nach US-Börsenschluss, nach Europa-Schluss und spätabends.
+    # Zeiten in UTC. GitHub startet geplante Läufe manchmal verspätet oder lässt einzelne aus.
+    # Täglich ein voller Lauf am Morgen, werktags zusätzlich jede Stunde (Asien, Europa, USA).
     - cron: "23 5 * * *"
-    - cron: "23 17 * * 1-5"
-    - cron: "23 22 * * 1-5"
+    - cron: "17 0-4,6-23 * * 1-5"
   workflow_dispatch:
     inputs:
       fund_limit:
@@ -60,7 +59,8 @@ jobs:
 
       - name: Kurse und Fundamentaldaten laden, bewerten
         env:
-          FUND_LIMIT: ${{ inputs.fund_limit }}
+          # Stündliche Läufe laden Fundamentaldaten nur für 40 Aktien nach (schont Yahoo), der Morgenlauf wie bisher
+          FUND_LIMIT: ${{ inputs.fund_limit || (github.event.schedule == '17 0-4,6-23 * * 1-5' && '40' || '') }}
         run: python scripts/update.py
 
       - name: Ergebnis speichern
