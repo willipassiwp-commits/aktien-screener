@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-VERSION = 5
+VERSION = 6
 
 # Schwellen je Lynch-Kategorie. Belegt aus öffentlichen Analysen: Average 6/6/6/10 und Verschuldung 3,0,
 # Fast Grower EBIT-Marge 20. Die übrigen Werte sind Annahmen.
@@ -738,11 +738,13 @@ def _sp(v, d=1):
     return ("+" if v >= 0 else "−") + de(abs(v) * 100, d) + " %"
 
 
-def short_analysis(df):
+def short_analysis(df, live=False):
     """Ausführliche kurzfristige Chartanalyse aus Tageskursen (Eröffnung, Hoch, Tief, Schluss, Volumen).
     Rückgabe: dict mit Kurzfrist-Note 0–10, Einstufung, Zusammenfassung, Signalgruppen, kurzfristigen Marken und den
     Tagesreihen für den Chart. None, wenn zu wenig Daten da sind. Beschreibt den Kursverlauf bis heute, sagt nichts
-    Sicheres über die Zukunft."""
+    Sicheres über die Zukunft.
+    live=True: der letzte Tag ist ein noch laufender Handelstag. Volumen- und Tagesspannen-Signale nutzen dann nur
+    abgeschlossene Tage, die Seite zeigt den Hinweis „vorläufig“."""
     if df is None or "Close" not in df:
         return None
     df = df.copy()
@@ -884,7 +886,8 @@ def short_analysis(df):
     bw = ((up_b - lo_b) / m20s).iloc[-120:].dropna()
     bwr = float((bw < bw.iloc[-1]).mean()) if len(bw) > 30 else None
     if bwr is not None:
-        add("Volatilität", "Bandbreite", "enger als %s %% der letzten 6 Monate" % de((1 - bwr) * 100, 0), None,
+        add("Volatilität", "Bandbreite", ("weiter als %s %% der letzten 6 Monate" % de(bwr * 100, 0)) if bwr >= 0.5 else
+            ("enger als %s %% der letzten 6 Monate" % de((1 - bwr) * 100, 0)), None,
             "Bänder sehr eng: oft folgt eine größere Bewegung, Richtung offen" if bwr <= 0.15 else
             "Bänder weit: hohe Schwankung" if bwr >= 0.85 else "normale Bandbreite")
     atr_n = float(atr.iloc[-1])
@@ -910,15 +913,17 @@ def short_analysis(df):
         s = 0 if udr is None else 1 if udr > 1.2 else -1 if udr < 0.8 else 0
         add("Volumen", "Volumen an Plus- gegen Minustagen", "–" if udr is None else de(udr, 2) + " : 1", s,
             "mehr Volumen an Plustagen" if s > 0 else "mehr Volumen an Minustagen" if s < 0 else "ausgeglichen")
-        v20 = float(v.iloc[-21:-1].mean())
-        vr = float(v.iloc[-1]) / v20 if v20 > 0 else None
-        d1 = float(c.iloc[-1] - c.iloc[-2])
+        k0 = -2 if live else -1                    # laufender Tag: Volumen noch unvollständig
+        v20 = float(v.iloc[k0 - 20:k0].mean())
+        vr = float(v.iloc[k0]) / v20 if v20 > 0 else None
+        d1 = float(c.iloc[k0] - c.iloc[k0 - 1])
         if vr is not None and vr >= 1.5:
             s = 1 if d1 > 0 else -1 if d1 < 0 else 0
             t = "hohes Volumen am " + ("Plustag" if d1 > 0 else "Minustag" if d1 < 0 else "Handelstag")
         else:
             s, t = 0, "normales Volumen" if vr is None or vr >= 0.6 else "geringes Volumen"
-        add("Volumen", "Volumen letzter Handelstag", "–" if vr is None else de(vr, 1) + "-fach des 20-Tage-Schnitts", s, t)
+        add("Volumen", "Volumen letzter abgeschlossener Handelstag" if live else "Volumen letzter Handelstag",
+            "–" if vr is None else de(vr, 1) + "-fach des 20-Tage-Schnitts", s, t)
 
     # ---------------- Kursmuster
     h20p, l20p = float(c.iloc[-21:-1].max()), float(c.iloc[-21:-1].min())
@@ -932,8 +937,9 @@ def short_analysis(df):
     add("Kursmuster", "Hochs und Tiefs (10 gegen 10 Tage)",
         ("höheres" if hh_ else "tieferes") + " Hoch, " + ("höheres" if hl_ else "tieferes") + " Tief", s,
         "Aufwärtsstruktur" if s > 0 else "Abwärtsstruktur" if s < 0 else "gemischte Struktur")
-    rng = (h - l).iloc[-3:]
-    clv = ((2 * c - h - l) / (h - l).replace(0, np.nan)).iloc[-3:].fillna(0)
+    k1 = len(c) - 1 if live else len(c)          # laufender Tag: nur abgeschlossene Tage
+    rng = (h - l).iloc[k1 - 3:k1]
+    clv = ((2 * c - h - l) / (h - l).replace(0, np.nan)).iloc[k1 - 3:k1].fillna(0)
     cm = float(clv.mean()) if float(rng.sum()) > 0 else 0.0
     s = 1 if cm > 0.3 else -1 if cm < -0.3 else 0
     add("Kursmuster", "Schlusskurs in der Tagesspanne (3 Tage)", "Ø %s %% der Spanne" % de((cm + 1) * 50, 0), s,
@@ -976,14 +982,22 @@ def short_analysis(df):
         txt += " Hinweis: " + ", ".join(dict.fromkeys(flags)) + "."
 
     # ---------------- Marken
-    wk = pd.DataFrame({"h": h, "l": l, "c": c}).resample("W-FRI").agg({"h": "max", "l": "min", "c": "last"}).dropna()
-    if len(wk) >= 2 and wk.index[-1] >= c.index[-1]:
-        wk = wk.iloc[:-1] if c.index[-1].weekday() < 4 else wk          # laufende Woche nicht verwenden
+    hlc = pd.DataFrame({"h": h, "l": l, "c": c})
+    if atrp < 0.03:                                 # ruhige Aktie: Pivot der Vorwoche
+        pv = "W"
+        wk = hlc.resample("W-FRI").agg({"h": "max", "l": "min", "c": "last"}).dropna()
+        if len(wk) >= 2 and wk.index[-1] >= c.index[-1]:
+            wk = wk.iloc[:-1] if c.index[-1].weekday() < 4 else wk      # laufende Woche nicht verwenden
+    else:                                           # schwankungsreiche Aktie: Pivot des Vormonats
+        pv = "M"
+        wk = hlc.resample("MS").agg({"h": "max", "l": "min", "c": "last"}).dropna()
+        if len(wk) >= 2:
+            wk = wk.iloc[:-1]                       # laufender Monat nicht verwenden
     pw = wk.iloc[-1]
     pp = (pw.h + pw.l + pw.c) / 3
     lv = {"pp": sig(pp), "r1": sig(2 * pp - pw.l), "s1": sig(2 * pp - pw.h), "r2": sig(pp + (pw.h - pw.l)),
           "s2": sig(pp - (pw.h - pw.l)), "h20": sig(float(h.iloc[-20:].max())), "l20": sig(float(l.iloc[-20:].min())),
-          "atr": sig(atr_n), "e20": sig(e20_now), "s50": sig(s50n)}
+          "atr": sig(atr_n), "e20": sig(e20_now), "s50": sig(s50n), "pv": pv}
     # ---------------- Auswertung in einfachen Worten
     def pr(val):
         return _f(val, 2 if val < 100 else 0)
@@ -1062,8 +1076,9 @@ def short_analysis(df):
         fz += " Achtung: Die Aktie ist überkauft, nach solchen Phasen kommt es häufiger zu Rücksetzern."
     elif "überverkauft" in flags:
         fz += " Die Aktie ist überverkauft, nach solchen Phasen kommt es häufiger zu Gegenbewegungen."
-    sup = max([q for q in (lv["s1"], lv["l20"], lv["s2"]) if q is not None and q < last] or [None], key=lambda q: q or 0)
-    res = min([q for q in (lv["r1"], lv["h20"], lv["r2"]) if q is not None and q > last] or [None], key=lambda q: q or 1e18)
+    gap_min = 0.5 * atr_n                           # Marken direkt am Kurs sind keine Information
+    sup = max([q for q in (lv["s1"], lv["l20"], lv["s2"]) if q is not None and q < last - gap_min] or [None], key=lambda q: q or 0)
+    res = min([q for q in (lv["r1"], lv["h20"], lv["r2"]) if q is not None and q > last + gap_min] or [None], key=lambda q: q or 1e18)
     if sup or res:
         fz += " Wichtige Marken in der Nähe:" + (" Unterstützung bei %s (%s)" % (pr(sup), _sp(sup / last - 1)) if sup else "") + \
               ("," if sup and res else "") + (" Widerstand bei %s (%s)" % (pr(res), _sp(res / last - 1)) if res else "") + "."
@@ -1083,7 +1098,7 @@ def short_analysis(df):
     ser = {"c": [sig(float(q), 5) for q in cc.values],
            "v": [int(q) for q in v.reindex(cc.index).fillna(0).values] if v is not None else None,
            "m": months, "d": str(cc.index[-1].date())}
-    return {"n": note, "lb": lb, "txt": txt, "dt": dt, "pos": pos, "neg": neg, "cnt": len(scored),
+    return {"n": note, "lb": lb, "txt": txt, "dt": dt, "live": bool(live), "pos": pos, "neg": neg, "cnt": len(scored),
             "g": [[k, r] for k, r in rows.items() if r], "lv": lv, "fl": list(dict.fromkeys(flags))}, ser
 
 
@@ -1091,7 +1106,33 @@ def short_analysis(df):
 # Bewertung einer Aktie
 # ----------------------------------------------------------------------------------------------------------------
 
-def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
+def consensus_refs(items):
+    """items: Liste (Land, Region, Konsens). Ergebnis: dict Land -> (Vergleichswert, Weltmedian, Bezeichnung).
+    Länder mit mindestens 8 Werten nutzen ihren eigenen Median, sonst den Median ihrer Region."""
+    vals = [r for _, _, r in items if r is not None]
+    if len(vals) < 20:
+        return {}
+    g = float(np.median(vals))
+    byc, byr = {}, {}
+    for c, reg, r in items:
+        if r is None:
+            continue
+        byc.setdefault(c, []).append(r)
+        byr.setdefault(reg, []).append(r)
+    out = {}
+    for c, reg, _ in items:
+        if c in out:
+            continue
+        if len(byc.get(c, [])) >= 8:
+            out[c] = (float(np.median(byc[c])), g, c)
+        elif len(byr.get(reg, [])) >= 8:
+            out[c] = (float(np.median(byr[reg])), g, reg)
+        else:
+            out[c] = (g, g, "weltweit")
+    return out
+
+
+def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None, cons_ref=None):
     """Bewertet eine Aktie. fund: Fundamentaldaten aus dem Cache, pm: Ergebnis von price_metrics.
 
     fx_fin: Umrechnung von der Kurswährung (Haupteinheit) in die Bilanzwährung, None wenn unbekannt.
@@ -1425,6 +1466,13 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
         rc = recs.get("0m")
         if n_an and rc and len(rc) == 5 and sum(rc) >= 3:
             rmean = bounded(sum((i + 1) * v for i, v in enumerate(rc)) / sum(rc), 1, 5)
+    # Analysten urteilen je nach Land unterschiedlich freundlich (Indien, Korea, Taiwan im Schnitt um 1,5, Deutschland
+    # um 2,1, Australien um 3). Gewertet wird deshalb der Konsens im Vergleich zum Durchschnitt des eigenen Landes,
+    # umgerechnet auf den weltweiten Maßstab: bereinigt = Konsens − Landesmedian + Weltmedian.
+    rraw, radj = rmean, rmean
+    if rmean is not None and cons_ref and cons_ref[0] is not None and cons_ref[1] is not None:
+        radj = bounded(rmean - cons_ref[0] + cons_ref[1], 1, 5)
+    rmean = radj
     An, a10 = None, None
     # Nach einem starken Kursrutsch hinken die Kursziele oft hinterher. Dann zählt ein großes Kurspotenzial höchstens
     # wie ein knapp positives (1 von 3 Punkten), damit veraltete Ziele den Score nicht heben.
@@ -1435,7 +1483,8 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
                      "nicht angepasst und zählen nur eingeschränkt" % (de(upside * 100, 0), de(drop * 100, 0)))
     if n_an and n_an >= 3 and rmean is not None:
         An = [
-            ["cons", r1(rmean, 2), 3 if rmean <= 1.8 else 2 if rmean <= 2.2 else 1 if rmean <= 2.6 else 0, 3],
+            ["cons", [r1(rraw, 2), r1(radj, 2), r1(cons_ref[0], 2) if cons_ref else None, cons_ref[2] if cons_ref else None],
+             3 if rmean <= 1.8 else 2 if rmean <= 2.2 else 1 if rmean <= 2.6 else 0, 3],
             ["tgt", pct(upside), 0 if upside is None else 1 if stale_tgt else 3 if upside >= 0.20 else 2
              if upside >= 0.10 else 1 if upside >= 0 else 0, 3],
             ["rev", pct(rev90), 0 if rev90 is None else 2 if rev90 >= 0.02 else 1 if rev90 >= -0.01 else 0, 2],
@@ -1523,7 +1572,7 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None):
         vo=pct(pm["vola"], 0), rsi=r1(pm["rsi"], 0), s50=sig(pm["sma50"], 5), s200=sig(pm["sma200"], 5),
         h52=sig(pm["hi52"], 5), l52=sig(pm["lo52"], 5), vr=r1(pm["vol_ratio"], 2), cx=pm["cross"],
         sym=pm["sym"], zs=pm["zs"], zr=pm["zr"],
-        an=dict(n=int(n_an) if n_an else None, mean=r1(rmean, 2), tgt=sig(tgt, 5), up=pct(upside), stale=stale_tgt,
+        an=dict(n=int(n_an) if n_an else None, mean=r1(rraw, 2), adj=r1(radj, 2), tgt=sig(tgt, 5), up=pct(upside), stale=stale_tgt,
                 hi=sig(y.get("targetHighPrice"), 5), lo=sig(y.get("targetLowPrice"), 5),
                 rec=recs.get("0m"), rec3=recs.get("-3m"), rev90=pct(rev90),
                 rev30=[er.get("up30"), er.get("down30")], ud=ud[:6]),

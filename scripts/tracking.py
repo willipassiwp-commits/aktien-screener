@@ -95,15 +95,16 @@ def make_day(today, version, stocks, adj, prev, fx, mw_adj, extra_adj=None):
     prev: letzter Tagesstand oder None; fx: {Währung: Euro je Einheit}; mw_adj: wie adj für den MSCI-World-ETF
     extra_adj: Kurse für Aktien offener Fälle, die nicht mehr im Universum sind."""
     def roll(sym, pv, fn):
-        """tri fortschreiben: Verhältnis des Adjusted Close heute zu dem am Vortag des Tagesstands."""
+        """tri fortschreiben. Regel: gemessen wird immer der Schlusskurs (Adjusted Close) des Vortags, weil der
+        tägliche Messlauf früh am Morgen läuft und der heutige Kurs dann noch fehlt oder vorläufig ist."""
         if fn is None:
             return None
-        a_now = fn(today)
+        a_now = fn(day_before(today))
         if a_now is None or a_now <= 0:
             return None
         if prev is None or pv is None:
             return 100.0
-        a_prev = fn(prev["d"])
+        a_prev = fn(day_before(prev["d"]))
         if a_prev is None or a_prev <= 0:
             return None
         return sig5(pv * a_now / a_prev)
@@ -138,8 +139,46 @@ def make_day(today, version, stocks, adj, prev, fx, mw_adj, extra_adj=None):
         if t is not None:
             o[s] = t
     mw_prev = None if prev is None else (prev.get("mw") if prev.get("mw") is not None else 100.0)
-    return {"d": today, "v": version, "fx": {k: sig5(v) for k, v in fx.items()},
+    return {"d": today, "v": version, "tx": 1, "fx": {k: sig5(v) for k, v in fx.items()},
             "mw": roll("_mw", mw_prev, mw_adj), "p": p, "o": o}
+
+
+def day_before(s):
+    return d2s(s2d(s) - timedelta(days=1))
+
+
+def repair_tri(days, adj, mw_adj, extra_adj=None):
+    """Einmalige Korrektur (20.11.2026): Bis dahin verglich der Messlauf den letzten verfügbaren Kurs mit dem Kurs am
+    Datum des Vortags; früh am Morgen ist das derselbe Schlusskurs, tri blieb deshalb bei 100. Hier wird tri für alle
+    gespeicherten Tage nach der neuen Regel (Schlusskurs des Vortags) neu verkettet. Gibt die Zahl der Kürzel zurück."""
+    fns = dict(extra_adj or {})
+    fns.update(adj or {})
+    last, mw_last, fixed = {}, None, set()
+    for d in days:
+        ds = day_before(d["d"])
+        for store in ("p", "o"):
+            rows = d.get(store) or {}
+            for sym in list(rows):
+                fn = fns.get(sym)
+                if fn is None:
+                    continue
+                a = fn(ds)
+                if a is None or a <= 0:
+                    continue
+                tri = sig5(last[sym][0] * a / last[sym][1]) if sym in last else 100.0
+                last[sym] = (tri, a)
+                fixed.add(sym)
+                if store == "p":
+                    rows[sym][I_TRI] = tri
+                else:
+                    rows[sym] = tri
+        if mw_adj is not None:
+            a = mw_adj(ds)
+            if a:
+                mw = 100.0 if mw_last is None else sig5(mw_last[0] * a / mw_last[1])
+                d["mw"], mw_last = mw, (mw, a)
+        d["tx"] = 1
+    return len(fixed)
 
 
 def _r(v):
@@ -530,7 +569,8 @@ def run(today, version, stocks, adj, fx, mw_adj, info, paths, extra_adj=None):
     """Ein Tracking-Schritt. Höchstens einmal je Kalendertag: Gibt es für heute schon einen Tagesstand, passiert
     nichts. Rückgabe: Kurzinfo für data.json oder None."""
     days = load_days(paths["track"], paths.get("legacy"))
-    if days and days[-1]["d"] == today:
+    need_fix = any(not d.get("tx") for d in days)
+    if days and days[-1]["d"] == today and not need_fix:
         return None
     cases = load_cases(paths["cases"])
     try:
@@ -539,6 +579,25 @@ def run(today, version, stocks, adj, fx, mw_adj, info, paths, extra_adj=None):
         old_summary = None
     curs = dict(json.load(open(paths["meta"]))) if os.path.exists(paths["meta"]) else {}
     curs.update({s: v["cur"] for s, v in info.items() if v.get("cur")})
+    if need_fix and days:
+        n = repair_tri(days, adj, mw_adj, extra_adj)
+        first = days[0]["d"]
+        for c in cases:
+            if c["d"] >= first:
+                c["r"] = {}
+        if old_summary:
+            old_summary["corr"] = []
+        print("Trefferquote: Gesamtrendite für", n, "Kürzel rückwirkend korrigiert", flush=True)
+        if days[-1]["d"] == today:               # heute schon gemessen: nur neu auswerten
+            fill_results(cases, days, curs, today)
+            corr = update_corr([], days, curs)
+            summary = build_summary(cases, old_summary, corr, today, (old_summary or {}).get("since") or days[0]["d"])
+            summary["chg"] = (old_summary or {}).get("chg")
+            days = save_days(paths["track"], days, today)
+            save_cases(paths["cases"], cases)
+            with open(paths["summary"], "w") as f:
+                json.dump(summary, f, ensure_ascii=False, separators=(",", ":"))
+            return {"schema": SCHEMA, "since": summary["since"], "cases": len(cases), "open": summary["n_open"]}
     prev = days[-1] if days else None
     first_run = not cases and not old_summary
     if first_run and prev is not None:

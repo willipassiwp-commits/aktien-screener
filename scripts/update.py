@@ -20,9 +20,12 @@ from yfinance.exceptions import YFRateLimitError
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from build_universe import SUBUNIT, fx_rates  # noqa: E402
-from scoring import (FIN_PE_FACTOR, FIN_TH, G_CAP, HOT_MIN, TH, TH_ALL, VERSION, WEIGHTS, finalize, num, pct,  # noqa: E402
+from scoring import (consensus_refs,  # noqa: E402
+                     FIN_PE_FACTOR, FIN_TH, G_CAP, HOT_MIN, TH, TH_ALL, VERSION, WEIGHTS, finalize, num, pct,  # noqa: E402
                      price_metrics, score, short_analysis)
 import external  # noqa: E402
+import market  # noqa: E402
+import shortplus  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA, DOCS = os.path.join(ROOT, "data"), os.path.join(ROOT, "docs")
@@ -31,6 +34,10 @@ OUT_PATH = os.path.join(DOCS, "data.json")
 CHART_PATH = os.path.join(DOCS, "charts.json")
 DAILY_PATH = os.path.join(DOCS, "daily.json")          # Tageskurse der letzten Monate für den Kurzfrist-Chart
 EXT_PATH = os.path.join(DATA, "ext.json")              # Cache der externen Chartanalysen
+KURZ_PATH = os.path.join(DOCS, "kurz.json")            # ausführliche Kurzfristanalyse je Aktie (lädt die Seite erst beim Öffnen)
+MARKET_PATH = os.path.join(DATA, "market.json")        # Marktampel, Angst-/Gier-Index (Zustand und letzter Stand)
+MEGA = [["AAPL", "Apple"], ["MSFT", "Microsoft"], ["NVDA", "NVIDIA"], ["AMZN", "Amazon"], ["GOOGL", "Alphabet"],
+        ["META", "Meta"], ["AVGO", "Broadcom"], ["TSLA", "Tesla"]]
 HIST_PATH = os.path.join(DOCS, "history.json")
 TRACK_PATH = os.path.join(DATA, "track.json")          # altes Format, wird nur noch einmal gelesen
 TRACK_PATHS = {"track": os.path.join(DATA, "track"), "cases": os.path.join(DOCS, "cases"),
@@ -358,6 +365,28 @@ def refresh_fundamentals(symbols, cache):
     return done
 
 
+# Ungefährer Börsenschluss in UTC je Börsenendung (Winterzeit); dient nur dem Hinweis „laufender Handelstag“
+CLOSE_UTC = {"": 21.0, "TO": 21.0, "L": 16.5, "DE": 16.5, "PA": 16.5, "AS": 16.5, "BR": 16.5, "MI": 16.5, "MC": 16.5,
+             "SW": 16.5, "ST": 16.5, "CO": 16.0, "HE": 16.5, "OL": 15.3, "IR": 16.5, "LS": 16.5, "VI": 16.5,
+             "T": 6.5, "HK": 8.2, "TW": 5.6, "KS": 6.6, "SS": 7.0, "SZ": 7.0, "NS": 10.0, "BO": 10.0, "AX": 6.2,
+             "SI": 9.2, "NZ": 4.0}
+
+
+def live_bar(symbol, df):
+    """True, wenn der letzte Tageskurs von heute ist und die Börse vermutlich noch handelt."""
+    try:
+        now = datetime.now(timezone.utc)
+        last = df.index[-1]
+        last = last.date() if hasattr(last, "date") else last
+        if last != now.date():
+            return False
+        suf = symbol.rsplit(".", 1)[1] if "." in symbol else ""
+        close = CLOSE_UTC.get(suf, 21.0)
+        return now.hour + now.minute / 60 < close + 0.25
+    except Exception:
+        return False
+
+
 def download_prices(symbols):
     start = (datetime.now(timezone.utc) - timedelta(days=int(HISTORY_YEARS * 365.25))).strftime("%Y-%m-%d")
     for i in range(0, len(symbols), BATCH):
@@ -611,6 +640,17 @@ def main():
 
     rates = fx_rates({(cache.get(s) or {}).get(k) for s in symbols for k in ("currency", "finCurrency")})
 
+    # Vergleichswerte für den Analystenkonsens je Land (siehe scoring.consensus_refs)
+    def _country(s):
+        return (cache.get(s) or {}).get("country") or meta[s].get("country") or ""
+    citems = []
+    for s in symbols:
+        y = (cache.get(s) or {}).get("y") or {}
+        r, n = num(y.get("recommendationMean")), num(y.get("numberOfAnalystOpinions"))
+        citems.append((_country(s), meta[s].get("region") or "", r if (r and 1 <= r <= 5 and n and n >= 3) else None))
+    crefs = consensus_refs(citems)
+    print("Konsens-Vergleich:", {k: round(v[0], 2) for k, v in crefs.items() if v[2] == k}, flush=True)
+
     dupes = find_dupes(symbols, cache)
     print("Doppelnotierungen entfernt:", len(dupes), flush=True)
     charts, adj = {}, {}
@@ -624,6 +664,13 @@ def main():
     except Exception:
         old_daily = {}
     daily = {}
+    MD = market.fetch()                            # Indizes, VIX, Sektor-ETFs (für Marktampel und Beta je Aktie)
+    print("Marktdaten:", len(MD), "Reihen", flush=True)
+
+    def mclose(sym):
+        d = MD.get(sym)
+        return d["Close"].astype(float) if d is not None else None
+    us_closes = {}
     stocks, fresh, priced, skipped = [], [], 0, 0
     for s, df in download_prices(symbols):
         adj[s] = adj_lookup(df)
@@ -660,7 +707,7 @@ def main():
             mcap_usd = meta[s].get("mcap_usd")
         fin_cur = fund.get("finCurrency")
         fx_fin = rates[base] / rates[fin_cur] if base in rates and fin_cur in rates else None
-        rec = score(fund, pm, mcap_usd, fx_fin, symbol=s)
+        rec = score(fund, pm, mcap_usd, fx_fin, symbol=s, cons_ref=crefs.get(_country(s)))
         if rec is None:
             skipped += 1
             continue
@@ -669,12 +716,33 @@ def main():
             rec["q"] = "C" if rec["q"] == "B" else "B" if rec["q"] == "A" else rec["q"]
         charts[s] = pm["weekly"]
         try:                                       # Kurzfristige Chartanalyse, nur Anzeige
-            sa = short_analysis(df)
+            sa = short_analysis(df, live=live_bar(s, df))
         except Exception as e:  # noqa: BLE001
             print("Kurzfristanalyse fehlgeschlagen:", s, type(e).__name__, flush=True)
             sa = None
         if sa:
             rec["ka"], daily[s] = sa
+        try:                                       # Erweiterte Kurzfristanalyse (Markt, Wende-Treppe, frühere Fälle)
+            hname, hsym = market.home_index(s)
+            secname = rec.get("sec") or fund.get("sector") or ""
+            etf = market.SECTOR_ETF.get(fund.get("sector") or "") if "." not in s else None
+            kx, rsl = shortplus.extend(df, mclose(hsym), mclose(etf) if etf else None, pm.get("sym"), rec.get("ql"),
+                                       None, hname, market.NAMES.get(etf) if etf else None, live=live_bar(s, df))
+            if kx:
+                rec["kx"] = kx
+                if rsl and s in daily:
+                    daily[s]["rs"] = rsl
+                    daily[s]["rsn"] = hname
+        except Exception as e:  # noqa: BLE001
+            print("Erweiterte Kurzfristanalyse fehlgeschlagen:", s, type(e).__name__, flush=True)
+        if "." not in s:
+            try:
+                cc = pd.to_numeric(df["Close"], errors="coerce").dropna()
+                if getattr(cc.index, "tz", None) is not None:
+                    cc.index = cc.index.tz_localize(None)
+                us_closes[s] = cc.iloc[-1100:]
+            except Exception:
+                pass
         rec.update(s=s, n=fund.get("name") or meta[s]["name"], c=fund.get("country") or meta[s].get("country") or "",
                    sec=fund.get("sector") or meta[s].get("sector") or "", ind=fund.get("industry") or "",
                    cur=cur or "", fd=datetime.fromtimestamp(fund["ts"], timezone.utc).strftime("%Y-%m-%d"))
@@ -704,6 +772,28 @@ def main():
         import traceback
         traceback.print_exc()
         print("Trefferquote nicht aktualisiert:", type(e).__name__, flush=True)
+    for x in stocks:                               # Qualität steht erst nach finalize fest
+        pb = (x.get("kx") or {}).get("pb")
+        if pb:
+            pb["c"][1][1] = bool(x.get("ql") is not None and x["ql"] >= 70)
+            shortplus.pb_text(pb)
+    mk = None
+    try:                                           # Marktampel, Angst-/Gier-Index, Marktupdate
+        mega = [[n, (cache.get(t) or {}).get("earn")] for t, n in MEGA if (cache.get(t) or {}).get("earn")]
+        mk, _ = market.run(us_closes, MARKET_PATH, mega, D=MD)
+    except Exception as e:  # noqa: BLE001
+        print("Marktlage übersprungen:", type(e).__name__, e, flush=True)
+    if mk and mk.get("light"):
+        code = mk["light"]["c"]
+        for x in stocks:
+            kx = x.get("kx")
+            if not kx:
+                continue
+            tl = kx.get("tl")
+            state = "trend" if not tl else ("boden" if tl["prog"] >= 2 else "faellt")
+            ml = kx.get("mk") or {}
+            rel = bool(ml.get("rs") and ml["rs"]["20"][2] is not None and ml["rs"]["20"][2] > 0.03)
+            kx["mx"] = {"s": state, "c": code, "t": shortplus.matrix_text(code, state, ml.get("b250") or ml.get("b60"), rel)}
     try:                                           # Externe Chartanalysen, nur Anzeige
         ext = external.run([x["s"] for x in stocks], EXT_PATH)
         for x in stocks:
@@ -714,7 +804,43 @@ def main():
                 x.pop("xt", None)
     except Exception as e:  # noqa: BLE001
         print("Externe Analysen übersprungen:", type(e).__name__, flush=True)
-    out = {"v": VERSION, "updated": datetime.now(timezone.utc).isoformat(timespec="minutes"),
+    # Ausführliche Kurzfristanalyse in eine eigene Datei, in data.json nur das, was Rangliste und Schnellauswahl brauchen
+    try:
+        old_kurz = json.load(open(KURZ_PATH))
+    except Exception:
+        old_kurz = {}
+    kurz = {}
+    for x in stocks:
+        s_, ka_, kx_ = x["s"], x.get("ka"), x.get("kx")
+        if ka_ and "g" in ka_:
+            kurz.setdefault(s_, {})["ka"] = ka_
+        if kx_:
+            kurz.setdefault(s_, {})["kx"] = kx_
+        if not kurz.get(s_) and old_kurz.get(s_):
+            kurz[s_] = old_kurz[s_]
+        K = kurz.get(s_) or {}
+        ka_, kx_ = K.get("ka"), K.get("kx") or {}
+        if ka_:
+            x["ka"] = {"n": ka_["n"], "lb": ka_["lb"], "live": ka_.get("live")}
+        else:
+            x.pop("ka", None)
+        x.pop("kx", None)
+        ks = {}
+        if kx_.get("tl"):
+            ks["tp"] = kx_["tl"]["prog"]
+        if kx_.get("pb"):
+            ks["pm"] = kx_["pb"]["met"]
+        if (kx_.get("mk") or {}).get("rs"):
+            ks["rs"] = kx_["mk"]["rs"].get("20")
+        if kx_.get("ex"):
+            ks["en"] = kx_["ex"]["n"]
+            if kx_["ex"].get("cap"):
+                ks["cap"] = kx_["ex"]["cap"]
+        if ks:
+            x["ks"] = ks
+        else:
+            x.pop("ks", None)
+    out = {"v": VERSION, "mx": mk, "updated": datetime.now(timezone.utc).isoformat(timespec="minutes"),
            "universe": len(symbols), "dupes": len(dupes), "skipped": skipped,
            "th": TH, "thAll": TH_ALL, "finTh": FIN_TH, "finPe": FIN_PE_FACTOR, "gCap": G_CAP, "weights": WEIGHTS,
            "hotMin": HOT_MIN, "bench": bench, "mkt": mkt, "stocks": stocks}
@@ -723,6 +849,9 @@ def main():
     if charts:
         with open(CHART_PATH, "w") as f:
             json.dump(charts, f, separators=(",", ":"), default=plain)
+    if kurz:
+        with open(KURZ_PATH, "w") as f:
+            json.dump(kurz, f, separators=(",", ":"), ensure_ascii=False, default=plain)
     if daily:
         with open(DAILY_PATH, "w") as f:
             json.dump(daily, f, separators=(",", ":"), default=plain)

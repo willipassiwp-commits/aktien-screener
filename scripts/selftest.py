@@ -1,7 +1,7 @@
 """Selbsttest der Bewertungslogik. Läuft vor jedem Datenlauf. Schlägt ein Test fehl, wird nichts veröffentlicht."""
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -271,6 +271,68 @@ def main():
         size = sum(_os.path.getsize(_os.path.join(td, f)) for f in _os.listdir(td))
     ok &= check("Trefferquote: 3000 Fälle bleiben unter 1,5 MB", size < 1.5e6, size)
     ok &= check("Trefferquote: Rangkorrelation", TK.spearman(list(range(40)), [v * 2 for v in range(40)]) == 1.0)
+
+    # Trefferquote: Gesamtrendite aus dem Schlusskurs des Vortags (Korrektur 20.11.2026)
+    import tracking as TRK
+    tdays = [{"d": "2026-11-13", "p": {"AAA": [0, 50, 100.0] + [None] * 9}, "mw": 100.0},
+             {"d": "2026-11-14", "p": {"AAA": [0, 50, 100.0] + [None] * 9}, "mw": 100.0},
+             {"d": "2026-11-17", "p": {"AAA": [0, 50, 100.0] + [None] * 9}, "mw": 100.0}]
+    tpx = {"2026-11-12": 10.0, "2026-11-13": 11.0, "2026-11-16": 12.1}
+    tfn = lambda s_: max((v for k_, v in tpx.items() if k_ <= s_), default=None)
+    TRK.repair_tri(tdays, {"AAA": tfn}, tfn)
+    ok &= check("Trefferquote: tri aus Vortagskursen neu verkettet", [d_["p"]["AAA"][2] for d_ in tdays] == [100.0, 110.0, 121.0]
+                and tdays[2]["mw"] == 121.0, [d_["p"]["AAA"][2] for d_ in tdays])
+    nd_ = TRK.make_day("2026-11-18", 6, [], {}, tdays[-1], {"EUR": 1.0}, lambda s_: {"2026-11-16": 12.1, "2026-11-17": 13.31}.get(s_, 12.1))
+    ok &= check("Trefferquote: neuer Tag nutzt Schlusskurs des Vortags", abs(nd_["mw"] - 133.1) < 0.01, nd_["mw"])
+    ok &= check("Extern: kurze Londoner Kürzel mit Punkt", __import__("external").tv_ticker("RR.L")[0] == "LSE:RR.")
+
+    # Erweiterte Kurzfristanalyse und Marktampel
+    import shortplus as SP
+    import market as MK
+    xi = pd.bdate_range(end="2026-11-20", periods=2800)
+    rng_ = np.random.default_rng(11)
+    mret = rng_.normal(0.0004, 0.01, len(xi))
+    mser = pd.Series(100 * np.exp(np.cumsum(mret)), index=xi)
+    sret = 1.5 * mret + rng_.normal(0, 0.008, len(xi))
+    sret[-30:] -= 0.012                                         # Absturz am Ende
+    sc_ = 100 * np.exp(np.cumsum(sret))
+    sdf = pd.DataFrame({"Open": sc_, "High": sc_ * 1.008, "Low": sc_ * 0.992, "Close": sc_,
+                        "Volume": np.full(len(xi), 1e6)}, index=xi)
+    kx, rsl = SP.extend(sdf, mser, None, [40, 40, 15, 60, 12], 80, "orange", "S&P 500")
+    ok &= check("Erweiterung: Beta etwa 1,5", kx and kx.get("mk") and 1.2 < (kx["mk"]["b250"] or 0) < 1.8, kx and kx.get("mk"))
+    ok &= check("Erweiterung: Wende-Treppe bei Absturz mit Fortschritt 0", kx.get("tl") and kx["tl"]["prog"] == 0, kx.get("tl"))
+    ok &= check("Erweiterung: Erschöpfung erkannt", kx.get("ex") and kx["ex"]["n"] >= 3.5, kx.get("ex"))
+    ok &= check("Erweiterung: Fazit Markt × Aktie", kx.get("mx") and "Gegenwind" in kx["mx"]["t"], kx.get("mx"))
+    ok &= check("Erweiterung: RS-Linie mit 170 Werten", rsl is not None and len(rsl) == 170)
+    an_ = kx.get("an")
+    ok &= check("Erweiterung: frühere Fälle mit Text", an_ and an_.get("t"), an_)
+    st_ = {}
+    c1, _ = MK.apply_hysteresis(st_, "green", 0, "2026-11-18")
+    c2, _ = MK.apply_hysteresis(st_, "orange", 0, "2026-11-19")
+    c3, _ = MK.apply_hysteresis(st_, "orange", 0, "2026-11-19")
+    c4, _ = MK.apply_hysteresis(st_, "orange", 0, "2026-11-20")
+    ok &= check("Marktampel: Wechsel erst am zweiten Tag", (c1, c2, c3, c4) == ("green", "green", "green", "orange"), (c1, c2, c3, c4))
+    c5, _ = MK.apply_hysteresis(st_, "orange", 2, "2026-11-23")
+    c6, _ = MK.apply_hysteresis(st_, "orange", 2, "2026-11-24")
+    ok &= check("Marktampel: nach Abwärtsdruck mit zwei Bodensignalen blau", c6 == "blue", (c5, c6))
+    trg, _ = MK.triggers([{"t": "Stocks fall after hot jobs report", "d": "2026-11-20T15:00Z"}],
+                         datetime(2026, 11, 20, 18, 0, tzinfo=timezone.utc))
+    ok &= check("Marktupdate: Auslöser Arbeitsmarkt erkannt", trg and trg[0][0] == "Arbeitsmarktdaten", trg)
+    evv = MK.events_view("2026-12-03", [])
+    ok &= check("Termine: Arbeitsmarktbericht morgen", any(e[1] == "US-Arbeitsmarktbericht" and e[3] == 1 for e in evv), evv[:3])
+
+    # Analystenkonsens im Vergleich zum Land
+    items = [("India", "Asien-Pazifik", 1.5)] * 10 + [("Germany", "Europa", 2.2)] * 10 + [("Malta", "Europa", 2.0)] + \
+            [("United States", "Nordamerika", 1.9)] * 20
+    cr = scoring.consensus_refs(items)
+    ok &= check("Konsens: Landesmedian Indien 1,5, Weltmedian 1,9", abs(cr["India"][0] - 1.5) < 1e-9 and abs(cr["India"][1] - 1.9) < 1e-9, cr["India"])
+    ok &= check("Konsens: kleines Land nutzt Region", cr["Malta"][2] == "Europa", cr["Malta"])
+    ra = scoring.score(base(), pm, 50e9, 1.0, TODAY, cons_ref=(1.5, 1.9, "India"))      # Konsens 1,9 bei Landesschnitt 1,5
+    rb = scoring.score(base(), pm, 50e9, 1.0, TODAY, cons_ref=(2.3, 1.9, "Germany"))    # Konsens 1,9 bei Landesschnitt 2,3
+    ca = next(c for c in ra["A"] if c[0] == "cons")
+    cb = next(c for c in rb["A"] if c[0] == "cons")
+    ok &= check("Konsens: 1,9 in Indien zählt weniger als 1,9 in Deutschland", ca[2] < cb[2] and abs(ca[1][1] - 2.3) < 1e-9, (ca, cb))
+    ok &= check("Konsens: Anzeige behält den echten Wert", ra["an"]["mean"] == 1.9 and ra["an"]["adj"] == 2.3, ra["an"])
 
     # Kurzfristige Chartanalyse
     kix = pd.bdate_range("2025-01-01", periods=300)

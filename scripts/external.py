@@ -121,6 +121,8 @@ def tv_ticker(sym):
             base = base.replace("-", "_")
         else:
             base = base.replace("-", ".")
+        if suf == "L" and len(base) <= 2:           # TradingView schreibt kurze Londoner Kürzel mit Punkt (RR., BP.)
+            return [ex + ":" + base + ".", ex + ":" + base]
         return [ex + ":" + base]
     b = sym.replace("-", ".")
     return ["NASDAQ:" + b, "NYSE:" + b, "AMEX:" + b]
