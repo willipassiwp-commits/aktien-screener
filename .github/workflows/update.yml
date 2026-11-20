@@ -3,9 +3,11 @@ name: Daten aktualisieren
 on:
   schedule:
     # Zeiten in UTC. GitHub startet geplante Läufe manchmal verspätet oder lässt einzelne aus.
-    # Täglich ein voller Lauf am Morgen, werktags zusätzlich jede Stunde (Asien, Europa, USA).
+    # Täglich ein voller Lauf am Morgen, werktags zusätzlich stündlich (Asien, Europa, USA). GitHub lässt geplante
+    # Läufe oft aus; deshalb zwei Versuche je Stunde. Liegt der letzte Datenlauf weniger als 40 Minuten zurück,
+    # wird der Versuch sofort beendet (Schritt „Prüfen, ob ein Lauf nötig ist“).
     - cron: "23 5 * * *"
-    - cron: "17 0-4,6-23 * * 1-5"
+    - cron: "7,37 0-4,6-23 * * 1-5"
   workflow_dispatch:
     inputs:
       fund_limit:
@@ -28,16 +30,33 @@ jobs:
     timeout-minutes: 330
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 30
+
+      - name: Prüfen, ob ein Lauf nötig ist
+        id: gate
+        run: |
+          LAST=$(git log -1 --format=%ct --grep="Daten aktualisiert" 2>/dev/null)
+          AGE=$(( $(date +%s) - ${LAST:-0} ))
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" != "23 5 * * *" ] && [ "$AGE" -lt 2400 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Letzter Datenlauf vor $((AGE / 60)) Minuten: dieser Versuch wird übersprungen."
+          fi
+
       - uses: actions/setup-python@v5
+        if: steps.gate.outputs.skip != 'true'
         with:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+        if: steps.gate.outputs.skip != 'true'
 
       - name: Selbsttest der Bewertungslogik
+        if: steps.gate.outputs.skip != 'true'
         run: python scripts/selftest.py
 
       - name: Prüfen, ob das Universum neu gebaut wird
+        if: steps.gate.outputs.skip != 'true'
         id: uni
         run: |
           OK=$(python -c "import json;print(len(json.load(open('data/universe.json'))['stocks'])>=300)" 2>/dev/null || echo False)
@@ -58,13 +77,14 @@ jobs:
         run: python scripts/build_universe.py _fd/database/equities
 
       - name: Kurse und Fundamentaldaten laden, bewerten
+        if: steps.gate.outputs.skip != 'true'
         env:
           # Stündliche Läufe laden Fundamentaldaten nur für 40 Aktien nach (schont Yahoo), der Morgenlauf wie bisher
-          FUND_LIMIT: ${{ inputs.fund_limit || (github.event.schedule == '17 0-4,6-23 * * 1-5' && '40' || '') }}
+          FUND_LIMIT: ${{ inputs.fund_limit || (github.event.schedule == '7,37 0-4,6-23 * * 1-5' && '40' || '') }}
         run: python scripts/update.py
 
       - name: Ergebnis speichern
-        if: always()
+        if: always() && steps.gate.outputs.skip != 'true'
         run: |
           rm -rf _fd
           git config user.name "github-actions[bot]"
