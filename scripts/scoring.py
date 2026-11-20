@@ -857,11 +857,11 @@ def short_analysis(df):
     dd = k.rolling(3).mean()
     kn, dn_ = float(k.iloc[-1]), float(dd.iloc[-1])
     if kn >= 80:
-        s, t = 0, "überkauft (über 80)"
+        s, t = 0, "stark gestiegen (überkauft)"
     elif kn <= 20:
-        s, t = (1, "überverkauft, %K dreht über %D") if kn > dn_ else (0, "überverkauft (unter 20)")
+        s, t = (1, "stark gefallen, dreht aber nach oben") if kn > dn_ else (0, "stark gefallen (überverkauft)")
     else:
-        s, t = (1, "%K über %D") if kn > dn_ else (-1, "%K unter %D")
+        s, t = (1, "kurzfristiger Schwung zeigt nach oben") if kn > dn_ else (-1, "kurzfristiger Schwung zeigt nach unten")
     add("Momentum", "Stochastik (14, 3)", "%%K %s / %%D %s" % (de(kn, 0), de(dn_, 0)), s, t)
     roc = float(c.iloc[-1] / c.iloc[-11] - 1)
     add("Momentum", "Veränderung 10 Tage", _sp(roc), 1 if roc > 0.03 else -1 if roc < -0.03 else 0,
@@ -902,7 +902,7 @@ def short_analysis(df):
         rel = ob_s / (vavg * 20)
         s = 1 if rel > 0.1 else -1 if rel < -0.1 else 0
         add("Volumen", "On-Balance-Volumen 20 Tage", "steigend" if s > 0 else "fallend" if s < 0 else "seitwärts", s,
-            "Volumen fließt eher in Anstiege" if s > 0 else "Volumen fließt eher in Rückgänge" if s < 0 else "keine klare Richtung")
+            "es wird eher gekauft als verkauft" if s > 0 else "es wird eher verkauft als gekauft" if s < 0 else "Kauf- und Verkaufsdruck ausgeglichen")
         d20 = c.diff().iloc[-20:]
         vv = v.reindex(d20.index)
         upv, dnv = float(vv[d20 > 0].sum()), float(vv[d20 < 0].sum())
@@ -984,6 +984,95 @@ def short_analysis(df):
     lv = {"pp": sig(pp), "r1": sig(2 * pp - pw.l), "s1": sig(2 * pp - pw.h), "r2": sig(pp + (pw.h - pw.l)),
           "s2": sig(pp - (pw.h - pw.l)), "h20": sig(float(h.iloc[-20:].max())), "l20": sig(float(l.iloc[-20:].min())),
           "atr": sig(atr_n), "e20": sig(e20_now), "s50": sig(s50n)}
+    # ---------------- Auswertung in einfachen Worten
+    def pr(val):
+        return _f(val, 2 if val < 100 else 0)
+    above20, above50 = last > e20_now, last > s50n
+    if above20 and above50:
+        tg = "Der Kurs liegt über seiner 20-Tage-Linie und über der 50-Tage-Linie: kurzfristig zeigt der Trend nach oben."
+        tk = "up"
+    elif above50:
+        tg = ("Der größere Aufwärtstrend steht noch (Kurs über der 50-Tage-Linie), in den letzten Tagen ist der Kurs aber "
+              "unter seine 20-Tage-Linie gerutscht: eine Verschnaufpause im Aufwärtstrend.")
+        tk = "pause"
+    elif above20:
+        tg = ("Der Kurs erholt sich gerade (über der 20-Tage-Linie), liegt aber noch unter der 50-Tage-Linie: "
+              "der größere Abwärtstrend ist noch nicht gedreht.")
+        tk = "rebound"
+    else:
+        tg = "Der Kurs liegt unter seiner 20-Tage-Linie und unter der 50-Tage-Linie: kurzfristig zeigt der Trend nach unten."
+        tk = "down"
+    tg += (" Die Bewegung ist kräftig (ADX über 25)." if adx >= 25 else
+           " Insgesamt bewegt sich die Aktie eher seitwärts, ohne klare Richtung (ADX unter 20)." if adx < 20 else "")
+    macd_up = hs[-1] > 0
+    hdir = 1 if h3[-1] > h3[-2] > h3[-3] else -1 if h3[-1] < h3[-2] < h3[-3] else 0
+    if macd_up and hdir >= 0:
+        mg = "Der Schwung nimmt zu: Käufer haben derzeit die Oberhand (MACD über seiner Signallinie)."
+        mk = 1
+    elif not macd_up and hdir <= 0:
+        mg = "Der Schwung lässt nach: in den letzten Tagen überwiegen die Verkäufer (MACD unter seiner Signallinie)."
+        mk = -1
+    else:
+        mg = "Der Schwung ist gemischt: " + ("die Käufer verlieren gerade etwas Kraft." if macd_up else "die Verkäufer verlieren gerade etwas Kraft.")
+        mk = 0
+    if round(r_now) >= 70:
+        mg += " Der RSI über 70 heißt überkauft: die Aktie ist in kurzer Zeit stark gestiegen, danach folgt oft eine Pause oder ein Rücksetzer."
+    elif round(r_now) <= 30:
+        mg += " Der RSI unter 30 heißt überverkauft: die Aktie ist in kurzer Zeit stark gefallen, danach folgt oft eine Gegenbewegung nach oben."
+    else:
+        mg += " Der RSI von %s liegt im normalen Bereich (30 bis 70), %s." % (
+            de(r_now, 0), "eher auf der starken Seite" if r_now >= 50 else "eher auf der schwachen Seite")
+    vg = ("Die Aktie schwankt an einem normalen Tag um etwa ±%s %%. " % de(atrp * 100, 1)) + (
+        "Sie liegt gerade über ihrer üblichen Schwankungsbreite (oberes Bollinger-Band) und ist damit kurzfristig überdehnt." if pb > 1 else
+        "Sie liegt gerade unter ihrer üblichen Schwankungsbreite (unteres Bollinger-Band): ungewöhnlich stark gefallen." if pb < 0 else
+        "Sie liegt im oberen Teil ihrer üblichen Schwankungsbreite." if pb >= 0.5 else "Sie liegt im unteren Teil ihrer üblichen Schwankungsbreite.")
+    if bwr is not None and bwr <= 0.15:
+        vg += " Die Schwankungen sind zuletzt ungewöhnlich klein geworden; danach kommt oft eine größere Bewegung, in welche Richtung ist offen."
+    og = None
+    if v is not None:
+        ok_ = rel > 0.1 or (udr or 1) > 1.2
+        bad_ = rel < -0.1 or (udr or 1) < 0.8
+        og = ("An Tagen mit steigenden Kursen wird mehr gehandelt als an Tagen mit fallenden: das spricht dafür, dass eher gekauft wird." if ok_ and not bad_ else
+              "An Tagen mit fallenden Kursen wird mehr gehandelt als an Tagen mit steigenden: das spricht dafür, dass eher verkauft wird." if bad_ and not ok_ else
+              "Das Handelsvolumen gibt kein klares Bild, Käufer und Verkäufer halten sich in etwa die Waage.")
+        if vr is not None and vr >= 1.5:
+            og += " Am letzten Handelstag war das Volumen deutlich höher als üblich, die Bewegung an diesem Tag hat also Gewicht."
+    kg = ("Die Aktie hat gerade ihr Hoch der letzten 20 Tage überschritten (Ausbruch nach oben)." if last > h20p else
+          "Die Aktie ist gerade unter ihr Tief der letzten 20 Tage gefallen." if last < l20p else
+          "Die Aktie bewegt sich innerhalb ihrer Spanne der letzten 20 Tage.")
+    kg += (" Die Hochs und Tiefs werden höher, ein Zeichen für einen Aufwärtstrend." if hh_ and hl_ else
+           " Die Hochs und Tiefs werden tiefer, ein Zeichen für einen Abwärtstrend." if not hh_ and not hl_ else "")
+    if abs(gap) >= 0.02:
+        kg += " Zur letzten Eröffnung gab es einen Kurssprung von %s, meist nach Nachrichten." % _sp(gap)
+    # Fazit
+    if tk == "up" and mk >= 0:
+        fz = "Kurzfristig läuft es gut: Trend und Schwung zeigen nach oben."
+    elif tk == "up":
+        fz = "Der Trend zeigt noch nach oben, der Schwung lässt aber nach. Das kann eine kurze Pause sein oder der Beginn eines Rücksetzers."
+    elif tk == "pause":
+        fz = ("Der größere Aufwärtstrend ist intakt, kurzfristig macht die Aktie aber eine Pause" +
+              (" und hat an Schwung verloren." if mk < 0 else ", der Schwung dreht bereits wieder nach oben." if mk > 0 else "."))
+    elif tk == "rebound":
+        fz = ("Die Aktie erholt sich nach einem Rückgang" + (" mit zunehmendem Schwung" if mk > 0 else "") +
+              ", der größere Trend ist aber noch nicht gedreht. Ob daraus eine echte Wende wird, zeigt sich erst über der 50-Tage-Linie bei " + pr(s50n) + ".")
+    else:
+        fz = ("Kurzfristig ist das Bild schwach: Trend und Schwung zeigen nach unten." if mk <= 0 else
+              "Der Trend zeigt nach unten, der Schwung dreht aber schon nach oben: ein mögliches erstes Zeichen für eine Gegenbewegung.")
+    if "überkauft" in flags:
+        fz += " Achtung: Die Aktie ist überkauft, nach solchen Phasen kommt es häufiger zu Rücksetzern."
+    elif "überverkauft" in flags:
+        fz += " Die Aktie ist überverkauft, nach solchen Phasen kommt es häufiger zu Gegenbewegungen."
+    sup = max([q for q in (lv["s1"], lv["l20"], lv["s2"]) if q is not None and q < last] or [None], key=lambda q: q or 0)
+    res = min([q for q in (lv["r1"], lv["h20"], lv["r2"]) if q is not None and q > last] or [None], key=lambda q: q or 1e18)
+    if sup or res:
+        fz += " Wichtige Marken in der Nähe:" + (" Unterstützung bei %s (%s)" % (pr(sup), _sp(sup / last - 1)) if sup else "") + \
+              ("," if sup and res else "") + (" Widerstand bei %s (%s)" % (pr(res), _sp(res / last - 1)) if res else "") + "."
+        if sup and res:
+            fz += " Fällt der Kurs unter %s, trübt sich das Bild weiter ein; steigt er über %s, wäre das ein Zeichen von Stärke." % (pr(sup), pr(res))
+    dt = {"fz": fz, "g": {"Trend": tg, "Momentum": mg, "Volatilität": vg, "Kursmuster": kg}}
+    if og:
+        dt["g"]["Volumen"] = og
+
     # ---------------- Reihen für den Tageschart (170 Tage, die Seite rechnet Linien und Indikatoren selbst)
     cc = c.iloc[-170:]
     months, prev = [], None
@@ -994,7 +1083,7 @@ def short_analysis(df):
     ser = {"c": [sig(float(q), 5) for q in cc.values],
            "v": [int(q) for q in v.reindex(cc.index).fillna(0).values] if v is not None else None,
            "m": months, "d": str(cc.index[-1].date())}
-    return {"n": note, "lb": lb, "txt": txt, "pos": pos, "neg": neg, "cnt": len(scored),
+    return {"n": note, "lb": lb, "txt": txt, "dt": dt, "pos": pos, "neg": neg, "cnt": len(scored),
             "g": [[k, r] for k, r in rows.items() if r], "lv": lv, "fl": list(dict.fromkeys(flags))}, ser
 
 
