@@ -793,7 +793,14 @@ def main():
             state = "trend" if not tl else ("boden" if tl["prog"] >= 2 else "faellt")
             ml = kx.get("mk") or {}
             rel = bool(ml.get("rs") and ml["rs"]["20"][2] is not None and ml["rs"]["20"][2] > 0.03)
-            kx["mx"] = {"s": state, "c": code, "t": shortplus.matrix_text(code, state, ml.get("b250") or ml.get("b60"), rel)}
+            c_, hm = code, None
+            if "." in x["s"]:                     # außerhalb der USA zählt der Heimatmarkt
+                hname, hsym = market.home_index(x["s"])
+                hc = market.simple_code(MD[hsym]) if hsym in MD else None
+                if hc:
+                    c_, hm = hc, [hname, market.LIGHT[hc][0]]
+            kx["mx"] = {"s": state, "c": c_, "hm": hm,
+                        "t": shortplus.matrix_text(c_, state, ml.get("b250") or ml.get("b60"), rel)}
     try:                                           # Externe Chartanalysen, nur Anzeige
         ext = external.run([x["s"] for x in stocks], EXT_PATH)
         for x in stocks:

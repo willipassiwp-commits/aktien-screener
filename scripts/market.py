@@ -34,6 +34,21 @@ HOME_IDX = {"": ("S&P 500", "^GSPC"), "TO": ("TSX", "^GSPTSE"), "L": ("FTSE 100"
             "SS": ("Shanghai Composite", "000001.SS"), "SZ": ("Shanghai Composite", "000001.SS"), "SI": ("Straits Times", "^STI")}
 
 
+def simple_code(df):
+    """Einfache Ampel für einen Heimatindex (ohne VIX und Breite): grün, gelb, orange oder grau."""
+    try:
+        v = idx_view(df)
+    except Exception:
+        return None
+    if v["o50"] and v["o200"] and v["s50up"]:
+        return "green"
+    if not v["o50"] and not v["s50up"]:
+        return "orange"
+    if v["o200"] and not v["o50"]:
+        return "yellow"
+    return "gray"
+
+
 def home_index(symbol):
     suf = symbol.rsplit(".", 1)[1] if "." in symbol else ""
     return HOME_IDX.get(suf, ("Stoxx Europe 600", "^STOXX"))

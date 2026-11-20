@@ -1077,8 +1077,11 @@ def short_analysis(df, live=False):
     elif "überverkauft" in flags:
         fz += " Die Aktie ist überverkauft, nach solchen Phasen kommt es häufiger zu Gegenbewegungen."
     gap_min = 0.5 * atr_n                           # Marken direkt am Kurs sind keine Information
-    sup = max([q for q in (lv["s1"], lv["l20"], lv["s2"]) if q is not None and q < last - gap_min] or [None], key=lambda q: q or 0)
-    res = min([q for q in (lv["r1"], lv["h20"], lv["r2"]) if q is not None and q > last + gap_min] or [None], key=lambda q: q or 1e18)
+    gap_max = 4 * atr_n                             # weiter entfernte Marken sind nicht „in der Nähe“
+    sup = max([q for q in (lv["s1"], lv["l20"], lv["s2"]) if q is not None and last - gap_max <= q < last - gap_min] or [None],
+              key=lambda q: q or 0)
+    res = min([q for q in (lv["r1"], lv["h20"], lv["r2"]) if q is not None and last + gap_min < q <= last + gap_max] or [None],
+              key=lambda q: q or 1e18)
     if sup or res:
         fz += " Wichtige Marken in der Nähe:" + (" Unterstützung bei %s (%s)" % (pr(sup), _sp(sup / last - 1)) if sup else "") + \
               ("," if sup and res else "") + (" Widerstand bei %s (%s)" % (pr(res), _sp(res / last - 1)) if res else "") + "."
