@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Aktien-Qualitätsscreener</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
 /* Layout: Analyseblatt. Reiter oben, links die Liste des Reiters, rechts der Steckbrief der gewählten Aktie. */
 :root{
@@ -151,6 +151,7 @@ ul.plain.pro li::marker{color:var(--good)} ul.plain.con li::marker{color:var(--b
 .kahead{display:flex;gap:14px;align-items:flex-start;margin:4px 0 10px}.kahead .big{font-size:34px;line-height:1;font-weight:700;font-family:var(--display);white-space:nowrap}.kahead .big small{font-size:14px;color:var(--muted);font-weight:400}.kahead>div:last-child{min-width:0}
 .gauge{display:inline-block;width:90px;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--bad),var(--line),var(--good));position:relative;vertical-align:middle;margin-right:6px}.gauge i{position:absolute;top:-3px;width:3px;height:12px;margin-left:-1px;background:var(--fg);border-radius:1px}
 .sub4{font-weight:600;margin:12px 0 4px}
+.hzbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-bottom:6px}.hzbar>span{font-weight:600}.hzt{border:0;background:none;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;padding:2px 0;text-decoration:underline;text-underline-offset:3px}
 .hzsel{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.hzsel span{font-weight:600;margin-right:4px}
 .hzsel button{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:999px;padding:6px 14px;font:inherit;cursor:pointer}
 .hzsel button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
@@ -290,6 +291,140 @@ svg.spark polyline{fill:none;stroke-width:1.6;stroke-linejoin:round;stroke-linec
 p.fazit{font-size:14px;line-height:1.5;margin:0}
 .corrbar{font-size:12.5px;color:var(--muted)}.corrbar b{color:var(--fg)}.corrbar div{position:relative;height:8px;border-radius:4px;background:var(--sunken);margin-top:4px}
 .corrbar .now{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--bad);opacity:.7}.corrbar .med,.corrbar .max{position:absolute;top:-3px;width:2px;height:14px;background:var(--fg)}.corrbar .max{background:var(--muted)}
+/* ===== Entwurf „Research-Notiz“ (nur Darstellung) =====
+   Idee: sieht aus wie das Analyseblatt einer Bank, nicht wie eine App-Vorlage.
+   Weißes Papier, Tinte, feine Linien. Farbe nur dort, wo sie etwas bedeutet (gut / beobachten / schwach).
+   Überschriften und große Zahlen in einer Serifenschrift, alles andere in IBM Plex Sans.
+   Einfügen: ganz ans Ende des <style>-Blocks. Schriften: siehe Hinweis zur Google-Fonts-Zeile. */
+:root{
+  --bg:#f3f4f2;          /* Grund: neutrales Hellgrau statt Blaugrau */
+  --surface:#ffffff;     /* Papier */
+  --sunken:#f0f1ef;      /* leichte Fläche, sparsam */
+  --line:#d9ddda;        /* feine Linie */
+  --fg:#1c232b;          /* Tinte */
+  --muted:#5e6872;       /* Schiefer */
+  --accent:#0f5e73;      /* Petrol: Auswahl, Links, aktive Reiter */
+  --accent-soft:#e4eef1;
+  --good:#1e7b4b; --good-soft:#e6f2eb;
+  --mid:#9a6700;  --mid-soft:#f6efdf;
+  --bad:#b3332a;  --bad-soft:#f7e7e5;
+  --display:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --text:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:var(--text);
+  --shadow:none;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#121518; --surface:#1a1e22; --sunken:#20252a; --line:#2f363c; --fg:#e7eaec; --muted:#9aa3ab;
+  --accent:#6fb3c4; --accent-soft:#1d3239;
+  --good:#5fbf8a; --good-soft:#18301f; --mid:#d9a93f; --mid-soft:#352a12; --bad:#e8857b; --bad-soft:#3a1f1c;
+}}
+
+/* Grundschrift */
+body{font-size:14px;letter-spacing:0}
+h1{font-family:var(--display);font-weight:600;font-size:27px;letter-spacing:-.005em}
+h2{font-family:var(--display);font-weight:600;font-size:19px}
+h3{font-family:var(--text);font-weight:600;font-size:14px;color:var(--fg)}
+nav.tabs button,details.meth summary{font-family:var(--text)}
+
+/* Keine Großbuchstaben-Beschriftungen mehr */
+table.grid th,.mstrip .it span,.zsub,details.fold>summary{text-transform:none;letter-spacing:0}
+
+/* Flächen: ruhig, ohne Schatten, kleiner Radius */
+.panel,#detail{border-radius:6px;box-shadow:none;border:1px solid var(--line)}
+.notice{border-radius:4px;border-left-width:2px}
+.verdict,.ausw{border-radius:4px}
+button{border-radius:4px}
+
+/* Reiter: Tinte, feiner Strich in Petrol */
+nav.tabs{border-bottom:1px solid var(--line);gap:0}
+nav.tabs button{font-size:14.5px;font-weight:500;padding:10px 16px;border-bottom-width:2px;margin-bottom:-1px}
+nav.tabs button[aria-selected=true]{font-weight:600}
+nav.tabs button .cnt{background:none;padding:0;margin-left:4px;color:var(--muted);font-weight:400}
+
+/* Marktleiste: wie eine Kurszeile, kein Kasten */
+.mstrip{background:var(--surface);border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:0;padding:10px 2px;gap:8px 28px;margin:4px 0 8px}
+.mstrip .it span{font-size:12px;color:var(--muted)}
+.mstrip .it b{font-size:15px;font-weight:600}
+.mstrip .txt{color:var(--muted)}
+.mstrip .txt b{color:var(--fg)}
+.ldot{width:9px;height:9px;box-shadow:none;margin-right:7px;vertical-align:1px}
+.ldot.green{background:var(--good)}.ldot.yellow,.ldot.orange{background:var(--mid)}.ldot.red{background:var(--bad)}.ldot.gray{background:var(--muted)}.ldot.blue{background:var(--accent)}
+
+/* Schnellauswahl: schlichte Schalter statt Pillen */
+.chips button,.hzsel button,.rng button{border-radius:4px;background:var(--surface);border:1px solid var(--line);padding:4px 10px;font-size:13px}
+.chips button:hover,.hzsel button:hover,.rng button:hover{border-color:var(--fg)}
+.chips button[aria-pressed=true],.hzsel button[aria-pressed="true"],.rng button[aria-pressed=true]{background:var(--fg);border-color:var(--fg);color:var(--surface);font-weight:500}
+.pc{background:none;padding:0 0 0 4px;color:var(--muted);font-weight:400}
+.chips button[aria-pressed=true] .pc{background:none;color:rgba(255,255,255,.7)}
+.pgrp>span{font-weight:500}
+
+/* Tabelle: dicht, feine Linien, Kopf in normaler Schreibweise */
+table.grid th{font-size:12px;font-weight:500;color:var(--muted);padding:8px 8px;border-bottom:1px solid var(--fg)}
+table.grid th[aria-sort]{color:var(--fg);font-weight:600}
+table.grid td{padding:8px 8px;border-bottom:1px solid var(--line)}
+table.grid tbody tr[data-id]:hover,#grid tbody tr[data-id]:hover td:nth-child(-n+3){background:var(--sunken)}
+table.grid tbody tr.sel,#grid tbody tr.sel td:nth-child(-n+3){background:var(--accent-soft)}
+#grid tbody tr.sel td:nth-child(3){box-shadow:inset 2px 0 0 var(--accent),1px 0 0 var(--line)}
+.co b{font-weight:600}
+.total .bar{height:4px;border-radius:0;background:var(--sunken)}
+.b4 i{background:var(--good)} .b3 i{background:#6aa584} .b2 i{background:var(--mid)} .b1 i{background:var(--bad)}
+
+/* Einordnung: Text mit farbigem Quadrat statt Pastell-Pille */
+.pill{background:none!important;color:var(--fg)!important;padding:0;border-radius:0;font-size:13px;font-weight:500}
+.pill::before{content:"";display:inline-block;width:7px;height:7px;margin-right:6px;vertical-align:1px;background:var(--muted)}
+.pill.good::before{background:var(--good)} .pill.mid::before{background:var(--mid)}
+.pill.bad::before{background:var(--bad)} .pill.accent::before{background:var(--accent)} .pill.neutral::before{background:var(--line)}
+.tag{border-radius:2px}
+.q{border-radius:2px}
+
+/* Logos: Quadrat mit leichter Rundung, Ersatz-Kürzel neutral */
+.logo{border-radius:6px;background:var(--sunken)!important;color:var(--muted);font-weight:600}
+.logo img{border-radius:4px}
+
+/* Steckbrief: Name und Score als Kopf einer Research-Notiz */
+#detail{padding:20px}
+.dhead h2{font-size:22px;line-height:1.2}
+.dhead .big{font-family:var(--display);font-weight:600;font-size:52px;letter-spacing:-.02em}
+.dhead .big small{font-family:var(--text);font-size:13px}
+.kahead .big,.score .n{font-family:var(--display);font-weight:600}
+
+/* Ampel: weißes Feld, Punkt + Wort, keine Farbflächen */
+.af{background:var(--surface)!important;border:1px solid var(--line);border-left:1px solid var(--line)!important;border-radius:4px;padding:7px 9px}
+.af b{font-size:13.5px}
+.af b::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px;background:var(--muted)}
+.af.good b::before{background:var(--good)} .af.mid b::before{background:var(--mid)} .af.bad b::before{background:var(--bad)}
+
+/* Teilnoten: Zahl groß, Balken fein */
+.subs div{border-radius:4px;background:var(--surface);padding:8px 9px}
+.subs span{font-size:11.5px}
+.subs b{font-family:var(--display);font-weight:600;font-size:20px}
+.sbar{height:3px;border-radius:0}.sbar i{border-radius:0}
+.sbar i.m{background:var(--mid)}
+
+/* Kennzahl-Kacheln und Kursentwicklung */
+.kpis div{background:var(--surface);border:1px solid var(--line);border-radius:4px}
+.kpis b{font-family:var(--display);font-weight:600;font-size:19px}
+.perf div{border-radius:4px}
+.perf b{font-family:var(--text);font-weight:600;white-space:nowrap}
+
+/* Textblöcke: Fazit ohne Kasten, Erklärkästen schlicht */
+.verdict{background:none;border-left:2px solid var(--line);border-radius:0;padding:2px 0 2px 12px}
+.ausw{background:var(--sunken);border-left:2px solid var(--accent);border-radius:0}
+p.fazit{font-size:14.5px;line-height:1.55}
+
+/* Balken und Skalen ohne Kapsel-Rundungen */
+.corrbar div,.corrbar .now,.recbar,.prog i,.phase i,.bars .bar,.alloc .bar,.gauge,.fgbar{border-radius:0}
+.chart .px{stroke:var(--fg);stroke-width:1.4}
+.chart .area{fill:var(--fg);opacity:.05}
+.chart .dot,.chart .xhd{fill:var(--fg)}
+.legend i{border-top-color:var(--fg)}
+.hmbox{border-radius:4px}
+.xtip{border-radius:4px}
+
+/* Serifen nur für Überschriften und Scores, nicht für Bedienelemente */
+details.fold>summary,details.meth summary,.crit tr.blk td{font-family:var(--text)}
+details.fold>summary{font-size:13px;font-weight:600;color:var(--fg)}
+.kpis b{font-family:var(--text);font-weight:600;font-size:18px}
 </style>
 </head>
 <body>
@@ -323,7 +458,8 @@ p.fazit{font-size:14px;line-height:1.5;margin:0}
       <div id="tab-rangliste" class="left">
         <section class="panel controls" aria-label="Filter und Gewichtung">
           <div>
-            <div class="hzsel" role="group" aria-label="Zeitraum der Bewertung"><span>Bewertung für</span><button data-hz="3m">3 Monate</button><button data-hz="1j">1 Jahr</button><button data-hz="2j">2 Jahre +</button></div>
+            <div class="hzbar"><span id="hzcur">Sortiert nach Gesamtscore</span><button type="button" class="hzt" id="hz-toggle" aria-expanded="false">Erweitert: nach Zeitraum</button></div>
+            <div class="hzsel" id="hzsel" role="group" aria-label="Zeitraum der Bewertung" hidden><span>Bewertung für</span><button data-hz="3m">3 Monate</button><button data-hz="1j">1 Jahr (= Gesamt)</button><button data-hz="2j">2 Jahre +</button></div>
             <p class="predesc" id="hzdesc" style="margin:4px 0 10px"></p>
             <h3 style="margin-bottom:8px">Schnellauswahl</h3>
             <div class="chips" id="presets"></div>
@@ -554,11 +690,11 @@ var VERSION=6,KEY="screener-gewichte-v4",WKEY="screener-watch-v1",DKEY="screener
 var S={all:[],by:{},w:{f:30,m:15,t:20,r:15,a:15,n:5},sel:null,sort:"total",dir:-1,shown:100,updated:null,d:null,pre:"all",watch:{},charts:null,chartsState:0,tab:"rangliste",depot:{pos:[],profile:"bal"},hotMin:6};
 function load(k,def){try{var v=JSON.parse(localStorage.getItem(k)||"null");return v==null?def:v}catch(e){return def}}
 function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
-S.hz=(function(){var v=load("hz","1j");return v==="3m"||v==="2j"?v:"1j"})();
+S.hz=(function(){var v=load("hz","1j");return v==="3m"||v==="2j"?v:"1j"})();S.hzx=!!load("hzx",false);if(!S.hzx)S.hz="1j";
 var HZD={"3m":"Score für die nächsten rund 3 Monate: Chart und Trend 25 %, Kurzfristanalyse (Kurzfrist-Note, relative Stärke, Wende-Fortschritt) 30 %, Analysten 15 %, Nachrichten 10 %, Fundamentaldaten 10 %, Burggraben 5 %, Renditeerwartung 5 %.",
  "1j":"Score für rund 1 Jahr: der Gesamtscore nach deiner Gewichtung (Standard: Fundamentaldaten 30 %, Chart 20 %, Burggraben, Renditeerwartung und Analysten je 15 %, Nachrichten 5 %).",
  "2j":"Score für 2 Jahre und länger: Fundamentaldaten 35 %, Renditeerwartung 30 %, Burggraben 25 %, Analysten 5 %, Chart 5 %."};
-function renderHz(){document.querySelectorAll(".hzsel button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.hz===S.hz?"true":"false")});$("hzdesc").textContent=HZD[S.hz]+" Gleiche Daten, nur anders gewichtet; der Steckbrief bleibt gleich.";$("th-total").textContent=S.hz==="3m"?"Score 3 M.":S.hz==="2j"?"Score 2 J.+":"Gesamt"}
+function renderHz(){$("hzsel").hidden=!S.hzx;$("hz-toggle").setAttribute("aria-expanded",S.hzx?"true":"false");$("hz-toggle").textContent=S.hzx?"Zurück zum Gesamtscore":"Erweitert: nach Zeitraum";$("hzcur").textContent=S.hzx?"Bewertung nach Zeitraum":"Sortiert nach Gesamtscore";document.querySelectorAll(".hzsel button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.hz===S.hz?"true":"false")});$("hzdesc").hidden=!S.hzx;$("hzdesc").textContent=S.hzx?HZD[S.hz]+" Gleiche Daten, nur anders gewichtet; der Steckbrief bleibt gleich.":"";$("th-total").textContent=S.hz==="3m"?"Score 3 M.":S.hz==="2j"?"Score 2 J.+":"Gesamt"}
 var sw=load(KEY,null);if(sw&&typeof sw.f==="number"&&typeof sw.a==="number"&&typeof sw.n==="number")S.w=sw;
 load(WKEY,[]).forEach(function(s){S.watch[s]=1});
 var sd=load(DKEY,null);if(sd&&Array.isArray(sd.pos))S.depot=sd;
@@ -804,7 +940,7 @@ function renderMarket(){var m=S.d&&S.d.mx,st=$("mstrip");if(!st)return;
   if(nd)h+=it("Nasdaq 100",'<span class="'+cls(nd[2].d1)+'">'+pp(nd[2].d1)+'</span> <span class="muted" style="font-weight:400">Woche '+pp(nd[2].w1)+"</span>");
   if(vx)h+=it("VIX",fmt(vx[2].p,1));
   if(m.fg)h+=it("Angst/Gier",m.fg.v+' <span class="muted" style="font-weight:400">'+esc(m.fg.lb)+"</span>");
-  var u=m.upd||{};h+='<div class="txt">'+(u.trig?"<b>Auslöser:</b> "+esc(u.trig)+" ":"")+'<span class="muted">'+esc((u.txt||"").split(". ")[0])+'. Mehr im Reiter „Markt“ →</span></div>';
+  var u=m.upd||{};h+='<div class="txt">'+(u.trig?"<b>Auslöser:</b> "+esc(u.trig)+" ":"")+'<span class="muted">'+esc((u.txt||"").split(". ")[0])+'. Details im Reiter Markt</span></div>';
   st.innerHTML=h;st.hidden=false;
   // ---------- Reiter Markt
   var b='<div class="lbig"><i class="ldot '+L.c+'"></i><div><h2 style="margin:0">Marktampel: '+esc(L.lb)+'</h2><p style="margin:4px 0 0">'+esc(L.t)+'</p><p class="muted" style="margin:4px 0 0;font-size:12px">Stand '+dat(m.d)+(L.since?" · in dieser Stufe seit "+dat(L.since):"")+" · Die Ampel wechselt erst, wenn eine neue Stufe an zwei Tagen festgestellt wurde.</p></div></div>";
@@ -962,7 +1098,7 @@ function ampel(x){var mk=S.d&&S.d.mx&&S.d.mx.light,K=kfull(x),hm=K.kx&&K.kx.mx&&
   var h='<div class="ampel">'+F.map(function(f){return'<div class="af '+f[2]+'" title="'+esc(f[3])+'"><span>'+f[0]+"</span><b>"+esc(f[1])+"</b></div>"}).join("")+"</div>";
   if(x.hz)h+='<div class="hzrow"><span>Score je Zeitraum:</span>'+[["3 Monate",x.hz[0]],["1 Jahr",x.total],["2 Jahre +",x.hz[1]]].map(function(z){return'<span class="hzv b'+(z[1]==null?0:band(z[1]))+'"><small>'+z[0]+"</small> <b>"+(z[1]==null?"–":fmt(z[1],0))+"</b></span>"}).join("")+"</div>";
   var bits=[];bits.push(["","Schwaches","Solides","Starkes","Sehr starkes"][band(x.total)]+" Gesamtbild ("+fmt(x.total,0)+" von 100), Qualität "+qa[0]+", Bewertung "+va[0]+".");
-  bits.push("Langfristiger Trend "+ta[0]+", kurzfristig "+(kl?kl[1].toLowerCase():"ohne Angabe")+(x.ka?" (Kurzfrist-Note "+fmt(x.ka.n,1)+")":"")+"; "+(hm?"Heimatmarkt ":"Markt ")+mlab.toLowerCase()+".");
+  bits.push("Langfristiger Trend "+ta[0]+", kurzfristig "+(kl?kl[1].toLowerCase():"ohne Angabe")+(x.ka?" (Kurzfrist-Note "+fmt(x.ka.n,1)+")":"")+"; "+(hm?"Heimatmarkt: ":"Markt: ")+mlab.replace(/\s*\/\s*/g,", ")+".");
   if(x.hz&&x.hz[0]!=null&&x.hz[1]!=null&&Math.abs(x.hz[1]-x.hz[0])>=15)bits.push(x.hz[1]>x.hz[0]?"Langfristig deutlich besser bewertet als auf Sicht von drei Monaten.":"Kurzfristig deutlich besser bewertet als langfristig.");
   h+='<p class="fazit">'+esc(bits.join(" "))+"</p>";
   var sy=x.sym;if(sy&&sy[1]!=null&&sy[1]>=8&&sy[2]){var mx_=Math.max(sy[1],sy[3]||0,sy[2])*1.1;h+='<div class="corrbar" title="Laufende Korrektur gegen frühere Korrekturen dieser Aktie"><span>Korrektur heute <b>'+fmt(sy[1],0)+" %</b> · üblich "+fmt(sy[2],0)+" %"+(sy[3]!=null?" · tiefste "+fmt(sy[3],0)+" %":"")+'</span><div><i class="now" style="width:'+(sy[1]/mx_*100).toFixed(0)+'%"></i><i class="med" style="left:'+(sy[2]/mx_*100).toFixed(0)+'%"></i>'+(sy[3]!=null?'<i class="max" style="left:'+(sy[3]/mx_*100).toFixed(0)+'%"></i>':"")+"</div></div>"}
@@ -1379,6 +1515,7 @@ document.addEventListener("click",function(e){
   var tb=e.target.closest("#tabs button");if(tb){setTab(tb.dataset.tab);return}
   var hk=e.target.closest("[data-hmk]");if(hk){S.hmk=hk.dataset.hmk;store("hmk",S.hmk);heatmap();return}
   var ht=e.target.closest("[data-hm]");if(ht){S.sel=ht.dataset.hm;setTab("rangliste");renderTable();renderDetail();window.scrollTo(0,0);return}
+  if(e.target.closest("#hz-toggle")){S.hzx=!S.hzx;store("hzx",S.hzx);if(!S.hzx){S.hz="1j";store("hz","1j")}renderHz();recompute();renderAll();return}
   var hb=e.target.closest(".hzsel button");if(hb){S.hz=hb.dataset.hz;store("hz",S.hz);renderHz();recompute();renderAll();return}
   if(e.target.closest("#mstrip")&&!e.target.closest("a")){setTab("markt");window.scrollTo(0,0);return}
   var st=e.target.closest("[data-star]");if(st){e.stopPropagation();toggleStar(st.dataset.star);return}
