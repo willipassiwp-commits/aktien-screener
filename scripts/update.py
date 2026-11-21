@@ -9,6 +9,7 @@ Umgebungsvariablen: FUND_LIMIT (Standard 150) = wie viele Aktien pro Lauf neue F
 """
 import bisect
 import json
+import re
 import os
 import sys
 import time
@@ -20,7 +21,7 @@ from yfinance.exceptions import YFRateLimitError
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from build_universe import SUBUNIT, fx_rates  # noqa: E402
-from scoring import (consensus_refs,  # noqa: E402
+from scoring import (consensus_refs, horizon_scores,  # noqa: E402
                      FIN_PE_FACTOR, FIN_TH, G_CAP, HOT_MIN, TH, TH_ALL, VERSION, WEIGHTS, finalize, num, pct,  # noqa: E402
                      price_metrics, score, short_analysis)
 import external  # noqa: E402
@@ -309,6 +310,7 @@ def fetch_fund(sym):
         "revEstYrs": est_years(rev_est),
         "ltg": None,  # Yahoo liefert keine Langfristschätzung mehr
         "y": {k: num(info.get(k)) for k in Y_KEYS},
+        "web": (str(info.get("website") or "")[:120] or None),     # nur für das Logo in der Rangliste
         "fv": FUND_VERSION,
         "ocf": row(cf, ["Operating Cash Flow", "Cash Flow From Continuing Operating Activities"]),
         "fcf": row(cf, ["Free Cash Flow"]),
@@ -715,6 +717,19 @@ def main():
             rec["qn"].append("Fundamentaldaten seit über drei Wochen nicht aktualisiert")
             rec["q"] = "C" if rec["q"] == "B" else "B" if rec["q"] == "A" else rec["q"]
         charts[s] = pm["weekly"]
+        try:                                       # Mini-Chart für die Rangliste: 26 Wochen, auf 0–99 skaliert
+            wk = [v for v in pm["weekly"][-26:] if v]
+            if len(wk) >= 8:
+                lo, hi = min(wk), max(wk)
+                rec["sp"] = [round((v - lo) / (hi - lo) * 99) if hi > lo else 50 for v in wk]
+                rec["spc"] = round(wk[-1] / wk[0] - 1, 3)
+        except Exception:
+            pass
+        web = (fund or {}).get("web")
+        if web:
+            dom = re.sub(r"^https?://(www\.)?", "", web).split("/")[0].lower()
+            if re.match(r"^[a-z0-9.-]+\.[a-z]{2,}$", dom):
+                rec["web"] = dom
         try:                                       # Kurzfristige Chartanalyse, nur Anzeige
             sa = short_analysis(df, live=live_bar(s, df))
         except Exception as e:  # noqa: BLE001
@@ -765,6 +780,11 @@ def main():
     except Exception as e:  # noqa: BLE001  Zusatzanzeige darf den Lauf nie aufhalten
         print("Marktumfeld nicht berechnet:", type(e).__name__, flush=True)
         mkt = None
+    for x in stocks:                               # Score je Zeitraum (3 Monate, 2 Jahre+); 1 Jahr = Gesamtscore
+        try:
+            x["hz"] = horizon_scores(x)
+        except Exception:
+            x.pop("hz", None)
     try:
         tk = run_tracking(stocks, adj, rates, meta)
         print("Trefferquote:", tk or "heute schon erfasst", flush=True)

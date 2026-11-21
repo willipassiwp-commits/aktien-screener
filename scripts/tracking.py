@@ -139,8 +139,12 @@ def make_day(today, version, stocks, adj, prev, fx, mw_adj, extra_adj=None):
         if t is not None:
             o[s] = t
     mw_prev = None if prev is None else (prev.get("mw") if prev.get("mw") is not None else 100.0)
-    return {"d": today, "v": version, "tx": 1, "fx": {k: sig5(v) for k, v in fx.items()},
-            "mw": roll("_mw", mw_prev, mw_adj), "p": p, "o": o}
+    hz = {x["s"]: [_r(v) for v in x["hz"]] for x in stocks if x.get("hz") and x["s"] in p}
+    day = {"d": today, "v": version, "tx": 1, "fx": {k: sig5(v) for k, v in fx.items()},
+           "mw": roll("_mw", mw_prev, mw_adj), "p": p, "o": o}
+    if hz:
+        day["hz"] = hz                              # Score je Zeitraum [3 Monate, 2 Jahre+]
+    return day
 
 
 def day_before(s):
@@ -480,6 +484,43 @@ def update_corr(corr, days, curs):
     return corr
 
 
+HZ_CORR = [(0, "3m", 91), (1, "2j", 365)]        # Index in day["hz"], Schlüssel, Horizont in Tagen
+
+
+def update_corr_hz(corr, days, curs):
+    """Wie update_corr, aber für die Scores je Zeitraum: 3-Monats-Score gegen Rendite nach 91 Tagen,
+    2-Jahres-Score gegen Rendite nach 365 Tagen. Einträge [Datum, Schlüssel, Horizont, rho, n]."""
+    done = {(c[0], c[1]) for c in corr}
+    idx = {d["d"]: i for i, d in enumerate(days)}
+    seen = set()
+    for d in days:
+        if not d.get("hz"):
+            continue
+        wk = s2d(d["d"]).isocalendar()[:2]
+        if wk in seen:
+            continue
+        seen.add(wk)
+        for i, key, h in HZ_CORR:
+            if (d["d"], key) in done:
+                continue
+            j = day_at_or_after(days, idx, d2s(s2d(d["d"]) + timedelta(days=h)))
+            if j is None:
+                continue
+            xs, ys = [], []
+            for s, v in d["hz"].items():
+                if v[i] is None or s not in days[j]["p"]:
+                    continue
+                r = eur_ratio(d, days[j], s, curs.get(s))
+                if r is not None and 0.1 < r < 6:
+                    xs.append(v[i])
+                    ys.append(r)
+            rho = spearman(xs, ys)
+            if rho is not None:
+                corr.append([d["d"], key, h, rho, len(xs)])
+    corr.sort()
+    return corr
+
+
 def build_summary(cases, old_summary, corr, today, since):
     """Monate × Kategorie × Dimension × Horizont, Zeitfenster „letzte 12 Monate“ und „seit Start“
     (je mit und ohne Startbestand), eingefrorene Monate bleiben unverändert."""
@@ -629,6 +670,7 @@ def run(today, version, stocks, adj, fx, mw_adj, info, paths, extra_adj=None):
     corr = update_corr(list((old_summary or {}).get("corr", [])), days, curs)
     since = days[0]["d"]
     summary = build_summary(cases, old_summary, corr, today, (old_summary or {}).get("since") or since)
+    summary["corrh"] = update_corr_hz(list((old_summary or {}).get("corrh", [])), days, curs)
     # Wechsel seit dem letzten Messtag (für die Liste „Neu seit dem letzten Messtag“)
     summary["chg"] = {"d": today, "prev": prev["d"] if prev is not None else None,
                       "in": [[c["s"], c["k"]] for c in cases if c["d"] == today and not c["st"]],

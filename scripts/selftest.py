@@ -332,6 +332,10 @@ def main():
     ca = next(c for c in ra["A"] if c[0] == "cons")
     cb = next(c for c in rb["A"] if c[0] == "cons")
     ok &= check("Konsens: 1,9 in Indien zählt weniger als 1,9 in Deutschland", ca[2] < cb[2] and abs(ca[1][1] - 2.3) < 1e-9, (ca, cb))
+    rc = scoring.score(base(), pm, 50e9, 1.0, TODAY, cons_ref=(2.5, 1.9, "Switzerland"))  # 1,9 − 2,5 + 1,9 = 1,3
+    rd = scoring.score(base(), pm, 50e9, 1.0, TODAY, cons_ref=(3.5, 1.9, "Switzerland"))  # wäre 0,3 → auf 1 begrenzt
+    ok &= check("Konsens: bereinigter Wert unter 1 wird auf 1 begrenzt, nicht verworfen",
+                rd["a"] is not None and rd["an"]["adj"] == 1.0 and rc["a"] is not None, (rd.get("an"), rd.get("a")))
     ok &= check("Konsens: Anzeige behält den echten Wert", ra["an"]["mean"] == 1.9 and ra["an"]["adj"] == 2.3, ra["an"])
 
     # Kurzfristige Chartanalyse

@@ -110,6 +110,11 @@ def bounded(v, lo, hi):
     return v if v is not None and lo <= v <= hi else None
 
 
+def clamp(v, lo, hi):
+    """Wert auf den Bereich lo–hi begrenzen (anders als bounded, das Ausreißer verwirft)."""
+    return None if v is None else max(lo, min(hi, v))
+
+
 def first(lst):
     """Jüngster vorhandener Wert (Yahoo liefert das neueste Jahr manchmal leer)."""
     for x in lst or []:
@@ -595,6 +600,42 @@ def _parts(rec, w, with_chart):
         parts.append((w.get("n", 0), rec["ns"] * 10))
     ws = sum(p[0] for p in parts) or 1
     return sum(p[0] * p[1] for p in parts) / ws
+
+
+# Score je Zeitraum: dieselben Bausteine, anders gewichtet. 1 Jahr = Gesamtscore (WEIGHTS).
+# k = Kurzfrist-Baustein aus Kurzfrist-Note, relativer Stärke und Wende-Fortschritt.
+HZ_WEIGHTS = {"3m": dict(t=25, k=30, a=15, n=10, f=10, m=5, r=5),
+              "2j": dict(f=35, m=25, r=30, a=5, t=5)}
+
+
+def short_component(rec):
+    """Kurzfrist-Baustein 0–100 aus der Kurzfrist-Note (50 %), der relativen Stärke der letzten 20 Tage gegen den
+    Vergleichsindex (25 %, ±10 Prozentpunkte = 0 bzw. 100) und dem Wende-Fortschritt (25 %; ohne Wende-Treppe, also
+    ohne Rückgang, 70). Liest die ausführlichen Felder (ka, kx) oder die Kurzfassung (ka, ks)."""
+    ka = (rec.get("ka") or {}).get("n")
+    if ka is None:
+        return None
+    kx, ks = rec.get("kx") or {}, rec.get("ks") or {}
+    rs = ((kx.get("mk") or {}).get("rs") or {}).get("20") if kx else ks.get("rs")
+    tp = (kx.get("tl") or {}).get("prog") if kx else ks.get("tp")
+    if kx and not kx.get("tl"):
+        tp = None
+    rs_s = clamp(50 + rs[2] * 500, 0, 100) if rs and rs[2] is not None else 50
+    tp_s = tp / 6 * 100 if tp is not None else 70
+    return 0.5 * ka * 10 + 0.25 * rs_s + 0.25 * tp_s
+
+
+def horizon_scores(rec):
+    """[3 Monate, 2 Jahre und länger], je 0–100; fehlende Bausteine verteilen ihr Gewicht."""
+    val = {"f": rec["f"] * 10, "m": rec["m"] * 4, "r": rec.get("rs"), "t": rec["t"] * 10,
+           "a": None if rec.get("a") is None else rec["a"] * 10, "n": None if rec.get("ns") is None else rec["ns"] * 10,
+           "k": short_component(rec)}
+    out = []
+    for key in ("3m", "2j"):
+        parts = [(w, val[k]) for k, w in HZ_WEIGHTS[key].items() if val.get(k) is not None]
+        ws = sum(p[0] for p in parts)
+        out.append(round(sum(p[0] * p[1] for p in parts) / ws, 1) if ws else None)
+    return out
 
 
 def total(rec, w=WEIGHTS):
@@ -1100,7 +1141,9 @@ def short_analysis(df, live=False):
             prev = d.month
     ser = {"c": [sig(float(q), 5) for q in cc.values],
            "v": [int(q) for q in v.reindex(cc.index).fillna(0).values] if v is not None else None,
-           "m": months, "d": str(cc.index[-1].date())}
+           "m": months, "d": str(cc.index[-1].date()),
+           # Abstand der Handelstage in Kalendertagen (eine Ziffer je Tag, 9 = 9 oder mehr), für Datumsangaben im Chart
+           "dg": "".join(str(min(9, (cc.index[i] - cc.index[i - 1]).days)) for i in range(1, len(cc)))}
     return {"n": note, "lb": lb, "txt": txt, "dt": dt, "live": bool(live), "pos": pos, "neg": neg, "cnt": len(scored),
             "g": [[k, r] for k, r in rows.items() if r], "lv": lv, "fl": list(dict.fromkeys(flags))}, ser
 
@@ -1474,7 +1517,7 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None, cons_re
     # umgerechnet auf den weltweiten Maßstab: bereinigt = Konsens − Landesmedian + Weltmedian.
     rraw, radj = rmean, rmean
     if rmean is not None and cons_ref and cons_ref[0] is not None and cons_ref[1] is not None:
-        radj = bounded(rmean - cons_ref[0] + cons_ref[1], 1, 5)
+        radj = clamp(rmean - cons_ref[0] + cons_ref[1], 1, 5)
     rmean = radj
     An, a10 = None, None
     # Nach einem starken Kursrutsch hinken die Kursziele oft hinterher. Dann zählt ein großes Kurspotenzial höchstens
