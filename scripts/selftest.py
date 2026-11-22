@@ -416,8 +416,9 @@ def main():
         d0["p"]["S%d" % i], d1["p"]["S%d" % i] = row0, row1
     bk = TR.update_buckets([], [d0, d1], {"S%d" % i: "USD" for i in range(100)})
     st = {b[0]: b for b in bk[0][3]} if bk else {}
-    ok &= check("Trefferquote: Score-Stufen getrennt, 80+ vor unter 50",
-                bk and bk[0][1] == 7 and st["80+"][1] > 0 > st["unter 50"][1] and sum(b[4] for b in bk[0][3]) == 100, bk)
+    ok &= check("Trefferquote: Score-Stufen wie auf der Seite (75/62/48), oben Plus, unten Minus",
+                bk and bk[0][1] == 7 and st["sehr stark (ab 75)"][1] > 0 > st["schwach (unter 48)"][1]
+                and sum(b[4] for b in bk[0][3]) == 100 and [b[1] for b in TR.BUCKETS] == [75, 62, 48, -1], bk)
 
     ot = scoring.overheat_text({"rsi": 41.0, "kl": ["F", "Fällt noch"]}, {"ext": 0.6})
     ok &= check("Überhitzt-Text nennt das greifende Kriterium", "60 % über" in ot and "kurzfristig weit" not in ot

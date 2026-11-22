@@ -573,7 +573,9 @@ def update_corr_hz(corr, days, curs):
     return corr
 
 
-BUCKETS = [["80+", 80], ["65–80", 65], ["50–65", 50], ["unter 50", -1]]   # Score-Stufen (Gesamtscore)
+# Score-Stufen wie auf der Seite (band(): ab 75 sehr stark, ab 62 stark, ab 48 solide). Bis 22.11.2026: 80/65/50; ältere
+# Einträge mit anderen Stufen werden beim nächsten Lauf aus den gespeicherten Tagesständen neu berechnet.
+BUCKETS = [["sehr stark (ab 75)", 75], ["stark (62–75)", 62], ["solide (48–62)", 48], ["schwach (unter 48)", -1]]
 BUCKET_H = (7, 30, 91)
 
 
@@ -861,7 +863,11 @@ def run(today, version, stocks, adj, fx, mw_adj, info, paths, extra_adj=None):
     summary = build_summary(cases, old_summary, corr, today, (old_summary or {}).get("since") or since)
     summary["corrh"] = update_corr_hz(list((old_summary or {}).get("corrh", [])), days, curs)
     try:                                          # Score-Stufen; Fehler dürfen die Trefferquote nicht aufhalten
-        summary["bk"] = update_buckets(list((old_summary or {}).get("bk", [])), days, curs)
+        old_bk = list((old_summary or {}).get("bk", []))
+        names = {b[0] for b in BUCKETS}
+        if any(row[0] not in names for e in old_bk for row in e[3]):   # Stufen geändert: neu berechnen
+            old_bk = []
+        summary["bk"] = update_buckets(old_bk, days, curs)
     except Exception as e:  # noqa: BLE001
         print("Score-Stufen nicht berechnet:", type(e).__name__, flush=True)
         summary["bk"] = (old_summary or {}).get("bk", [])

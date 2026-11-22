@@ -1611,11 +1611,14 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None, cons_re
     if not fin and nd is not None:
         rkx.append(["debt", r1(nd), "Nettoverschuldung %s × EBITDA" % de(nd) if nd > 0 else "Mehr Barmittel als Schulden",
                     1 if nd > 3 else 0])
+    if fin and B and B[0][0] == "eqA" and B[0][3] is not None:   # Finanzwerte: Eigenkapital statt Verschuldung (v8)
+        rkx.append(["eqA", B[0][1], "Eigenkapital %s %% der Bilanzsumme (%s)" % (de(B[0][1], 1), "zu wenig" if B[0][3] is False
+                    else "ausreichend"), 1 if B[0][3] is False else 0])
     if dec is not None:
         rkx.append(["dec", dec, "Keine Gewinnrückgänge in den Abschlüssen" if dec == 0 else ("%d Gewinnrückgang" if dec == 1 else "%d Gewinnrückgänge") % dec + " in den Abschlüssen", 1 if dec >= 2 else 0])
     if accr is not None:
         rkx.append(["accr", pct(accr), "Gewinn ist %s durch Geldzufluss gedeckt" % (
-            "gut" if accr <= 0.0 else "überwiegend" if accr <= 0.08 else "schwach"), 1 if accr > 0.08 else 0])
+            "gut" if accr <= 0.0 else "überwiegend" if accr <= 0.08 else "schwach"), 2 if accr > 0.08 else 0])
 
     # ---------- Trendstatus ----------
     dist = pm["dist"]
@@ -1861,7 +1864,7 @@ def finalize(recs):
         dip = all(c[2] for c in D)
         r["D"] = D if (d52 is not None and 12 <= dr <= 35 and ql_nn >= 70) else None
         early = ph is not None and ph[0] <= 3
-        # Turnaround erst, wenn die Wende begonnen hat (Phase 2 Stabilisierung oder 3 Bodenbildung). Seit v7: Solange der
+        # Turnaround erst, wenn die Wende begonnen hat (Phase 2 Stabilisierung oder 3 Bodenbildung). Seit Regelwerk 8: Solange der
         # Kurs noch fällt (Phase 1), ist eine gesunde Firma kein Turnaround, sondern „Qualität im Rücksetzer“.
         turn_ok = ph is not None and 2 <= ph[0] <= 3
         if (rsi_v is not None and rsi_v >= 78) or x["ext"] >= 0.40:
