@@ -736,6 +736,41 @@ html.gesperrt .wrap{display:none}
  .tnfbox{padding-right:0}.tnfl{right:0}.tnann{position:static;width:auto;border-left:0;padding-left:0;margin-top:10px;line-height:1.7}.tnscale{margin-right:0;flex-wrap:wrap;gap:4px 12px}.tnscale span{flex:none!important}
  .tnins th:nth-child(4),.tnins td:nth-child(4){display:none}.tnfield{height:150px}.tnsp{display:none}.tnr{font-size:12px}.tng .tnt td:nth-child(1){width:44%}.tng .tnt td:nth-child(3){width:0}}
 .mstrip.onstart{display:none!important}
+/* Steckbrief-Ordnung (23.11.2026): Reiter, Kurzfassung, einklappbare Details; eine Überschriften-Ordnung */
+#detail h3,#detail .sec>h3{font-family:var(--text);font-size:15px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--fg)}
+#detail .sec>h3::before{display:none}
+#detail .dnav{display:flex;gap:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;position:sticky;top:-16px;z-index:5;background:var(--surface);margin:0;padding:0;border-bottom:1px solid var(--line)}
+#detail .dnav button{flex:none;background:none;border:0;border-bottom:2px solid transparent;border-radius:0;padding:10px 12px 8px;margin-bottom:-1px;font-size:13.5px;color:var(--muted);cursor:pointer}
+#detail .dnav button:hover{color:var(--fg)}
+#detail .dnav button[aria-selected=true]{color:var(--fg);border-bottom-color:var(--fg);font-weight:600}
+#detail .dch{display:flex;flex-direction:column;gap:16px}
+#detail .dch+.dch{border-top:0;padding-top:0;margin-top:0}
+#detail .dchh{display:block}
+#detail .dchh h2{font-family:"Source Serif 4",Georgia,serif;font-size:21px;font-weight:600;margin:4px 0 2px}
+#detail .dchh p{font-size:12.5px;color:var(--muted);margin:0}
+.dsum{border-top:2px solid var(--fg);border-bottom:1px solid var(--line);padding:12px 0 12px}
+.dsv{font-family:"Source Serif 4",Georgia,serif;font-size:16.5px;line-height:1.5;margin:0 0 10px}
+.dsk{border-collapse:collapse;width:100%;font-size:13.5px}
+.dsk th{text-align:left;font-weight:400;color:var(--muted);padding:4px 12px 4px 0;white-space:nowrap;vertical-align:top;width:42%}
+.dsk td{padding:4px 0;font-variant-numeric:tabular-nums}
+.dsk tr+tr th,.dsk tr+tr td{border-top:1px solid var(--line)}
+.dsx{font-size:13px;margin:10px 0 0;line-height:1.5}.dsx b{font-weight:600}
+details.dfold{border-top:1px solid var(--line);padding-top:2px}
+details.dfold>summary{cursor:pointer;list-style:none;display:flex;flex-direction:column;gap:1px;padding:10px 0 10px 22px;position:relative}
+details.dfold>summary::-webkit-details-marker{display:none}
+details.dfold>summary::before{content:"";position:absolute;left:4px;top:15px;width:7px;height:7px;border-right:1.5px solid var(--fg);border-bottom:1.5px solid var(--fg);transform:rotate(-45deg);transition:transform .15s}
+details.dfold[open]>summary::before{transform:rotate(45deg);top:13px}
+details.dfold>summary b{font-size:15px;font-weight:600}
+details.dfold>summary small{font-size:12.5px;color:var(--muted)}
+details.dfold>.sec>h3:first-child{display:none}
+details.dfold[open]{padding-bottom:12px}
+@media (prefers-reduced-motion:reduce){details.dfold>summary::before{transition:none}}
+#detail details.fold{border-top:1px solid var(--line);padding-top:2px}
+#detail details.fold>summary{cursor:pointer;list-style:none;padding:10px 0 10px 22px;position:relative;font-family:var(--text);font-size:15px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--fg)}
+#detail details.fold>summary::-webkit-details-marker{display:none}
+#detail details.fold>summary::before{content:"";position:absolute;left:4px;top:16px;width:7px;height:7px;border-right:1.5px solid var(--fg);border-bottom:1.5px solid var(--fg);transform:rotate(-45deg)}
+#detail details.fold[open]>summary::before{transform:rotate(45deg);top:13px}
+#detail details.fold[open]{padding-bottom:10px}
 </style>
 </head>
 <body>
@@ -1523,6 +1558,21 @@ function trkBuckets(t){var bk=t.bk||[];
   var BN=["sehr stark (ab 75)","stark (62–75)","solide (48–62)","schwach (unter 48)"];
   return'<div class="sec"><h3>Trefferquote nach Score-Stufen: laufen höhere Scores besser?</h3><div class="tablewrap"><table class="grid trk"><thead><tr><th>Gesamtscore beim Start</th>'+rows.map(function(r){return'<th class="r">nach '+TRK_HL[r[0]]+"</th>"}).join("")+"</tr></thead><tbody>"+BN.map(function(b){return"<tr><td><b>"+b+"</b></td>"+rows.map(function(r){var a=r[1][b];return'<td class="r num">'+(a&&a[2]?'<span class="'+cls(a[0]/a[2])+'">'+sg(a[0]/a[2],1)+' Pp.</span> <span class="muted">· '+fmt(a[1]/a[2],0)+" % besser · "+a[3]+" W.</span>":"–")+"</td>"}).join("")+"</tr>"}).join("")+'</tbody></table></div><p class="muted" style="font-size:12px">Jede Woche werden alle Aktien nach ihrem Gesamtscore in vier Stufen geteilt. Gezeigt ist die durchschnittliche Mehrrendite in Euro gegenüber dem Durchschnitt aller Aktien (Prozentpunkte), der Anteil der Aktien, die den Durchschnitt geschlagen haben, und die Zahl der Messwochen (W.). Funktioniert der Score, steht oben ein Plus und unten ein Minus. Die Stufen entsprechen denen der Rangliste. Wochen vor einem Regelwechsel beruhen auf den damaligen Scores. Wenige Wochen sind noch Zufall.</p></div>'}
 var TRK_BH=[7,30,91];
+/* Steckbrief-Ordnung (23.11.2026): Urteil, Begründung, Details. Nur Darstellung. */
+function dFold(key,title,sub,html){if(!html)return"";S.dopen=S.dopen||{};return'<details class="dfold" data-fold="'+key+'"'+(S.dopen[key]?" open":"")+'><summary><b>'+title+"</b>"+(sub?"<small>"+esc(sub)+"</small>":"")+"</summary>"+html+"</details>"}
+function dSum(text,rows,extra){return'<div class="dsum"><p class="dsv">'+text+"</p>"+(rows&&rows.length?'<table class="dsk"><tbody>'+rows.filter(function(r){return r&&r[1]!=null&&r[1]!==""}).map(function(r){return"<tr><th>"+r[0]+"</th><td>"+r[1]+"</td></tr>"}).join("")+"</tbody></table>":"")+(extra||"")+"</div>"}
+function dSumFu(x){var an=x.an||{},fw=x.f>=8.5?"sehr stark":x.f>=7?"stark":x.f>=5.5?"solide":"schwach",mw=x.m>=18?"stark":x.m>=14?"solide":"schwach";
+  var cw=an.mean==null?null:an.mean<=1.8?"klar kaufen":an.mean<=2.5?"kaufen":an.mean<=3.5?"halten":"verkaufen";
+  var up=an.tgt&&x.p?(an.tgt/x.p-1):null;
+  var t="Fundamental "+fw+", Burggraben "+mw+(x.pe!=null?", KGV "+fmt(x.pe,1):"")+(x.r!=null&&!(x.pe>100)?", Renditeerwartung "+pct(x.r)+" pro Jahr":"")+".";
+  var bad=(x.F||[]).filter(function(c){return c[4]===false}).map(function(c){return(FK[c[1]]||[c[1]])[0]});
+  return dSum(t,[["Fundamental",fmt(x.f,1)+" von 10, "+x.fo+" von "+x.fa+" Prüfungen bestanden"],["Burggraben",fmt(x.m,1)+" von 25"],["Renditeerwartung",x.pe!=null&&x.pe>100?"nicht aussagekräftig":pct(x.r)+" pro Jahr"],["Analysten",cw?cw+" ("+fmt(an.mean,1)+", "+an.n+" Analysten)"+(up!=null?", Kursziel "+sgp(up*100,0)+" zum Kurs":""):"zu wenige Schätzungen"]],
+    bad.length?'<p class="dsx"><b>Nicht bestanden:</b> '+esc(bad.join("; "))+"</p>":"")}
+function dSumCh(x){var ph=x.ph,zs=(x.zs||[])[0];
+  var t="Trend: "+esc(x.st)+". Der Kurs steht "+fmt(x.d52,0)+" % unter dem 52-Wochen-Hoch und "+(x.p>x.s200?"über":"unter")+" der 200-Tage-Linie."+(ph?" Stand der Wende: Phase "+ph[0]+" von 4, "+esc(ph[1])+".":"");
+  return dSum(t,[["Chart-Note",fmt(x.t,1)+" von 10"+(x.tc?" (gedeckelt)":"")],["RSI 14 Tage",fmt(x.rsi,0)],["Nächste Unterstützung",zs?px(zs[0])+" bis "+px(zs[1])+" "+esc(x.cur):null],["Trendalter",x.tm||null]])}
+function dSumIn(x){var i=x.ins||{},ev=x.ev||{};var t=i.nb||i.ns?"In sechs Monaten "+(i.nb?i.nb+(i.nb===1?" Kauf":" Käufe"):"keine Käufe")+" und "+(i.ns?i.ns+(i.ns===1?" Verkauf":" Verkäufe"):"keine Verkäufe")+" von Insidern.":"Keine Insidergeschäfte in sechs Monaten gemeldet.";
+  return dSum(t,[["Nächste Quartalszahlen",ev.earn?dat(ev.earn):"nicht bekannt"],["Insiderkäufe",i.vb?mon(i.vb*(eurF(x)||1))+" €":null],["Insiderverkäufe",i.vs?mon(i.vs*(eurF(x)||1))+" €":null]])}
 function renderDetail(){
   var x=S.by[S.sel];if(!x)return;
   var b=band(x.total),w=S.w,pf=x.pf||[],tr=x.tr||[0,0,0],an=x.an||{},ev=x.ev||{},cur=CURN[x.cur]||x.cur,unit=x.cur==="GBp"?" (Kurse in Pence)":"";
@@ -1538,7 +1588,7 @@ function renderDetail(){
   C.ov+='<div class="kpis" style="margin-top:8px"><div><span>Kurs '+dat(x.d)+'</span><b>'+px(x.p)+" "+esc(x.cur)+"</b><small>"+(x.pxe!=null&&CURN[x.cur]!=="EUR"?"≈ "+eurPx(x.pxe):"")+'</small></div><div><span>Letzter Handelstag</span><b class="'+cls(x.p1d)+'">'+sgp(x.p1d,1)+'</b></div><div><span>1 Woche</span><b class="'+cls(x.p1w)+'">'+sgp(x.p1w,1)+'</b></div><div><span>Kurzfristige Lage</span><b style="font-size:14px">'+(x.kl?esc(x.kl[1]):"–")+"</b></div></div>";
   C.pro+=proBlock(x);
   C.ov+='<div class="sec"><h3>Einordnung</h3><p class="verdict">'+esc(x.txt||"")+'</p><div class="two">'+((x.pro||[]).length?'<div><h3 style="margin-bottom:4px">Was auffällt</h3><ul class="plain pro">'+x.pro.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul></div>":"")+((x.con||[]).length?'<div><h3 style="margin-bottom:4px">Worauf achten</h3><ul class="plain con">'+x.con.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul></div>":"")+"</div></div>";
-  C.k+=lageBlock(x)+kaBlock(x)+kxBlock(x)+extBlock(x);C.i+=insBlock(x)+instBlock(x);
+  C.k+=lageBlock(x)+dFold("ka","Kurzfristige Chartanalyse",x.ka?"Note "+fmt(x.ka.n,1)+" von 10, "+x.ka.lb:"",kaBlock(x))+dFold("kx","Markt, Erschöpfung und Wende","Beta, relative Stärke, Erschöpfung, Wende-Treppe, frühere Fälle",kxBlock(x))+dFold("ext","Externe Chartanalysen","Trading Central und TradingView",extBlock(x));C.i+=insBlock(x)+dFold("iv","Großinvestoren","größte Fondsbestände laut Pflichtmeldungen",instBlock(x));
   if(x.ph){var ph=x.ph;
     C.ph+='<div class="sec"><h3>Stand '+(x.su==="Turnaround-Kandidat"?"der Wende":"des Rücksetzers")+" · Phase "+ph[0]+" von 4: "+esc(ph[1])+'</h3><div class="phase" role="img" aria-label="Phase '+ph[0]+' von 4">'+[1,2,3,4].map(function(i){return'<i class="'+(i<=ph[0]?"on":"")+'"></i>'}).join("")+'</div><p class="verdict">'+(ph[0]===1&&ph[1]!=="Abwärtsbewegung läuft"?"Der Kurs macht keine neuen Tiefs mehr, der Trend zeigt aber noch nach unten. Nach dem Regelwerk gibt es noch kein Wendezeichen.":PHR[ph[0]])+" "+esc(ph[2])+" "+esc(ph[3])+'</p><div class="kv"><span>Unter dem 52-Wochen-Hoch</span><span class="num">'+pct(x.d52,0)+'</span><span>Über dem Tief des Rücksetzers</span><span class="num">'+pct(x.ul,0)+'</span><span>Handelstage seit diesem Tief</span><span class="num">'+x.sl+"</span>"+(x.tu!=null?'<span>Turnaround-Prüfungen bestanden</span><span class="num">'+x.tu+" von 7</span>":"")+'</div><p class="muted" style="font-size:12px">„Tief des Rücksetzers“ ist der tiefste Schlusskurs seit dem 52-Wochen-Hoch. Phase 1: neues Tief in den letzten 20 Handelstagen oder Kurs unter der 50-Tage-Linie. Phase 2: 20 Tage ohne neues Tief und über der 50-Tage-Linie oder mindestens 10 % über dem Tief. Phase 3: über einer steigenden 50-Tage-Linie. Phase 4: über der 200-Tage-Linie. Die Phase beschreibt den Kursverlauf bis heute und sagt nicht, wie es weitergeht.</p></div>'}
   C.kv+='<div class="sec"><h3>Kursverlauf · '+esc(x.cur)+"</h3>"+(S.chartsState===2||RNG.find(function(r){return r[0]===S.rng})[3]==="d"?pxChart(x):chart)+'</div><div class="perf"><div><span>Letzter Tag</span><b class="'+cls(x.p1d)+'">'+sgp(x.p1d,1)+'</b></div><div><span>1 Woche</span><b class="'+cls(x.p1w)+'">'+sgp(x.p1w,1)+'</b></div><div><span>1 Monat</span><b class="'+cls(pf[0])+'">'+sgp(pf[0],1)+'</b></div><div><span>3 Monate</span><b class="'+cls(pf[1])+'">'+sgp(pf[1],1)+'</b></div><div><span>6 Monate</span><b class="'+cls(pf[2])+'">'+sgp(pf[2],1)+'</b></div><div><span>12 Monate</span><b class="'+cls(pf[3])+'">'+sgp(pf[3],1)+"</b></div></div>";
@@ -1574,7 +1624,7 @@ function renderDetail(){
   C.nw+='<div class="sec"><h3>Nachrichtenlage'+(x.ns==null?(x.nsx!=null?" · "+fmt(x.nsx,1)+" von 10, zählt im Qualitäts-Dip nicht":""):" · "+fmt(x.ns,1)+" von 10")+"</h3>"+((x.news||[]).length?(nz.n?'<p class="muted" style="font-size:12.5px">'+nz.n+" Schlagzeile"+(nz.n===1?"":"n")+" der letzten 30 Tage "+(nz.n===1?"nennt":"nennen")+" das Unternehmen: "+nz.pos+" mit positivem, "+nz.neg+" mit negativem Ton, "+(nz.n-nz.pos-nz.neg)+" neutral."+(x.ns==null&&x.nsx==null?" Unter drei Schlagzeilen wird keine Note gebildet.":"")+"</p>":'<p class="muted" style="font-size:12.5px">Die Schlagzeilen sind älter als 30 Tage. Es wird keine Note gebildet.</p>')+'<div class="news">'+x.news.map(function(n){var t=n[4]==null?["älter als 30 Tage",""]:NT[String(n[4])]||["neutral",""];return'<div><span class="tag '+t[1]+'">'+t[0]+'</span><a href="'+esc(n[3])+'" target="_blank" rel="noopener noreferrer">'+esc(n[0])+"</a><br><small>"+esc(n[1])+(n[2]?" · "+dat(n[2]):"")+"</small></div>"}).join("")+'</div><p class="muted" style="font-size:12px">Schlagzeilen von Yahoo Finance. Angezeigt und gezählt werden nur Meldungen, die das Unternehmen im Titel nennen (Name, gängiger Kurzname oder Börsenkürzel); Branchen- und Konkurrenzmeldungen fallen weg. Der Ton wird per Stichwortsuche in der Überschrift bestimmt (zum Beispiel „upgrade“, „beats“, „record“ gegenüber „downgrade“, „lawsuit“, „cuts“). Das erfasst nicht den Inhalt des Artikels und kann danebenliegen, deshalb zählt der Baustein in der Voreinstellung nur 5 %. Stand '+dat(x.fd)+".</p>":'<p class="muted">Derzeit nennt keine Schlagzeile von Yahoo Finance dieses Unternehmen im Titel.</p>')+"</div>";
   // Fundamental
   var fb=x.fb||{},lastB="";
-  C.fu+=umsatzBlock(x);C.fu+='<details class="fold" open><summary>Fundamental · '+x.fo+" von "+x.fa+" Prüfungen bestanden"+(x.fa<x.fn?" ("+(x.fn-x.fa)+" nicht auswertbar)":"")+'</summary><table class="crit">'+x.F.map(function(c){
+  C.fu+=dFold("rv","Umsatz und Umsatzwachstum","Jahresabschlüsse und Schätzungen der Analysten",umsatzBlock(x));C.fu+='<details class="fold"><summary>Fundamental · '+x.fo+" von "+x.fa+" Prüfungen bestanden"+(x.fa<x.fn?" ("+(x.fn-x.fa)+" nicht auswertbar)":"")+'</summary><table class="crit">'+x.F.map(function(c){
     var k=FK[c[1]]||[c[1],"",1,"≥"],head="";
     if(c[0]!==lastB){lastB=c[0];head='<tr class="blk"><td>'+BLK[c[0]]+'</td><td class="num">'+(fb[c[0]]?fb[c[0]][0]+" / "+fb[c[0]][1]:"")+"</td></tr>"}
     var st=c[4]==null?'<span class="na">nicht auswertbar</span>':c[4]?'<span class="ok">✓</span>':'<span class="no">✗</span>';
@@ -1588,13 +1638,15 @@ function renderDetail(){
   C.dq+='<details class="fold"'+((x.qn||[]).length?" open":"")+'><summary>Daten · Qualität '+x.q+'</summary><div class="kv"><span>Risikoklasse (1 defensiv, 5 offensiv)</span><span>'+dots(x.risk,5)+' <span class="num">'+x.risk+'</span></span><span>Kursschwankung pro Jahr</span><span class="num">'+pct(x.vo,0)+'</span><span>Börsenwert</span><span class="num">'+(x.mc==null?"–":fmt(x.mc,1)+" Mrd. $")+'</span><span>Fundamentaldaten vom</span><span class="num">'+dat(x.fd)+"</span></div>"+((x.qn||[]).length?'<ul class="notes" style="margin-top:6px">'+x.qn.map(function(n){return"<li>"+esc(n)+"</li>"}).join("")+"</ul>":"")+"</details>";
   /* Steckbrief in sechs Abschnitten (23.11.2026, nur Anordnung; Inhalte unverändert) */
   var CH=[["dch-ov","Überblick","Gesamtbild, Ampeln und Einordnung",C.ov,"Überblick"],
-    ["dch-fu","Unternehmen und Bewertung","Kennzahlen, Fundamental, Burggraben, Bewertung, Analysten, Branche",C.pro+C.fu+C.an+C.dq,"Bewertung"],
+    ["dch-fu","Unternehmen und Bewertung","Kennzahlen, Fundamental, Burggraben, Bewertung, Analysten, Branche",dFold("pro","Profi-Kennzahlen","Stärke-Rang, Kaufdruck, Risiko und weitere Kennzahlen",C.pro)+C.fu+dFold("an","Analysten und Branche","Konsens, Kursziele, Auf- und Abstufungen, Vergleich mit der Branche",C.an)+C.dq,"Bewertung"],
     ["dch-ch","Chart langfristig","Kursverlauf, Trend, Unterstützungen und Prüfungen",C.kv+C.ca+C.ph+C.ck,"Chart"],
     ["dch-kf","Kurzfristige Analyse","Die letzten Wochen, ohne Einfluss auf den Gesamtscore",C.k,"Kurzfristig"],
-    ["dch-in","Insider, Großinvestoren und Termine","Käufe und Verkäufe, Fondsbestände, Quartalszahlen",C.i,"Insider & Termine"],
+    ["dch-in","Insider, Großinvestoren und Termine","Käufe und Verkäufe, Fondsbestände, Quartalszahlen",C.i,"Insider"],
     ["dch-nw","Nachrichten","Schlagzeilen der letzten 30 Tage",C.nw,"Nachrichten"]].filter(function(c){return c[3]});
-  h+='<nav class="dnav" aria-label="Abschnitte des Steckbriefs">'+CH.map(function(c,i){return'<button type="button" data-jump="'+c[0]+'">'+c[4]+"</button>"}).join("")+"</nav>";
-  h+=CH.map(function(c,i){return'<section class="dch" id="'+c[0]+'"><div class="dchh"><span class="dchn">'+(i+1)+'</span><div><h2>'+c[1]+'</h2><p>'+c[2]+"</p></div></div>"+c[3]+"</section>"}).join("")+"</div>";
+  if(!CH.some(function(c){return c[0]===S.dtab}))S.dtab=CH[0][0];
+  var SUM={"dch-fu":dSumFu(x),"dch-ch":dSumCh(x),"dch-in":dSumIn(x)};
+  h+='<nav class="dnav" role="tablist" aria-label="Bereiche des Steckbriefs">'+CH.map(function(c){return'<button type="button" role="tab" data-dtab="'+c[0]+'" aria-selected="'+(c[0]===S.dtab)+'">'+c[4]+"</button>"}).join("")+"</nav>";
+  h+=CH.map(function(c){return'<section class="dch" id="'+c[0]+'"'+(c[0]===S.dtab?"":" hidden")+'><div class="dchh"><h2>'+c[1]+'</h2><p>'+c[2]+"</p></div>"+(SUM[c[0]]||"")+c[3]+"</section>"}).join("")+"</div>";
   $("detail").innerHTML='<button class="link backlist" data-back="1">← Zurück zur Liste</button>'+h;
   loadCharts();
 }
@@ -2174,6 +2226,10 @@ fetch("data.json?t="+Date.now()).then(function(r){if(!r.ok)throw new Error(r.sta
   $("summary").textContent="Keine Daten";
   $("msg").hidden=false;$("msg").textContent="Die Daten konnten nicht geladen werden. Bitte lade die Seite später neu.";
 });
+document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("[data-dtab]");if(!b)return;S.dtab=b.getAttribute("data-dtab");
+  [].forEach.call(document.querySelectorAll("#detail .dch"),function(c){c.hidden=c.id!==S.dtab});[].forEach.call(document.querySelectorAll("#detail [data-dtab]"),function(t){t.setAttribute("aria-selected",t===b?"true":"false")});
+  var d=$("detail"),nav=d.querySelector(".dnav");if(nav&&nav.getBoundingClientRect().top<d.getBoundingClientRect().top)d.scrollTop+=nav.getBoundingClientRect().top-d.getBoundingClientRect().top;});
+document.addEventListener("toggle",function(e){var t=e.target;if(t&&t.matches&&t.matches("details[data-fold]")){S.dopen=S.dopen||{};S.dopen[t.getAttribute("data-fold")]=t.open}},true);
 /* ---------------------------------------------------------------- Titelseite „Tagesnotiz“ (Reiter „Start“, nur Anzeige, 23.11.2026) */
 function tnList(a){return a.length<2?a.join(""):a.slice(0,-1).join(", ")+" und "+a[a.length-1]}
 function tnRole(r){r=r||"";if(/10%/.test(r))return"Großaktionär";if(/chief executive|ceo/i.test(r))return"Vorstandschef";if(/chief financial|cfo/i.test(r))return"Finanzvorstand";if(/officer|president/i.test(r))return"Vorstand";if(/director/i.test(r))return"Board-Mitglied";return r}
@@ -2241,10 +2297,7 @@ document.addEventListener("click",function(e){var g=e.target.closest&&e.target.c
 
 })();
 
-document.addEventListener("click",function(e){var j=e.target.closest&&e.target.closest("[data-jump]");if(!j)return;var t=document.getElementById(j.getAttribute("data-jump")),d=document.getElementById("detail");if(!t||!d)return;
-  var nav=d.querySelector(".dnav"),nh=nav?nav.offsetHeight+10:10,cs=getComputedStyle(d);
-  if((cs.overflowY==="auto"||cs.overflowY==="scroll")&&d.scrollHeight>d.clientHeight+2){d.scrollTo({top:d.scrollTop+t.getBoundingClientRect().top-d.getBoundingClientRect().top-nh,behavior:"smooth"})}
-  else window.scrollTo({top:window.scrollY+t.getBoundingClientRect().top-nh,behavior:"smooth"})});
+
 </script>
 </body>
 </html>
