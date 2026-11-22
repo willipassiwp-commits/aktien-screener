@@ -298,6 +298,20 @@ def safe(fn):
         return None
 
 
+_ISIN_T = [0.0]                                     # Zeit für ISIN-Abfragen in diesem Lauf (Sekunden)
+
+
+def isin_of(t):
+    """ISIN der Aktie (nur für den Depot-Import auf der Seite, keine Bewertung). Eigene Abfrage über yfinance; nach
+    insgesamt 120 Sekunden in einem Lauf wird nicht mehr gefragt, damit der Lauf nicht hängt."""
+    if _ISIN_T[0] > 120:
+        return None
+    t0 = time.time()
+    v = safe(lambda: t.isin)
+    _ISIN_T[0] += time.time() - t0
+    return v if isinstance(v, str) and re.fullmatch(r"[A-Z]{2}[A-Z0-9]{9}[0-9]", v) else None
+
+
 def fetch_fund(sym):
     t = yf.Ticker(sym)
     info = safe(lambda: t.info) or {}
@@ -351,6 +365,7 @@ def fetch_fund(sym):
         "news": news_items(safe(lambda: t.news)),
         "ins": insider_items(safe(lambda: t.insider_transactions)),
         "inst": inst_items(safe(lambda: t.institutional_holders)) if "." not in sym else None,
+        "isin": isin_of(t),
         "surp": surprises(safe(lambda: t.earnings_history), lambda: safe(lambda: t.get_earnings_dates(limit=12))),
     }
 
@@ -368,6 +383,8 @@ def refresh_fundamentals(symbols, cache):
         for attempt in range(2):
             try:
                 rec = fetch_fund(s)
+                if not rec.get("isin") and cache.get(s, {}).get("isin"):
+                    rec["isin"] = cache[s]["isin"]          # ISIN ändert sich nicht: alten Wert behalten
                 # Leere Antwort: alten Stand behalten, nur den Zeitstempel weiterdrehen
                 if not rec["revenue"] and cache.get(s, {}).get("revenue"):
                     cache[s]["ts"] = rec["ts"]
@@ -784,6 +801,8 @@ def main():
                 us_closes[s] = cc.iloc[-1100:]
             except Exception:
                 pass
+        if fund.get("isin"):                       # nur für den Depot-Import
+            rec["isin"] = fund["isin"]
         if fund.get("inst"):                       # Großinvestoren (13F), nur Anzeige
             rec["iv"] = fund["inst"]
         rec.update(s=s, n=fund.get("name") or meta[s]["name"], c=fund.get("country") or meta[s].get("country") or "",
