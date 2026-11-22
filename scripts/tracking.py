@@ -521,6 +521,53 @@ def update_corr_hz(corr, days, curs):
     return corr
 
 
+BUCKETS = [["80+", 80], ["65–80", 65], ["50–65", 50], ["unter 50", -1]]   # Score-Stufen (Gesamtscore)
+BUCKET_H = (7, 30, 91)
+
+
+def update_buckets(bk, days, curs):
+    """Trefferquote nach Score-Stufen: wöchentlich, je Stufe die Rendite in Euro nach 7, 30 und 91 Tagen im Vergleich
+    zum Durchschnitt aller Aktien. Einträge [Datum, Horizont, Regelwerk, [[Stufe, Ø Mehrrendite %, Median %, Anteil
+    besser als Ø %, n], ...]]. Klein: ein Eintrag je Woche und Horizont."""
+    done = {(b[0], b[1]) for b in bk}
+    idx = {d["d"]: i for i, d in enumerate(days)}
+    seen = set()
+    for d in days:
+        wk = s2d(d["d"]).isocalendar()[:2]
+        if wk in seen:
+            continue
+        seen.add(wk)
+        for h in BUCKET_H:
+            if (d["d"], h) in done:
+                continue
+            j = day_at_or_after(days, idx, d2s(s2d(d["d"]) + timedelta(days=h)))
+            if j is None:
+                continue
+            rows = []
+            for s, row in d["p"].items():
+                if row[I_TOT] is None or s not in days[j]["p"]:
+                    continue
+                r = eur_ratio(d, days[j], s, curs.get(s))
+                if r is not None and 0.1 < r < 6:
+                    rows.append((row[I_TOT], r))
+            if len(rows) < 50:
+                continue
+            avg = sum(r for _, r in rows) / len(rows)
+            out = []
+            for name, lim in BUCKETS:
+                hi = min((b[1] for b in BUCKETS if b[1] > lim), default=None)
+                ex = sorted((r - avg) * 100 for t, r in rows if t >= lim and (hi is None or t < hi))
+                if not ex:
+                    out.append([name, None, None, None, 0])
+                    continue
+                med = ex[len(ex) // 2] if len(ex) % 2 else (ex[len(ex) // 2 - 1] + ex[len(ex) // 2]) / 2
+                out.append([name, round(sum(ex) / len(ex), 2), round(med, 2),
+                            round(100 * sum(1 for e in ex if e > 0) / len(ex)), len(ex)])
+            bk.append([d["d"], h, d.get("v"), out])
+    bk.sort(key=lambda b: (b[0], b[1]))
+    return bk
+
+
 def build_summary(cases, old_summary, corr, today, since):
     """Monate × Kategorie × Dimension × Horizont, Zeitfenster „letzte 12 Monate“ und „seit Start“
     (je mit und ohne Startbestand), eingefrorene Monate bleiben unverändert."""
@@ -671,6 +718,11 @@ def run(today, version, stocks, adj, fx, mw_adj, info, paths, extra_adj=None):
     since = days[0]["d"]
     summary = build_summary(cases, old_summary, corr, today, (old_summary or {}).get("since") or since)
     summary["corrh"] = update_corr_hz(list((old_summary or {}).get("corrh", [])), days, curs)
+    try:                                          # Score-Stufen; Fehler dürfen die Trefferquote nicht aufhalten
+        summary["bk"] = update_buckets(list((old_summary or {}).get("bk", [])), days, curs)
+    except Exception as e:  # noqa: BLE001
+        print("Score-Stufen nicht berechnet:", type(e).__name__, flush=True)
+        summary["bk"] = (old_summary or {}).get("bk", [])
     # Wechsel seit dem letzten Messtag (für die Liste „Neu seit dem letzten Messtag“)
     summary["chg"] = {"d": today, "prev": prev["d"] if prev is not None else None,
                       "in": [[c["s"], c["k"]] for c in cases if c["d"] == today and not c["st"]],

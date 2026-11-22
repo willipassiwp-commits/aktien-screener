@@ -198,6 +198,31 @@ def insider_items(df):
         return None
 
 
+def inst_items(df):
+    """Größte Fondsbestände laut den Pflichtmeldungen an die US-Börsenaufsicht (13F, bis zu 45 Tage verzögert):
+    [Fonds, Anteil an der Firma, Veränderung zur Vormeldung, Wert in $, Meldedatum]. Nur Anzeige. None, wenn Yahoo
+    nichts liefert."""
+    try:
+        if df is None or not hasattr(df, "iterrows") or df.empty:
+            return None
+        out = []
+        for _, r in df.iterrows():
+            name = str(r.get("Holder") or r.get("Organization") or "").strip()
+            if not name:
+                continue
+            ph, pc, val = num(r.get("pctHeld") or r.get("% Out")), num(r.get("pctChange")), num(r.get("Value"))
+            d = r.get("Date Reported") or r.get("Reported")
+            try:
+                d = pd.Timestamp(d).strftime("%Y-%m-%d")
+            except Exception:
+                d = None
+            out.append([name[:60], None if ph is None else round(ph, 4), None if pc is None else round(pc, 4),
+                        float("%.4g" % val) if val else None, d])
+        return out[:10] or None
+    except Exception:
+        return None
+
+
 def surprises(hist, dates_fn=None):
     """Die letzten vier gemeldeten Quartale: [Datum, Schätzung, Ergebnis je Aktie, Abweichung in %]."""
     out = []
@@ -325,6 +350,7 @@ def fetch_fund(sym):
         "earn": earn, "exDiv": exdiv,
         "news": news_items(safe(lambda: t.news)),
         "ins": insider_items(safe(lambda: t.insider_transactions)),
+        "inst": inst_items(safe(lambda: t.institutional_holders)) if "." not in sym else None,
         "surp": surprises(safe(lambda: t.earnings_history), lambda: safe(lambda: t.get_earnings_dates(limit=12))),
     }
 
@@ -758,6 +784,8 @@ def main():
                 us_closes[s] = cc.iloc[-1100:]
             except Exception:
                 pass
+        if fund.get("inst"):                       # Großinvestoren (13F), nur Anzeige
+            rec["iv"] = fund["inst"]
         rec.update(s=s, n=fund.get("name") or meta[s]["name"], c=fund.get("country") or meta[s].get("country") or "",
                    sec=fund.get("sector") or meta[s].get("sector") or "", ind=fund.get("industry") or "",
                    cur=cur or "", fd=datetime.fromtimestamp(fund["ts"], timezone.utc).strftime("%Y-%m-%d"))

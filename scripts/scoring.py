@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-VERSION = 6
+VERSION = 7
 
 # Schwellen je Lynch-Kategorie. Belegt aus öffentlichen Analysen: Average 6/6/6/10 und Verschuldung 3,0,
 # Fast Grower EBIT-Marge 20. Die übrigen Werte sind Annahmen.
@@ -38,7 +38,8 @@ TH = {
                      pe5=15, cap=15),
 }
 # Für alle Kategorien gleich
-TH_ALL = dict(cov=6.0, liq=1.0, dil=2.0, cash=0.9, fcfY=3.0, rev90=-1.0, mTrend=-1.0, payout=75.0, roeMin=8.0)
+TH_ALL = dict(cov=6.0, liq=1.0, dil=2.0, cash=0.9, fcfY=3.0, rev90=-1.0, mTrend=-1.0, payout=75.0, roeMin=8.0,
+              accr=8.0)  # v7: Gewinnqualität, Periodenabgrenzungen höchstens 8 % der Bilanzsumme
 # Banken, Versicherer und andere Bilanz-Finanzwerte: branchenübliche Kennzahlen statt Eigenkapitalquote,
 # Verschuldung und EBIT-Marge. Schwellen so gewählt, dass sie etwa so oft bestanden werden wie die ersetzten.
 FIN_TH = {
@@ -59,7 +60,7 @@ G_CAP = {"Slow Grower": 0.08, "Average Grower": 0.15, "Fast Grower": 0.20, "Zykl
 SUBUNIT = {"GBp": 0.01, "GBX": 0.01, "ZAc": 0.01, "ILA": 0.01}
 WEIGHTS = dict(f=30, m=15, t=20, r=15, a=15, n=5)
 HOT_MIN = 7        # von 8 Anlauf-Signalen
-T_MAX = 12         # Rohpunkte der Chart-Prüfungen, auf 10 umgerechnet
+T_MAX = 14         # Rohpunkte der Chart-Prüfungen, auf 10 umgerechnet (v7: Stärke-Rang 2 Punkte, Kaufdruck 1)
 
 
 def num(x):
@@ -395,6 +396,38 @@ def corrections(w):
     return past, 1 - w[-1] / peak, 1 - trough / peak
 
 
+ACC_DAYS = 65      # Kaufdruck: abgeschlossene Handelstage (13 Wochen)
+
+
+def acc_ratio(c, vol, days=ACC_DAYS):
+    """Kaufdruck: Volumen an Plustagen geteilt durch Volumen an Minustagen über die letzten 13 Wochen. Der jüngste
+    Tag bleibt außen vor, weil er bei stündlichen Läufen noch nicht abgeschlossen sein kann. None ohne Volumen."""
+    try:
+        if vol is None or len(c) < days + 3:
+            return None
+        cc, vv = c.iloc[-(days + 2):-1], vol.reindex(c.index).iloc[-(days + 2):-1]
+        ch = cc.diff().iloc[1:]
+        vv = vv.iloc[1:]
+        up, dn = float(vv[ch > 0].sum()), float(vv[ch < 0].sum())
+        if up + dn <= 0 or (vv > 0).sum() < days * 0.6:
+            return None
+        return round(clamp(up / dn if dn > 0 else 5.0, 0.0, 5.0), 3)
+    except Exception:
+        return None
+
+
+ACC_GRADES = [(80, "A"), (60, "B"), (40, "C"), (20, "D"), (-1, "E")]
+ACC_WORD = {"A": "große Anleger kaufen deutlich", "B": "eher Kaufdruck", "C": "ausgeglichen",
+            "D": "eher Verkaufsdruck", "E": "große Anleger verkaufen deutlich"}
+
+
+def acc_grade(rank):
+    """Rang 0–100 im Universum → Note A (stärkster Kaufdruck) bis E."""
+    if rank is None:
+        return None
+    return next(g for lim, g in ACC_GRADES if rank >= lim)
+
+
 def price_metrics(df):
     """Kennzahlen und Chartanalyse aus der Kurshistorie. Erwartet Tagesdaten mit Schlusskursen, die um Aktiensplits,
     aber nicht um Dividenden bereinigt sind (wie im Chart). Gibt None zurück, wenn zu wenig Daten da sind."""
@@ -435,6 +468,7 @@ def price_metrics(df):
         v100 = float(vol.iloc[-100:].mean())
         if v100 > 0:
             vol_ratio = float(vol.iloc[-20:].mean()) / v100
+    ud = acc_ratio(c, vol)
 
     w = c5.resample("W").last().dropna()
     r2, slope = None, None
@@ -548,7 +582,7 @@ def price_metrics(df):
                 p1m=perf(c, 21), p3m=perf(c, 63), p6m=perf(c, 126), p1y=perf(c, 252),
                 hi52=hi52, lo52=lo52, rsi=rsi(c), vol_ratio=vol_ratio, cross=cross, since_high=since_high,
                 since_low=since_low, days200=days200, capped200=capped200, st=st_, pb_low=pb_low, pb_age=pb_age,
-                p1d=perf(c, 1), p1w=perf(c, 5),
+                p1d=perf(c, 1), p1w=perf(c, 5), ud=ud,
                 sym=sym, zs=zs, zr=zr, weekly=[float("%.4g" % v) for v in w.values])
 
 
@@ -1269,6 +1303,12 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None, cons_re
     fcf_m = bounded(fcf0 / rev_f if fcf0 is not None and rev_f and rev_f > 0 else None, -2, 1)
     ocf0, ni_c = pair(ocf, ni)
     cash_conv = bounded(ocf0 / ni_c if ocf0 is not None and ni_c and ni_c > 0 else None, -20, 50)
+    # Gewinnqualität (v7): Jahresgewinn minus operativer Cashflow, bezogen auf die Bilanzsumme (Sloan-Accruals).
+    # Hohe Werte heißen: Der Gewinn steht vor allem auf dem Papier, das Geld kommt nicht herein.
+    ni_q, ocf_q = pair(ni, ocf)
+    accr = None
+    if ni_q is not None and ocf_q is not None and first(fund.get("assets")):
+        accr = bounded((ni_q - ocf_q) / first(fund.get("assets")), -1, 1)
     fcf_vals = [v for v in fcf if v is not None]
     fcf_pos = (sum(1 for v in fcf_vals if v > 0), len(fcf_vals)) if len(fcf_vals) >= 3 else None
     fcf_y = bounded(first(fcf) / mcap_fin if first(fcf) is not None and mcap_fin else None, -1, 1)
@@ -1386,6 +1426,7 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None, cons_re
         Q = [
             ["dec", dec, 1, le(dec, 1)],
             ["cash", pct(cash_conv, 0), A["cash"] * 100, ge(cash_conv, A["cash"])],
+            ["accr", pct(accr), A["accr"], le(accr, A["accr"] / 100)],
             ["fcfPos", None if fcf_pos is None else fcf_pos[0], None if fcf_pos is None else fcf_pos[1],
              None if fcf_pos is None else fcf_pos[0] == fcf_pos[1]],
             pe_row,
@@ -1430,7 +1471,7 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None, cons_re
         return None
     moat25 = round(sum(mv) / (len(mv) * 5) * 25, 1)
 
-    # ---------- Chart-Prüfungen (zwölf Rohpunkte, auf zehn umgerechnet; relative Stärke folgt in finalize) ----------
+    # ---------- Chart-Prüfungen (14 Rohpunkte, auf zehn umgerechnet; Stärke-Rang und Kaufdruck folgen in finalize) ----
     above = price > pm["sma200"]
     c5g = pm["cagr5"]
     va = pm["vol_above"]
@@ -1450,7 +1491,8 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None, cons_re
         ["vol", pct(va), p_vol, 2],
         ["qual", r1(pm["r2"], 2), 1 if pm["r2"] is not None and pm["r2"] >= 0.7 and pm["slope"] > 0 else 0, 1],
         ["hi52", pct(dist52), 1 if dist52 <= 0.15 else 0, 1],
-        ["rs", None, 0, 1],
+        ["rs", None, 0, 2],
+        ["acc", None, 0, 1],
     ]
 
     # ---------- Renditeerwartung: Exit-KGV über fünf Jahre ----------
@@ -1556,6 +1598,21 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None, cons_re
     if dec is not None and dec >= 2:
         risk += 1
     risk = clamp(risk, 1, 5)
+    # Gründe für die Risikoklasse in Worten (nur Anzeige)
+    rkx = []
+    if v is not None:
+        rkx.append(["vola", round(v * 100), "Kurs schwankt %s mit %d %% pro Jahr" % (
+            "stark" if v >= 0.40 else "spürbar" if v >= 0.25 else "wenig", round(v * 100)), 1 if v >= 0.25 else 0])
+    rkx.append(["mdd", round(pm["mdd5"] * 100), "Größter Einbruch in 5 Jahren: −%d %%" % round(pm["mdd5"] * 100),
+                1 if pm["mdd5"] >= 0.40 else 0])
+    if not fin and nd is not None:
+        rkx.append(["debt", r1(nd), "Nettoverschuldung %s × EBITDA" % de(nd) if nd > 0 else "Mehr Barmittel als Schulden",
+                    1 if nd > 3 else 0])
+    if dec is not None:
+        rkx.append(["dec", dec, "Keine Gewinnrückgänge in den Abschlüssen" if dec == 0 else ("%d Gewinnrückgang" if dec == 1 else "%d Gewinnrückgänge") % dec + " in den Abschlüssen", 1 if dec >= 2 else 0])
+    if accr is not None:
+        rkx.append(["accr", pct(accr), "Gewinn ist %s durch Geldzufluss gedeckt" % (
+            "gut" if accr <= 0.0 else "überwiegend" if accr <= 0.08 else "schwach"), 1 if accr > 0.08 else 0])
 
     # ---------- Trendstatus ----------
     dist = pm["dist"]
@@ -1624,7 +1681,7 @@ def score(fund, pm, mcap_usd=None, fx_fin=None, today=None, symbol=None, cons_re
                 rev30=[er.get("up30"), er.get("down30")], ud=ud[:6]),
         ev=dict(earn=earn, ed=earn_days, exdiv=fund.get("exDiv")),
         news=news[:8], nz=nz, ns=ns10, q=quality_grade, qn=notes, po=pct(payout, 0), nd=r1(nd),
-        p1d=pct(pm.get("p1d")), p1w=pct(pm.get("p1w")),
+        p1d=pct(pm.get("p1d")), p1w=pct(pm.get("p1w")), ud=pm.get("ud"), rkx=rkx,
         rsiw=r1((pm.get("st") or {}).get("rsi_w"), 0),
     )
     rec["kl"] = lage(price, pm, pm["rsi"], pm["zs"], pm["sym"])
@@ -1663,13 +1720,22 @@ def finalize(recs):
     p6 = [r["pf"][2] for r in recs if r["pf"][2] is not None]
     p12 = [r["pf"][3] for r in recs if r["pf"][3] is not None]
     med12 = float(np.median(p12)) if p12 else None
+    uds = [r["ud"] for r in recs if r.get("ud") is not None]
     for r in recs:
         x = r.pop("_x")
-        # Relative Stärke
+        # Relative Stärke; v7: Stärke-Rang 1–99 mit bis zu 2 Punkten (ab Rang 80: 2, über dem Median: 1)
         r["rs6"], r["rs12"] = pct_rank(p6, r["pf"][2]), pct_rank(p12, r["pf"][3])
+        r["rsr"] = None if r["rs12"] is None else int(clamp(r["rs12"], 1, 99))
         rs_row = next(t for t in r["T"] if t[0] == "rs")
         rs_row[1] = r["rs12"]
-        rs_row[2] = 1 if r["pf"][3] is not None and med12 is not None and r["pf"][3] > med12 else 0
+        above_med = r["pf"][3] is not None and med12 is not None and r["pf"][3] > med12
+        rs_row[2] = 2 if above_med and r["rsr"] is not None and r["rsr"] >= 80 else 1 if above_med else 0
+        # Kaufdruck A–E: Volumen an Plus- gegen Minustagen (13 Wochen), als Rang im Universum
+        acc_row = next((t for t in r["T"] if t[0] == "acc"), None)
+        r["ac"] = acc_grade(pct_rank(uds, r.get("ud"))) if len(uds) >= 50 else None
+        if acc_row is not None:
+            acc_row[1] = r["ac"]
+            acc_row[2] = 1 if r["ac"] in ("A", "B") else 0
         r["t"] = round(sum(t[2] for t in r["T"]) / T_MAX * 10, 1)
         r["tc"] = bool(not x["over50"] and r["t"] > 8.0)   # Kurs unter der 50-Tage-Linie: Chart-Note höchstens 8,0
         if r["tc"]:

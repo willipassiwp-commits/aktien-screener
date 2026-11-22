@@ -101,9 +101,16 @@ def main():
     ok &= check("Bank: KGV-Schwelle halbiert", crit(r, "pe5")[3] == scoring.TH[r["cat"]]["pe5"] * 0.5, crit(r, "pe5"))
     ok &= check("Bank: Gesamtkapitalrendite 1,0 %", crit(r, "roa")[2] == 1.0, crit(r, "roa"))
 
-    # 4. Normale Firma: 21 Prüfungen, neue Cashflow- und Bilanzprüfungen
+    # 4. Normale Firma: 22 Prüfungen (v7: Gewinnqualität), neue Cashflow- und Bilanzprüfungen
     r = one(base(), pm)
-    ok &= check("21 Prüfungen, alle auswertbar", r["fn"] == 21 and r["fa"] == 21, (r["fn"], r["fa"]))
+    ok &= check("22 Prüfungen, alle auswertbar", r["fn"] == 22 and r["fa"] == 22, (r["fn"], r["fa"]))
+    # Gewinnqualität: (2,5 − 2,8 Mrd.) / 20 Mrd. = −1,5 % → erfüllt; (2,5 − 0,5) / 20 = 10 % → nicht erfüllt
+    ok &= check("v7 Gewinnqualität −1,5 %, erfüllt", crit(r, "accr")[2] == -1.5 and crit(r, "accr")[4], crit(r, "accr"))
+    r_acc = one(base(ocf=[0.5e9, 2.5e9, 2.3e9, 2.0e9]), pm)
+    ok &= check("v7 Gewinnqualität 10 %, nicht erfüllt", crit(r_acc, "accr")[2] == 10.0 and crit(r_acc, "accr")[4] is False,
+                crit(r_acc, "accr"))
+    ok &= check("v7 Risiko-Gründe vorhanden", any(k[0] == "accr" for k in r["rkx"]) and any(k[0] == "vola" for k in r["rkx"]),
+                r["rkx"])
     ok &= check("Free-Cashflow-Marge 22 %", crit(r, "fcfM")[2] == 22.0 and crit(r, "fcfM")[4], crit(r, "fcfM"))
     ok &= check("Zinsdeckung 10", crit(r, "cov")[2] == 10.0 and crit(r, "cov")[4], crit(r, "cov"))
     ok &= check("Cashflow deckt Gewinn (112 %)", crit(r, "cash")[2] == 112.0 and crit(r, "cash")[4], crit(r, "cash"))
@@ -363,6 +370,41 @@ def main():
     ok &= check("Extern: leere Antwort ergibt nichts", EX._tc_parse({"finance": {"result": {}}}) is None)
     old_c = {"tc": {"AAA": {"s": ["Bullish", 1], "ts": 0}}, "tv": {}}
     ok &= check("Extern: veraltete Werte werden nicht angezeigt", EX.view("AAA", old_c, now=10 * 86400) is None)
+
+    # v7: Kaufdruck (Volumen an Plus- gegen Minustagen) und Stärke-Rang mit zwei Punkten
+    idx = pd.bdate_range("2026-01-01", periods=80)
+    cc = pd.Series(100 + np.arange(80) % 2, index=idx, dtype=float)     # abwechselnd +1 / −1
+    vv = pd.Series(np.where(np.arange(80) % 2 == 1, 3e6, 1e6), index=idx, dtype=float)  # Plustage 3× Volumen
+    ok &= check("v7 Kaufdruck: Plustage mit 3-fachem Volumen ergibt etwa 3", 2.85 <= scoring.acc_ratio(cc, vv) <= 3.15,
+                scoring.acc_ratio(cc, vv))
+    ok &= check("v7 Kaufdruck: ohne Volumen nichts", scoring.acc_ratio(cc, None) is None)
+    ok &= check("v7 Kaufdruck-Noten", [scoring.acc_grade(v) for v in (95, 60, 59, 20, 3, None)] == ["A", "B", "C", "D", "E", None])
+    recs = []
+    for i in range(60):
+        rr = scoring.score(base(), scoring.price_metrics(frame(100, growth=0.02 + i * 0.004)), 50e9, 1.0, TODAY)
+        rr["ud"] = 0.5 + i * 0.05
+        recs.append(rr)
+    recs = scoring.finalize(recs)
+    top, mid, low = recs[-1], recs[35], recs[0]
+    pts = lambda x, k: next(t for t in x["T"] if t[0] == k)[2]          # noqa: E731
+    ok &= check("v7 Stärke-Rang: Spitze 2 Punkte, Mitte 1, Ende 0",
+                (pts(top, "rs"), pts(mid, "rs"), pts(low, "rs")) == (2, 1, 0) and top["rsr"] == 99,
+                (pts(top, "rs"), pts(mid, "rs"), pts(low, "rs"), top["rsr"]))
+    ok &= check("v7 Kaufdruck: Spitze A mit Punkt, Ende E ohne", top["ac"] == "A" and pts(top, "acc") == 1
+                and low["ac"] == "E" and pts(low, "acc") == 0, (top["ac"], low["ac"]))
+    ok &= check("v7 Chart-Note höchstens 10", all(0 <= x["t"] <= 10 for x in recs))
+    # Trefferquote nach Score-Stufen
+    import tracking as TR
+    d0 = {"d": "2026-01-05", "v": 7, "fx": {"USD": 1.0}, "p": {}}
+    d1 = {"d": "2026-01-12", "v": 7, "fx": {"USD": 1.0}, "p": {}}
+    for i in range(100):
+        sc_ = 30 + i * 0.6                                  # Scores 30 … 89
+        row0, row1 = [0, sc_, 100.0] + [None] * 9, [0, sc_, 100.0 + (sc_ - 60) / 10] + [None] * 9
+        d0["p"]["S%d" % i], d1["p"]["S%d" % i] = row0, row1
+    bk = TR.update_buckets([], [d0, d1], {"S%d" % i: "USD" for i in range(100)})
+    st = {b[0]: b for b in bk[0][3]} if bk else {}
+    ok &= check("Trefferquote: Score-Stufen getrennt, 80+ vor unter 50",
+                bk and bk[0][1] == 7 and st["80+"][1] > 0 > st["unter 50"][1] and sum(b[4] for b in bk[0][3]) == 100, bk)
 
     try:
         import json
