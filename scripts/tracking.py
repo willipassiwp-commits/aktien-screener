@@ -568,6 +568,95 @@ def update_buckets(bk, days, curs):
     return bk
 
 
+MD_NAMES = [t[0] for t in TOP_CATS] + TRACKED      # Musterdepots je Kategorie
+
+
+def update_models(md, days, curs):
+    """Musterdepots: je Kategorie ein Index (Start 100), der täglich gleichgewichtet alle Aktien hält, die in der
+    Kategorie stehen. Aufnahme mit einem Tag Verzögerung: Die Rendite von Tagesstand j-1 nach j gilt für die Mitglieder
+    am Tagesstand j-2, damit nichts eingerechnet wird, was man beim Kauf noch nicht wissen konnte. Dazu MSCI World
+    („_mw“) und der gleichgewichtete Durchschnitt aller Aktien („_av“), alles in Euro mit Dividenden.
+    md: {"d": [Datum], "s": {Name: [Index]}, "nl": {Name: Anzahl im letzten Schritt}}. Wird nur fortgeschrieben."""
+    names = MD_NAMES + ["_mw", "_av"]
+    md = json.loads(json.dumps(md)) if md and md.get("d") else None
+    if not days:
+        return md
+    if md is None:
+        md = {"d": [days[0]["d"]], "s": {k: [100.0] for k in names}, "nl": {}}
+    for k in names:                                  # neue Kategorie: ab dem aktuellen Stand mit 100 beginnen
+        if k not in md["s"]:
+            md["s"][k] = [None] * (len(md["d"]) - 1) + [100.0]
+    idx = {d["d"]: i for i, d in enumerate(days)}
+    i = idx.get(md["d"][-1])
+    if i is None:
+        return md
+    for j in range(i + 1, len(days)):
+        a, b = days[j - 1], days[j]
+        mem = memberships(days[j - 2])[0] if j >= 2 else {}
+        by_cat = {}
+        for s, cats in mem.items():
+            for k in cats:
+                by_cat.setdefault(k, []).append(s)
+        md["d"].append(b["d"])
+        for k in MD_NAMES:
+            vals = []
+            for s in by_cat.get(k, []):
+                r = eur_ratio(a, b, s, curs.get(s))
+                if r is not None and 0.1 < r < 6:
+                    vals.append(r)
+            f = sum(vals) / len(vals) if vals else 1.0
+            prev = md["s"][k][-1]
+            md["s"][k].append(None if prev is None else round(prev * f, 3))
+            md["nl"][k] = len(vals)
+        for k, f in (("_mw", mw_ratio(a, b)), ("_av", avg_ratio(a, b, curs))):
+            prev = md["s"][k][-1]
+            md["s"][k].append(None if prev is None else round(prev * (f or 1.0), 3))
+    return md
+
+
+def open_cases(cases, days, curs, sectors):
+    """Laufende Fälle (Aktie noch in der Kategorie): Ergebnis seit Eintritt bis zum letzten Tagesstand in Euro,
+    MSCI World und Durchschnitt aller Aktien im selben Zeitraum, Durchschnitt der Aktien derselben Branche
+    (mindestens 3) und größter Rückgang seit Eintritt (Tiefpunkt gegenüber dem Einstieg, höchstens 0).
+    Einträge [Kürzel, Kategorie, Eintritt, Rendite %, MSCI %, Ø alle %, Ø Branche %, größter Rückgang %, Startbestand]."""
+    if not days:
+        return []
+    idx = {d["d"]: i for i, d in enumerate(days)}
+    last = days[-1]
+    bench, out = {}, []
+    for c in cases:
+        if c["x"] is not None or c["d"] not in idx:
+            continue
+        i = idx[c["d"]]
+        a = days[i]
+        cur = c.get("cur") or curs.get(c["s"])
+        r = eur_ratio(a, last, c["s"], cur)
+        if r is None:
+            continue
+        if c["d"] not in bench:
+            sec = {}
+            for s in a["p"]:
+                if s in last["p"] and sectors.get(s):
+                    q = eur_ratio(a, last, s, curs.get(s))
+                    if q is not None and 0.1 < q < 6:
+                        sec.setdefault(sectors[s], []).append(q)
+            mw, av = mw_ratio(a, last), avg_ratio(a, last, curs)
+            bench[c["d"]] = (None if mw is None else round((mw - 1) * 100, 1),
+                             None if av is None else round((av - 1) * 100, 1),
+                             {k: round((sum(v) / len(v) - 1) * 100, 1) for k, v in sec.items() if len(v) >= 3})
+        mw, av, sec = bench[c["d"]]
+        low = 1.0
+        for d in days[i + 1:]:
+            q = eur_ratio(a, d, c["s"], cur)
+            if q is not None and q < low:
+                low = q
+        sc = (c.get("m") or {}).get("sc") or sectors.get(c["s"])
+        out.append([c["s"], c["k"], c["d"], round((r - 1) * 100, 1), mw, av, sec.get(sc), round((low - 1) * 100, 1),
+                    c.get("st", 0)])
+    out.sort(key=lambda o: (o[2], o[0]))
+    return out
+
+
 def build_summary(cases, old_summary, corr, today, since):
     """Monate × Kategorie × Dimension × Horizont, Zeitfenster „letzte 12 Monate“ und „seit Start“
     (je mit und ohne Startbestand), eingefrorene Monate bleiben unverändert."""
@@ -723,6 +812,16 @@ def run(today, version, stocks, adj, fx, mw_adj, info, paths, extra_adj=None):
     except Exception as e:  # noqa: BLE001
         print("Score-Stufen nicht berechnet:", type(e).__name__, flush=True)
         summary["bk"] = (old_summary or {}).get("bk", [])
+    try:                                          # Musterdepots; Fehler dürfen die Trefferquote nicht aufhalten
+        summary["md"] = update_models((old_summary or {}).get("md"), days, curs)
+    except Exception as e:  # noqa: BLE001
+        print("Musterdepots nicht berechnet:", type(e).__name__, flush=True)
+        summary["md"] = (old_summary or {}).get("md")
+    try:                                          # laufende Fälle mit Branchenvergleich und größtem Rückgang
+        summary["op"] = open_cases(cases, days, curs, {s: v.get("sc") for s, v in info.items()})
+    except Exception as e:  # noqa: BLE001
+        print("Laufende Fälle nicht berechnet:", type(e).__name__, flush=True)
+        summary["op"] = (old_summary or {}).get("op", [])
     # Wechsel seit dem letzten Messtag (für die Liste „Neu seit dem letzten Messtag“)
     summary["chg"] = {"d": today, "prev": prev["d"] if prev is not None else None,
                       "in": [[c["s"], c["k"]] for c in cases if c["d"] == today and not c["st"]],

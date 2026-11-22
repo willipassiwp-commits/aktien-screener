@@ -406,6 +406,30 @@ def main():
     ok &= check("Trefferquote: Score-Stufen getrennt, 80+ vor unter 50",
                 bk and bk[0][1] == 7 and st["80+"][1] > 0 > st["unter 50"][1] and sum(b[4] for b in bk[0][3]) == 100, bk)
 
+    # Musterdepots: Aufnahme mit einem Tag Verzögerung, gleichgewichtet
+    # Tag 0: A in Anlauf. Tag 1: A +10 %, B −10 %. Tag 2: A +10 %, B 0 %.
+    # Schritt 0→1 hat noch keine Mitglieder (Verzögerung) → 100. Schritt 1→2 hält A (Mitglied an Tag 0) → 110.
+    def _dd(d, tri, mw):
+        p = {"S%d" % i: [0, 40, 100.0] + [None] * 9 for i in range(60)}
+        p["A"] = [1, 90, tri[0]] + [None] * 9
+        p["B"] = [0, 30, tri[1]] + [None] * 9
+        return {"d": d, "v": 7, "fx": {"USD": 1.0}, "mw": mw, "p": p}
+    mdd = [_dd("2026-01-05", (100.0, 100.0), 100.0), _dd("2026-01-06", (110.0, 90.0), 101.0),
+           _dd("2026-01-07", (121.0, 90.0), 102.01)]
+    mcur = {"S%d" % i: "USD" for i in range(60)}
+    mcur.update({"A": "USD", "B": "USD"})
+    md = TR.update_models(None, mdd, mcur)
+    ok &= check("Musterdepot: Verzögerung und Rendite", md["s"]["Anlauf"] == [100.0, 100.0, 110.0]
+                and md["s"]["_mw"] == [100.0, 101.0, 102.01] and md["nl"]["Anlauf"] == 1, md)
+    md2 = TR.update_models(md, mdd, mcur)
+    ok &= check("Musterdepot: kein doppeltes Fortschreiben", md2["d"] == md["d"], md2["d"])
+    # Laufende Fälle: A ab Tag 0 offen, Tief an Tag 1 (Tag 1 hier −5 %), Ende +21 %
+    mdd[1]["p"]["A"][2] = 95.0
+    oc = TR.open_cases([{"s": "A", "k": "Anlauf", "d": "2026-01-05", "x": None, "cur": "USD", "st": 0,
+                         "m": {"sc": "Tech"}}], mdd, mcur, {"A": "Tech", "S1": "Tech", "S2": "Tech", "S3": "Tech"})
+    ok &= check("Laufende Fälle: Rendite, Branche, größter Rückgang",
+                oc and oc[0][3] == 21.0 and oc[0][7] == -5.0 and oc[0][6] is not None and abs(oc[0][4] - 2.0) < 0.05, oc)
+
     try:
         import json
         json.dumps([r, down, weak, none])
