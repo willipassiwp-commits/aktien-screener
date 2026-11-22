@@ -831,7 +831,8 @@ html.gesperrt .wrap{display:none}
           <div><h2>Mein Depot</h2><p class="muted" style="max-width:90ch">Trage deine Positionen mit ihrem aktuellen Wert ein. Die Angaben bleiben nur in diesem Browser gespeichert und verlassen dein Gerät nicht. Mit Einstandswert und Kaufdatum rechnet die Auswertung auch deine Rendite gegenüber dem MSCI World. Um eine vorhandene Position zu ergänzen, trage sie einfach noch einmal ein, sie wird dann aktualisiert. Die Auswertung ist regelbasiert und vergleicht dein Depot mit üblichen Richtwerten. Sie ist keine Anlageberatung.</p></div>
           <form id="dp-form" class="row" autocomplete="off">
             <label class="f grow">Aktie aus dem Screener<input type="text" id="dp-name" list="dp-list" placeholder="Name oder Kürzel eingeben und auswählen"><datalist id="dp-list"></datalist></label>
-            <label class="f" style="width:130px">Aktueller Wert in €<input type="number" id="dp-val" min="0" step="any" inputmode="decimal"></label>
+            <label class="f" style="width:110px">Stück<input type="number" id="dp-qty" min="0" step="any" inputmode="decimal"></label>
+            <label class="f" style="width:130px">oder Wert in €<input type="number" id="dp-val" min="0" step="any" inputmode="decimal"></label>
             <label class="f" style="width:130px">Einstandswert in € (optional)<input type="number" id="dp-cost" min="0" step="any" inputmode="decimal"></label>
             <label class="f" style="width:150px">Kaufdatum (optional)<input type="date" id="dp-date"></label>
             <button class="primary" type="submit">Hinzufügen</button>
@@ -842,14 +843,20 @@ html.gesperrt .wrap{display:none}
             <label class="f" style="width:130px">Aktueller Wert in €<input type="number" id="dp-oval" min="0" step="any" inputmode="decimal"></label>
             <button type="submit">Hinzufügen</button>
           </form>
+          <details class="fold" id="dp-imp" style="margin:4px 0 8px"><summary>Depot aus Datei einlesen (Trade Republic, Scalable, comdirect …)</summary>
+            <p class="muted" style="font-size:12.5px;max-width:90ch">Lade die CSV-Datei deines Brokers hoch, zum Beispiel bei Trade Republic in der App: Profil → Kontoauszüge → Transaktionsexport. Aus Käufen und Verkäufen werden Stückzahl, Einstand und Kaufdatum je Wertpapier berechnet; eine Bestandsliste mit ISIN und Stückzahl geht auch. Die Datei wird nur in diesem Browser gelesen und nirgendwohin gesendet.</p>
+            <label class="f" style="max-width:420px">CSV-Datei<input type="file" id="dp-file" accept=".csv,.txt,text/csv"></label>
+            <details class="fold" style="margin-top:6px"><summary>Oder Tabelle als Text einfügen</summary><textarea id="dp-paste" rows="5" style="width:100%;font-size:12px" placeholder="Depotübersicht beim Broker markieren, kopieren und hier einfügen (mit Kopfzeile, z. B. Name, ISIN, Stück)"></textarea><button type="button" id="dp-paste-go">Einlesen</button></details>
+            <p class="notice" id="dp-imp-msg" hidden></p><div id="dp-imp-prev"></div></details>
           <p class="notice" id="dp-msg" hidden></p>
           <div class="row">
             <label class="f" style="width:200px">Risikoprofil<select id="dp-profile"><option value="def">defensiv</option><option value="bal" selected>ausgewogen</option><option value="off">offensiv</option></select></label>
             <button type="button" id="dp-clear">Depot leeren</button>
           </div>
         </section>
+        <div id="dp-head"></div>
         <section class="panel" id="dp-tablepanel" hidden>
-          <div class="tablewrap"><table class="grid"><thead><tr><th>Position</th><th class="r">Wert</th><th class="r">Anteil</th><th class="r">Tag</th><th class="r">Woche</th><th class="r">Gewinn / Verlust</th><th class="r" title="Unterschied zum MSCI World seit dem Kaufdatum, in Prozentpunkten">ggü. MSCI World</th><th>Gesamt</th><th>Einordnung</th><th>Trendstatus</th><th class="r">1 M.</th><th class="r">12 M.</th><th class="r">Div.</th><th></th></tr></thead><tbody id="dp-rows"></tbody></table></div>
+          <div class="tablewrap"><table class="grid"><thead><tr><th>Position</th><th class="r">Wert</th><th class="r">Anteil</th><th class="r">Tag</th><th class="r">Woche</th><th class="r">Gewinn / Verlust</th><th class="r" title="Unterschied zum MSCI World seit dem Kaufdatum, in Prozentpunkten">ggü. MSCI World</th><th>Gesamt</th><th>Einordnung</th><th>Trendstatus</th><th>6 Monate</th><th class="r">12 M.</th><th class="r">Div.</th><th></th></tr></thead><tbody id="dp-rows"></tbody></table></div>
         </section>
         <div id="dp-analysis" class="left"></div>
       </div>
@@ -1799,13 +1806,14 @@ function depotChart(A){
   var note=(cfg.m==="sum"?"Wert deiner Aktien, gerechnet mit der heutigen Stückzahl jeder Position und festem Wechselkurs. Zeigt, wie die heutige Auswahl gelaufen wäre, nicht deine tatsächliche Wertentwicklung mit Käufen und Verkäufen.":"Jede Aktie auf 100 zum Startpunkt gesetzt, die acht größten Positionen.")+(bm?" MSCI World über den iShares-ETF"+(fx?", in Euro umgerechnet.":"."):"")+" Ohne Dividenden."+(short?" Der Zeitraum ist auf "+Math.round((n-1)/52*10)/10+" Jahre verkürzt, weil nicht für alle Aktien so lange Kurse vorliegen.":"")+(A.st.length>st.length?" Ohne "+(A.st.length-st.length)+" Aktie(n) ohne Kursverlauf.":"")+" ETFs, Cash und andere Positionen fehlen, weil der Screener für sie keine Kurse hat.";
   return ctl+'<svg class="chart" viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Verlauf der Aktien im Depot">'+g+paths+'</svg><div class="legend">'+leg+'</div><p class="muted" style="font-size:12px">'+note+"</p>"}
 function renderDepot(){
-  var pos=S.depot.pos;$("cnt-depot").textContent=pos.length;$("dp-profile").value=S.depot.profile||"bal";
+  dpSync();var pos=S.depot.pos;$("cnt-depot").textContent=pos.length;$("dp-profile").value=S.depot.profile||"bal";
   var A=analyse();$("dp-tablepanel").hidden=!pos.length;
+  if($("dp-head"))$("dp-head").innerHTML=A?dpHead(A)+dpSince(A):"";
   if(!A){$("dp-rows").innerHTML="";$("dp-analysis").innerHTML=pos.length?"":'<section class="panel empty">Noch keine Positionen. Füge oben deine Aktien mit ihrem aktuellen Wert hinzu, dann erscheint hier die Auswertung.</section>';return}
   $("dp-rows").innerHTML=A.P.map(function(q){var x=q.x,p=q.p,pl=p.c>0?[p.v-p.c,(p.v/p.c-1)*100]:null,pf=x&&x.pf||[];
-    return"<tr"+(x?' data-id="'+esc(x.s)+'" tabindex="0" class="'+(x.s===S.sel?"sel":"")+'"':"")+"><td>"+(x?coCell(x):'<span class="co"><b>'+esc(p.n)+"</b><small>"+esc(p.t||"nicht im Screener")+"</small></span>")+'</td><td class="r num">'+eur(p.v)+'</td><td class="r num">'+pct(q.w*100,1)+'</td><td class="r num '+cls(x?x.p1d:null)+'">'+(x?sgp(x.p1d,1):"–")+'</td><td class="r num '+cls(x?x.p1w:null)+'">'+(x?sgp(x.p1w,1):"–")+'</td><td class="r num '+cls(pl?pl[0]:null)+'">'+(pl?sg(pl[0],0)+" € · "+sgp(pl[1],0):"–")+'</td><td class="r num '+cls(q.vs?q.vs.diff:null)+'">'+(q.vs?sg(q.vs.diff,0)+" Pp.":"–")+"</td><td>"+(x?totCell(x.total):"–")+"</td><td>"+(x?'<span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+"</span>":"–")+"</td><td>"+(x?'<span class="pill '+(STC[x.st]||"neutral")+'">'+x.st+"</span>":"–")+'</td><td class="r num '+cls(pf[0])+'">'+sgp(pf[0])+'</td><td class="r num '+cls(pf[3])+'">'+sgp(pf[3])+'</td><td class="r num">'+(x?pct(x.dy):"–")+'</td><td><button class="link" data-del="'+esc(p.id)+'">entfernen</button></td></tr>'}).join("");
+    return"<tr"+(x?' data-id="'+esc(x.s)+'" tabindex="0" class="'+(x.s===S.sel?"sel":"")+'"':"")+"><td>"+(x?coCell(x):'<span class="co"><b>'+esc(p.n)+"</b><small>"+esc(p.t||"nicht im Screener")+"</small></span>")+'</td><td class="r num">'+eur(p.v)+(p.q?'<br><small class="muted">'+fmt(p.q,p.q%1?3:0)+" Stk.</small>":"")+'</td><td class="r num">'+pct(q.w*100,1)+'<span style="display:block;height:3px;margin-top:3px;background:var(--sunken)"><i style="display:block;height:3px;background:var(--accent);width:'+Math.min(100,q.w/A.P[0].w*100).toFixed(0)+'%"></i></span></td><td class="r num '+cls(x?x.p1d:null)+'">'+(x?sgp(x.p1d,1):"–")+'</td><td class="r num '+cls(x?x.p1w:null)+'">'+(x?sgp(x.p1w,1):"–")+'</td><td class="r num '+cls(pl?pl[0]:null)+'">'+(pl?sg(pl[0],0)+" € · "+sgp(pl[1],0):"–")+'</td><td class="r num '+cls(q.vs?q.vs.diff:null)+'">'+(q.vs?sg(q.vs.diff,0)+" Pp.":"–")+"</td><td>"+(x?totCell(x.total):"–")+"</td><td>"+(x?'<span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+"</span>":"–")+"</td><td>"+(x?'<span class="pill '+(STC[x.st]||"neutral")+'">'+x.st+"</span>":"–")+'</td><td>'+(x?spark(x):"–")+'</td><td class="r num '+cls(pf[3])+'">'+sgp(pf[3])+'</td><td class="r num">'+(x?pct(x.dy):"–")+'</td><td><button class="link" data-del="'+esc(p.id)+'">entfernen</button></td></tr>'}).join("");
   var L={div:"Streuung",risk:"Risiko",qual:"Qualität und Bewertung",trend:"Kursbild",perf:"Rendite ggü. MSCI World",data:"Daten"},b=band(A.score),R=A.R,bench=(S.d&&S.d.bench)||[];
-  var h='<section class="panel pad"><div class="score"><div><h3>Depot-Score</h3><div class="n">'+fmt(A.score,0)+"<small> /100</small></div><span class=\"pill "+BCLS[b]+'">'+BAND[b]+'</span></div><div class="bars">'+Object.keys(A.W).map(function(k){return"<span>"+L[k]+" · "+A.W[k]+' %</span><span class="bar"><i style="width:'+(A.sub[k]||0)+'%"></i></span><span class="num">'+(A.sub[k]==null?"–":fmt(A.sub[k],0))+"</span>"}).join("")+"</div></div>";
+  var h=dpHeat()+'<section class="panel pad"><div class="score"><div><h3>Depot-Score</h3><div class="n">'+fmt(A.score,0)+"<small> /100</small></div><span class=\"pill "+BCLS[b]+'">'+BAND[b]+'</span></div><div class="bars">'+Object.keys(A.W).map(function(k){return"<span>"+L[k]+" · "+A.W[k]+' %</span><span class="bar"><i style="width:'+(A.sub[k]||0)+'%"></i></span><span class="num">'+(A.sub[k]==null?"–":fmt(A.sub[k],0))+"</span>"}).join("")+"</div></div>";
   var top=A.F.filter(function(f){return f.s>=2}).slice(0,3);
   h+='<div class="sec"><h3>Die wichtigsten Befunde</h3>'+(top.length?top.map(function(f){return'<div class="finding"><span class="sev s'+f.s+'"></span><span>'+esc(f.t)+"</span></div>"}).join(""):'<p class="muted">Keine kritischen Befunde und keine Warnungen.</p>')+"</div>";
   h+='<div class="kpis"><div><span>Depotwert</span><b>'+eur(A.tot)+"</b>"+(A.pl?'<small class="'+cls(A.pl[0])+'">'+sg(A.pl[0],0)+" € · "+sgp(A.pl[1],1)+" auf erfasste Einstände</small>":"")+"</div><div><span>Positionen</span><b>"+A.P.length+"</b><small>wirken wie "+fmt(A.eff,1)+' gleich große</small></div><div><span>Gesamtscore der Aktien</span><b>'+fmt(A.sc,0)+"</b><small>Qualität "+fmt(A.ql,0)+'</small></div><div><span>Dividendenrendite der Aktien</span><b>'+pct(A.dy,2)+"</b><small>rund "+eur(A.divEur)+' im Jahr vor Steuern</small></div><div><span>Schwankung pro Jahr</span><b>'+(R?pct(R.vol,0):"–")+"</b><small>"+(R?"aus "+R.weeks+" Wochen":"Kursverläufe fehlen")+'</small></div><div><span>Beta zum MSCI World</span><b>'+(R&&R.beta!=null?fmt(R.beta,2):"–")+'</b><small>1 = wie der Weltmarkt</small></div><div><span>Größter Rückgang</span><b>'+(R?"−"+fmt(R.dd,0)+" %":"–")+'</b><small>heutige Gewichte, rückgerechnet</small></div><div><span>Mittlere Korrelation</span><b>'+(R&&R.corr!=null&&A.st.length>1?fmt(R.corr,2):"–")+"</b><small>"+(R&&R.maxc&&A.st.length>1?"höchste: "+esc(R.maxc[1])+" / "+esc(R.maxc[2])+" "+fmt(R.maxc[0],2):"")+'</small></div><div><span>KGV des Depots</span><b>'+fmt(A.ppe,0)+'</b><small>gewichtet, ohne Verlustbringer</small></div></div>';
@@ -1822,10 +1830,118 @@ function renderDepot(){
   h+='<section class="panel pad"><h2>Positionen auf dem Prüfstand</h2><p class="muted" style="max-width:90ch;margin-bottom:6px">Aktien aus deinem Depot, bei denen mindestens zwei Datenpunkte gegen sie sprechen. Zu jeder steht, was die Daten sagen, was für Abwarten spricht, wie weit der Einstand entfernt ist und welche Titel desselben Sektors im Screener derzeit besser abschneiden. Das ist eine regelbasierte Auswertung, keine Verkaufs- oder Kaufempfehlung.</p>'+(A.cand.length?A.cand.map(candHtml).join("")+'<p class="muted" style="font-size:12.5px">Ob und wann ein Kurs den Einstand wieder erreicht, kann niemand sagen. Für die Aussichten einer Aktie spielt der eigene Einstand keine Rolle: Entscheidend ist, ob das Geld in dieser Position bessere Aussichten hat als anderswo. Steuern und Kosten eines Tauschs sind nicht berücksichtigt.</p>':'<p class="muted">Derzeit keine Position, bei der zwei oder mehr Datenpunkte gegen sie sprechen.</p>')+"</section>";
   h+='<section class="panel pad"><div class="cols">'+allocHtml("Sektoren",A.secA,0.3)+allocHtml("Regionen",A.regA,0.7)+allocHtml("Länder",A.ctyA,0.7)+allocHtml("Währungen",A.curA,0)+"</div></section>";
   var G={div:"Konzentration und Streuung",risk:"Risiko",qual:"Qualität und Bewertung",trend:"Kursbild",perf:"Rendite gegenüber dem MSCI World",event:"Termine",data:"Daten"};
-  h+='<section class="panel pad"><h2>Alle Befunde</h2>'+Object.keys(G).map(function(g){var l=A.F.filter(function(f){return f.g===g});return l.length?'<div class="sec"><h3>'+G[g]+"</h3>"+l.map(function(f){return'<div class="finding"><span class="sev s'+f.s+'" title="'+["gut","Hinweis","Warnung","kritisch"][f.s]+'"></span><span>'+esc(f.t)+"</span></div>"}).join("")+"</div>":""}).join("")+(A.good.length?'<div class="sec"><h3>In Ordnung</h3>'+A.good.map(function(t){return'<div class="finding"><span class="sev s0"></span><span>'+esc(t)+"</span></div>"}).join("")+"</div>":"")+'<p class="muted" style="font-size:12.5px">Rot = kritisch, gelb = Warnung, grau = Hinweis. Regelbasierte Auswertung nach üblichen Richtwerten, keine Anlageberatung. Kosten, Steuern und Kaufzeitpunkte sind nicht berücksichtigt.</p></section>';
-  $("dp-analysis").innerHTML=h;
+  h+='<section class="panel pad"><details class="fold"><summary>Alle Befunde ('+A.F.length+')</summary>'+Object.keys(G).map(function(g){var l=A.F.filter(function(f){return f.g===g});return l.length?'<div class="sec"><h3>'+G[g]+"</h3>"+l.map(function(f){return'<div class="finding"><span class="sev s'+f.s+'" title="'+["gut","Hinweis","Warnung","kritisch"][f.s]+'"></span><span>'+esc(f.t)+"</span></div>"}).join("")+"</div>":""}).join("")+(A.good.length?'<div class="sec"><h3>In Ordnung</h3>'+A.good.map(function(t){return'<div class="finding"><span class="sev s0"></span><span>'+esc(t)+"</span></div>"}).join("")+"</div>":"")+'<p class="muted" style="font-size:12.5px">Rot = kritisch, gelb = Warnung, grau = Hinweis. Regelbasierte Auswertung nach üblichen Richtwerten, keine Anlageberatung. Kosten, Steuern und Kaufzeitpunkte sind nicht berücksichtigt.</p></details></section>';
+  $("dp-analysis").innerHTML=h;S.dpA=A;dpHeatDraw();
   loadCharts();
 }
+// ---------------------------------------------------------------- Depot: Stückzahl, Datei-Import, Kopfleiste, Heatmap, Änderungen
+var ISINRE=/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/,SKEY="screener-depot-seen-v1";
+function dpSync(){var ch=0;S.depot.pos.forEach(function(p){var x=p.s&&S.by?S.by[p.s]:null;if(p.q>0&&x&&x.pxe){var v=Math.round(p.q*x.pxe*100)/100;if(v!==p.v){p.v=v;ch=1}}});if(ch)store(DKEY,S.depot)}
+function dAgo(n){var d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10)}
+function dpHead(A){var d=0,w=0,dn=0,wn=0;A.P.forEach(function(q){var x=q.x,v=q.p.v;if(x&&x.p1d!=null){d+=v-v/(1+x.p1d/100);dn+=v}if(x&&x.p1w!=null){w+=v-v/(1+x.p1w/100);wn+=v}});
+  var PF=A.PF,vs=PF&&PF.own!=null&&PF.mw!=null?PF.own-PF.mw:null;
+  function t(l,b,c,s){return"<div><span>"+l+'</span><b class="'+(c||"")+'" style="font-size:20px">'+b+"</b><small>"+(s||"")+"</small></div>"}
+  return'<section class="panel pad"><div class="kpis">'+t("Depotwert",eur(A.tot),"",A.P.length+" Positionen")+
+    t("Heute",dn?sg(d,0)+" €":"–",cls(dn?d:null),dn?sgp(d/(dn-d)*100,1):"")+
+    t("Woche",wn?sg(w,0)+" €":"–",cls(wn?w:null),wn?sgp(w/(wn-w)*100,1):"")+
+    t("Seit Kauf",A.pl?sg(A.pl[0],0)+" €":"–",cls(A.pl?A.pl[0]:null),A.pl?sgp(A.pl[1],1)+" auf erfasste Einstände":"Einstand fehlt")+
+    t("ggü. MSCI World",vs==null?"–":sg(vs,1)+" Pp.",cls(vs),vs==null?"":PF.mode==="kauf"?"seit deinen Kaufdaten":"letzte 12 Monate")+"</div></section>"}
+function dpSince(A){var u=S.d&&S.d.updated;if(!u||!A.st.length)return"";var cur={};A.st.forEach(function(q){var x=q.x;cur[x.s]=[x.su,x.st,Math.round(x.total)]});
+  var sv=load(SKEY,null);if(!sv||sv.u!==u){sv={u:u,it:cur,prev:sv&&sv.it?{u:sv.u,it:sv.it}:(sv&&sv.prev)||null};store(SKEY,sv)}
+  var pv=sv.prev,L=[],lim=dAgo(14);
+  A.st.forEach(function(q){var x=q.x,o=pv&&pv.it[x.s];
+    if(o){if(o[0]!==x.su)L.push([2,x,"Einordnung: "+o[0]+" → "+x.su]);if(o[1]!==x.st)L.push([2,x,"Trend: "+o[1]+" → "+x.st]);var nt=Math.round(x.total);if(Math.abs(nt-o[2])>=5)L.push([1,x,"Gesamtscore "+o[2]+" → "+nt])}
+    var ev=x.ev;if(ev&&ev.earn&&ev.ed!=null&&ev.ed>=0&&ev.ed<=14)L.push([1,x,"Quartalszahlen am "+dat(ev.earn)+(ev.ed===0?" (heute)":ev.ed===1?" (morgen)":" (in "+ev.ed+" Tagen)")]);
+    var ins=x.ins;if(ins&&ins.last)ins.last.forEach(function(r){if(r[3]==="B"&&r[0]>=lim)L.push([2,x,"Insiderkauf am "+dat(r[0])+": "+r[1]+(r[2]?" ("+r[2]+")":"")])})});
+  L.sort(function(a,b){return b[0]-a[0]});
+  return'<section class="panel pad"><h3>Neu bei deinen Aktien</h3>'+(L.length?'<ul class="plain">'+L.slice(0,12).map(function(e){return'<li><button class="link" data-open="'+esc(e[1].s)+'">'+esc(e[1].n)+'</button> <span class="muted">·</span> '+esc(e[2])+"</li>"}).join("")+"</ul>":'<p class="muted">'+(pv?"Seit dem vorigen Datenstand hat sich bei deinen Aktien nichts Wesentliches geändert; keine Quartalszahlen in den nächsten 14 Tagen.":"Ab dem nächsten Datenstand siehst du hier, was sich bei deinen Aktien geändert hat.")+"</p>")+
+    '<p class="muted" style="font-size:12px">Verglichen mit dem Datenstand, den dieser Browser zuletzt gesehen hat'+(pv?" ("+esc(String(pv.u).replace("T"," ").slice(0,16))+")":"")+': neue Einordnung, neuer Trendstatus, Gesamtscore um mindestens 5 Punkte verändert. Dazu Quartalszahlen in den nächsten 14 Tagen und Insiderkäufe der letzten 14 Tage.</p></section>'}
+function dpHeat(){return'<section class="panel pad"><h3>Depot auf einen Blick</h3><div class="chips" style="margin-bottom:6px">'+[["d1","Tag"],["w1","Woche"],["m1","Monat"],["sc","Score"]].map(function(o){return'<button data-dphk="'+o[0]+'" aria-pressed="false">'+o[1]+"</button>"}).join("")+'</div><div id="dp-hm" class="hmbox"></div><p class="muted" style="font-size:12px">Fläche = Anteil am Depot, Farbe = Kursbewegung im gewählten Zeitraum oder Gesamtscore. Grau: nicht im Screener. Klick öffnet den Steckbrief.</p></section>'}
+function dpHeatDraw(){var A=S.dpA,box=$("dp-hm");if(!A||!box)return;var W=box.clientWidth||800,H=Math.max(180,Math.min(340,Math.round(W*0.4)));box.style.height=H+"px";var k=S.dphk||"d1";
+  function val(x){return!x?null:k==="d1"?x.p1d:k==="w1"?x.p1w:k==="m1"?(x.pf?x.pf[0]:null):x.total}
+  var h="";squarify(A.P.filter(function(q){return q.p.v>0}).map(function(q){return{q:q,v:q.p.v}}),0,0,W,H).forEach(function(r){var q=r.i.q,x=q.x,v=val(x),big=r.w>46&&r.h>26,
+      lab=big?"<b>"+esc(x?x.s.replace(/\..*$/,""):String(q.name).slice(0,14))+"</b>"+(r.h>40&&r.w>56?"<small>"+(v==null?pct(q.w*100,0):k==="sc"?fmt(v,0):sgp(v,1))+"</small>":""):"",
+      st="left:"+r.x.toFixed(1)+"px;top:"+r.y.toFixed(1)+"px;width:"+Math.max(0,r.w-1).toFixed(1)+"px;height:"+Math.max(0,r.h-1).toFixed(1)+"px;background:"+(x?hmColor(v,k):"var(--sunken)")+(x?"":";color:var(--muted);text-shadow:none;cursor:default");
+    h+=x?'<button class="hmt" data-open="'+esc(x.s)+'" title="'+esc(q.name)+" · "+pct(q.w*100,1)+" des Depots"+'" style="'+st+'">'+lab+"</button>":'<div class="hmt" title="'+esc(q.name)+'" style="'+st+'">'+lab+"</div>"});
+  box.innerHTML=h;document.querySelectorAll("[data-dphk]").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.dphk===k?"true":"false")})}
+// Datei-Import (CSV des Brokers oder eingefügter Text); alles bleibt im Browser
+function dpImpMsg(t){var m=$("dp-imp-msg");m.hidden=!t;m.textContent=t||""}
+function dpNum(s,dec){if(s==null)return null;s=String(s).replace(/−/g,"-").replace(/[\s €$%']|EUR|USD|Stk\.?/gi,"");if(!s||!/\d/.test(s))return null;
+  var c=s.lastIndexOf(","),d=s.lastIndexOf(".");if(c>=0&&d>=0)s=c>d?s.replace(/\./g,"").replace(",","."):s.replace(/,/g,"");else if(c>=0)s=s.replace(/\./g,"").replace(",",".");else if(dec&&/^-?\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,"");
+  var v=parseFloat(s);return isFinite(v)?v:null}
+function dpDate(s){s=String(s||"").trim();var m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[1]+"-"+m[2]+"-"+m[3];m=s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);if(m){var y=m[3].length===2?"20"+m[3]:m[3];return y+"-"+("0"+m[2]).slice(-2)+"-"+("0"+m[1]).slice(-2)}return""}
+function dpCsv(text){text=String(text||"").replace(/^﻿/,"");var lines=text.split(/\r?\n/),hi=0,best=0,KW=["isin","symbol","stück","stueck","shares","anzahl","name","bezeichnung","datum","date","betrag","amount","wert","quantity"];
+  for(var i=0;i<Math.min(lines.length,40);i++){var l=lines[i].toLowerCase(),sc=0;KW.forEach(function(k){if(l.indexOf(k)>=0)sc++});if(sc>best){best=sc;hi=i}}
+  var hl=lines[hi]||"",del=[";","\t",","].sort(function(a,b){return hl.split(b).length-hl.split(a).length})[0];
+  function row(l){var out=[],cur="",q=false;for(var i=0;i<l.length;i++){var ch=l[i];if(q){if(ch==='"'){if(l[i+1]==='"'){cur+='"';i++}else q=false}else cur+=ch}else if(ch==='"')q=true;else if(ch===del){out.push(cur);cur=""}else cur+=ch}out.push(cur);return out.map(function(s){return s.trim()})}
+  var rows=[];for(var j=hi+1;j<lines.length;j++){if(lines[j].trim())rows.push(row(lines[j]))}return{head:row(hl),rows:rows,del:del}}
+var DPC={name:["name","bezeichnung","wertpapier","wertpapiername","wertpapierbezeichnung","titel","instrument","produkt","description","security","gattungsbezeichnung"],
+  q:["shares","stück","stueck","stk","stücknom","anzahl","quantity","menge","bestand","nominale","stücknominale","stückzahl","units","nominal"],
+  amt:["amount","betrag","kurswert","umsatz","ausmachenderbetrag","orderwert","betragineur","kurswertineur"],
+  cost:["einstandswert","einstand","kaufwert","einstandskurswert","anschaffungswert","costbasis","kaufsumme","einstandswertineur"],
+  val:["marktwert","aktuellerwert","wert","depotwert","positionswert","currentvalue","marketvalue","wertineur","kurswertaktuell"],
+  dt:["datetime","zeitstempel","timestamp"],date:["date","datum","buchungstag","buchungsdatum","handelstag","ausführungstag","ausfuehrungstag","valuta","schlusstag","tradedate","ausführungsdatum"],
+  type:["type","typ","art","transaktionsart","buchungsart","transactiontype","geschäftsart","orderart","vorgang"],cat:["category","kategorie"],
+  fee:["fee","gebühr","gebuehr","gebühren","provision","fees","entgelt"],price:["price","kurs","ausführungskurs","preis"]};
+function dpCols(P){var hs=P.head.map(function(h){return h.toLowerCase().replace(/[^a-zäöüß]/g,"")}),C={},used={};
+  Object.keys(DPC).forEach(function(k){var i=-1;DPC[k].some(function(c){var j=hs.indexOf(c);if(j>=0&&!used[j]){i=j;return true}return false});
+    if(i<0)DPC[k].some(function(c){if(c.length<6)return false;for(var j=0;j<hs.length;j++)if(!used[j]&&hs[j].indexOf(c)>=0){i=j;return true}return false});if(i>=0){C[k]=i;used[i]=1}});
+  var bi=-1,bn=0;for(var j=0;j<P.head.length;j++){var n=0;P.rows.slice(0,300).forEach(function(r){if(ISINRE.test((r[j]||"").toUpperCase()))n++});if(n>bn){bn=n;bi=j}}
+  if(bn){C.isin=bi;if(C.name===bi)delete C.name}return C}
+function dpAgg(P,C){var dec=P.del!==",",H={},ord=[],seen={},rep=0;
+  if(C.isin!=null)P.rows.forEach(function(r){var k=r[C.isin];if(k){if(seen[k])rep++;seen[k]=1}});
+  var tx=C.date!=null&&(C.type!=null||C.cat!=null||rep>0);
+  var rows=P.rows.map(function(r,i){return{r:r,i:i,d:C.date!=null?dpDate(r[C.date]):"",t:C.dt!=null?String(r[C.dt]||""):""}});
+  if(tx)rows.sort(function(a,b){var x=a.t||a.d,y=b.t||b.d;return x<y?-1:x>y?1:a.i-b.i});
+  rows.forEach(function(o){var r=o.r,isin=C.isin!=null?String(r[C.isin]||"").toUpperCase():"",name=C.name!=null?r[C.name]||"":"";if(!ISINRE.test(isin))isin="";if(!isin&&!name)return;
+    var q=C.q!=null?dpNum(r[C.q],dec):null;if(q==null||q===0)return;
+    var k=isin||name.toLowerCase(),h=H[k];if(!h){h=H[k]={isin:isin,name:name,q:0,c:0,d:"",v:null};ord.push(k)}if(!h.name&&name)h.name=name;
+    if(!tx){h.q+=q;var cs=C.cost!=null?dpNum(r[C.cost],dec):null,vv=C.val!=null?dpNum(r[C.val],dec):null;if(cs!=null)h.c+=Math.abs(cs);if(vv!=null)h.v=(h.v||0)+Math.abs(vv);return}
+    var cat=C.cat!=null?String(r[C.cat]||"").toLowerCase():"",kind=(C.type!=null?String(r[C.type]||""):"").toLowerCase()+" "+cat;
+    if(cat==="cash"||/divid|ausschütt|ausschuett|zins|interest|vorabpauschale|steuer|tax/.test(kind))return;
+    var aq=Math.abs(q),sell=q<0||/sell|verkauf/.test(kind),amt=C.amt!=null?dpNum(r[C.amt],dec):null,fee=C.fee!=null?dpNum(r[C.fee],dec):null,pr=C.price!=null?dpNum(r[C.price],dec):null;
+    if(sell){if(h.q>0){h.c-=h.c*Math.min(1,aq/h.q);h.q-=aq;if(h.q<1e-6){h.q=0;h.c=0;h.d=""}}}
+    else{if(h.q<=1e-6)h.d=o.d;h.q+=aq;h.c+=(amt?Math.abs(amt):pr?aq*Math.abs(pr):0)+(fee?Math.abs(fee):0)}});
+  return{tx:tx,L:ord.map(function(k){return H[k]}).filter(function(h){return h.q>1e-6})}}
+function dpKey(n){return(" "+String(n||"").toLowerCase().replace(/[.,'"()&\/\-+]/g," ")+" ").replace(/ (inc|incorporated|corp|corporation|co|company|ag|se|sa|nv|plc|ltd|limited|holding|holdings|group|the|class|cl|reg|registered|namensaktien|inhaberaktien|aktien|shares|adr|ads|kgaa|aktiengesellschaft|asa|ab|oyj|spa|vz|on|a|b|n)(?= )/g," ").replace(/\s+/g," ").trim()}
+function dpMatch(h){if(h.isin){var x=S.all.filter(function(y){return y.isin===h.isin})[0];if(x)return x}
+  var k=dpKey(h.name);if(!k)return null;var c=S.all.filter(function(y){return dpKey(y.n)===k});if(c.length===1)return c[0];
+  if(k.length>=4){c=S.all.filter(function(y){var yk=dpKey(y.n);return yk.length>=4&&(yk.indexOf(k+" ")===0||k.indexOf(yk+" ")===0)});if(c.length===1)return c[0]}return null}
+function dpEtf(h){return /\b(etf|etc|ucits|msci|ishares|vanguard|xtrackers|amundi|spdr|lyxor|invesco|wisdomtree|fonds|fund|index)\b/i.test(h.name)}
+function dpImport(text){var P=dpCsv(text);$("dp-imp-prev").innerHTML="";if(!P.rows.length){dpImpMsg("Keine Zeilen gefunden.");return}
+  var C=dpCols(P);if(C.q==null||(C.isin==null&&C.name==null)){dpImpMsg("Spalten für Wertpapier (ISIN oder Name) und Stückzahl nicht erkannt. Gefundene Spalten: "+P.head.slice(0,20).join(", "));return}
+  var R=dpAgg(P,C);if(!R.L.length){dpImpMsg("Keine Bestände gefunden: Entweder ist alles verkauft oder die Zeilen enthalten keine Stückzahlen.");return}
+  S.dpImp={tx:R.tx,L:R.L.map(function(h){var x=dpMatch(h);return{h:h,x:x,on:true,t:x?null:/^XF/.test(h.isin)?"Krypto":(dpEtf(h)||/^(IE|LU)/.test(h.isin))?"ETF / Fonds":"Einzelaktie (nicht im Screener)",v:x&&x.pxe?null:h.v}})};
+  dpImpMsg("");dpImpRender()}
+function dpImpRender(){var I=S.dpImp,el=$("dp-imp-prev");if(!I){el.innerHTML="";return}var L=I.L,nm=L.filter(function(o){return o.x}).length;
+  var h='<p style="font-size:13px;margin:8px 0">'+L.length+" Positionen erkannt"+(I.tx?" (aus Käufen und Verkäufen berechnet)":" (Bestandsliste)")+", "+nm+" davon im Screener. Beträge werden als Euro gelesen. Prüfe die Zuordnung; bei Positionen außerhalb des Screeners bitte den aktuellen Wert eintragen.</p>";
+  h+='<div class="tablewrap"><table class="grid"><thead><tr><th></th><th>Aus der Datei</th><th class="r">Stück</th><th class="r">Einstand</th><th>Kaufdatum</th><th>Zuordnung im Screener</th><th class="r">Aktueller Wert €</th></tr></thead><tbody>';
+  L.forEach(function(o,i){var hh=o.h,x=o.x,vv=x&&x.pxe?hh.q*x.pxe:o.v;
+    h+='<tr><td><input type="checkbox" data-ii="'+i+'"'+(o.on?" checked":"")+' aria-label="übernehmen"></td><td style="max-width:240px"><b>'+esc(hh.name||hh.isin)+"</b>"+(hh.isin?'<br><small class="muted">'+esc(hh.isin)+"</small>":"")+'</td><td class="r num">'+fmt(hh.q,hh.q%1?4:0)+'</td><td class="r num">'+(hh.c>0?eur(hh.c):"–")+'</td><td class="num">'+(hh.d?dat(hh.d):"–")+
+      '</td><td><input type="text" list="dp-list" data-im="'+i+'" value="'+esc(x?x.n+" ("+x.s+")":"")+'" placeholder="'+esc(o.t||"")+'" style="width:230px"></td><td class="r">'+(x&&x.pxe?'<span class="num">'+eur(vv)+'</span><br><small class="muted">aus aktuellem Kurs</small>':'<input type="number" min="0" step="any" data-iv="'+i+'" value="'+(vv!=null?Math.round(vv):"")+'" placeholder="'+(hh.c>0?"Einstand "+Math.round(hh.c):"Wert")+'" style="width:110px">')+"</td></tr>"});
+  h+='</tbody></table></div><div class="row" style="gap:8px;margin-top:8px"><button class="primary" type="button" data-dpimp="add">Zum Depot hinzufügen</button><button type="button" data-dpimp="rep">Depot durch diese Liste ersetzen</button><button type="button" data-dpimp="no">Abbrechen</button></div><p class="muted" style="font-size:12px">Hinzufügen aktualisiert Positionen, die schon im Depot sind (gleiche Aktie), und ergänzt neue. Mit Stückzahl rechnet die Seite den Wert bei jedem Datenstand neu aus. Einstand = Kaufbeträge plus Gebühren; nach Teilverkäufen anteilig gekürzt.</p>';
+  el.innerHTML=h}
+function dpImpApply(mode){var I=S.dpImp;if(!I)return;var L=I.L.filter(function(o){return o.on});if(!L.length){dpImpMsg("Keine Position ausgewählt.");return}
+  var miss=L.filter(function(o){return!(o.x&&o.x.pxe)&&!(o.v>0)});if(miss.length){dpImpMsg("Für "+miss.length+" Position"+(miss.length>1?"en":"")+" fehlt der aktuelle Wert: "+miss.slice(0,5).map(function(o){return o.h.name||o.h.isin}).join(", ")+". Bitte eintragen oder abwählen.");return}
+  if(mode==="rep")S.depot.pos=[];var now=Date.now();
+  L.forEach(function(o,i){var hh=o.h,x=o.x,p={id:"p"+now+"_"+i,s:x?x.s:null,n:x?x.n:(hh.name||hh.isin),v:x&&x.pxe?Math.round(hh.q*x.pxe*100)/100:o.v,c:hh.c>0?Math.round(hh.c*100)/100:0,d:hh.d||"",q:hh.q};if(hh.isin)p.isin=hh.isin;if(!x)p.t=o.t;
+    var ex=S.depot.pos.filter(function(e){return x?e.s===x.s:((hh.isin&&e.isin===hh.isin)||(!e.s&&e.n===p.n))})[0];if(ex){p.id=ex.id;Object.keys(p).forEach(function(k){ex[k]=p[k]})}else S.depot.pos.push(p)});
+  S.dpImp=null;saveDepot();renderDepot();$("dp-imp-prev").innerHTML="";dpImpMsg(L.length+" Positionen übernommen.")}
+(function(){var f=$("dp-file");if(!f)return;
+  f.addEventListener("change",function(){var file=this.files&&this.files[0];if(!file)return;this.value="";if(/\.(xlsx?|pdf|numbers)$/i.test(file.name)){dpImpMsg("Bitte die Datei als CSV exportieren; Excel- und PDF-Dateien liest die Seite nicht.");return}
+    var r=new FileReader();r.onload=function(){var b=new Uint8Array(r.result),t;try{t=new TextDecoder("utf-8",{fatal:true}).decode(b)}catch(e){t=new TextDecoder("windows-1252").decode(b)}dpImport(t)};r.readAsArrayBuffer(file)});
+  $("dp-paste-go").addEventListener("click",function(){dpImport($("dp-paste").value)});
+  var pv=$("dp-imp-prev");
+  pv.addEventListener("change",function(e){var t=e.target,I=S.dpImp;if(!I)return;
+    if(t.dataset.ii!=null){I.L[+t.dataset.ii].on=t.checked;return}
+    if(t.dataset.iv!=null){var v=parseFloat(t.value);I.L[+t.dataset.iv].v=v>0?v:null;return}
+    if(t.dataset.im!=null){var o=I.L[+t.dataset.im],m=t.value.match(/\(([^()]+)\)\s*$/),x=m&&S.by[m[1]]?S.by[m[1]]:null;
+      if(!x&&t.value.trim()){var low=t.value.trim().toLowerCase(),hits=S.all.filter(function(s){return(s.n+" "+s.s).toLowerCase().indexOf(low)>=0});if(hits.length===1)x=hits[0]}
+      o.x=x;if(!x&&!o.t)o.t=dpEtf(o.h)?"ETF / Fonds":"Einzelaktie (nicht im Screener)";dpImpRender()}});
+  pv.addEventListener("click",function(e){var b=e.target.closest("[data-dpimp]");if(!b)return;var m=b.dataset.dpimp;
+    if(m==="no"){S.dpImp=null;dpImpRender();dpImpMsg("");return}
+    if(m==="rep"&&!b.dataset.sure){b.dataset.sure="1";b.textContent="Wirklich das ganze Depot ersetzen?";setTimeout(function(){delete b.dataset.sure;b.textContent="Depot durch diese Liste ersetzen"},4000);return}
+    dpImpApply(m)})})();
 function dpMsg(t){$("dp-msg").hidden=!t;$("dp-msg").textContent=t||""}
 $("dp-form").addEventListener("submit",function(e){e.preventDefault();var name=$("dp-name").value.trim(),v=parseFloat($("dp-val").value),c=parseFloat($("dp-cost").value),dt=$("dp-date").value;
   if(dt&&!(new Date(dt)<new Date())){dpMsg("Das Kaufdatum liegt in der Zukunft.");return}
@@ -1833,10 +1949,11 @@ $("dp-form").addEventListener("submit",function(e){e.preventDefault();var name=$
   if(!x){var low=name.toLowerCase();x=S.all.filter(function(s){return s.s.toLowerCase()===low||s.n.toLowerCase()===low})[0]||null;
     if(!x&&low.length>=3){var hits=S.all.filter(function(s){return(s.n+" "+s.s).toLowerCase().indexOf(low)>=0});if(hits.length===1)x=hits[0]}}
   if(!x){dpMsg("Diese Aktie ist nicht im Screener. Wähle einen Vorschlag aus der Liste oder trage sie unten als andere Position ein.");return}
-  if(!(v>0)){dpMsg("Bitte den aktuellen Wert der Position in Euro eintragen.");return}
+  var qn=parseFloat(($("dp-qty")||{}).value);if(!(v>0)&&qn>0&&x.pxe)v=Math.round(qn*x.pxe*100)/100;
+  if(!(v>0)){dpMsg("Bitte die Stückzahl oder den aktuellen Wert der Position in Euro eintragen.");return}
   var ex=S.depot.pos.filter(function(p){return p.s===x.s})[0];
-  if(ex){ex.v=v;if(c>0)ex.c=c;if(dt)ex.d=dt}else S.depot.pos.push({id:"p"+Date.now(),s:x.s,n:x.n,v:v,c:c>0?c:0,d:dt||""});
-  $("dp-name").value="";$("dp-val").value="";$("dp-cost").value="";$("dp-date").value="";dpMsg("");saveDepot();renderDepot()});
+  if(ex){ex.v=v;if(c>0)ex.c=c;if(dt)ex.d=dt;if(qn>0)ex.q=qn;else delete ex.q}else{var np={id:"p"+Date.now(),s:x.s,n:x.n,v:v,c:c>0?c:0,d:dt||""};if(qn>0)np.q=qn;S.depot.pos.push(np)}
+  $("dp-name").value="";$("dp-val").value="";if($("dp-qty"))$("dp-qty").value="";$("dp-cost").value="";$("dp-date").value="";dpMsg("");saveDepot();renderDepot()});
 $("dp-form2").addEventListener("submit",function(e){e.preventDefault();var name=$("dp-oname").value.trim(),v=parseFloat($("dp-oval").value);
   if(!name||!(v>0)){dpMsg("Bitte Bezeichnung und aktuellen Wert in Euro eintragen.");return}
   S.depot.pos.push({id:"p"+Date.now(),s:null,n:name,t:$("dp-otype").value,v:v,c:0});$("dp-oname").value="";$("dp-oval").value="";dpMsg("");saveDepot();renderDepot()});
@@ -1908,6 +2025,7 @@ document.addEventListener("click",function(e){
   var st=e.target.closest("[data-star]");if(st){e.stopPropagation();toggleStar(st.dataset.star);return}
   var del=e.target.closest("[data-del]");if(del){e.stopPropagation();S.depot.pos=S.depot.pos.filter(function(p){return p.id!==del.dataset.del});saveDepot();renderDepot();return}
   var pr=e.target.closest("[data-pre]");if(pr){S.pre=pr.dataset.pre;S.shown=100;S.sort={turn:"ql",pullb:"ql",relst:"ql",capit:"ql",short:"ka",rise:"c7",hot:"hot",div:"dy",an:"a",qual:"qual",dip:"qual",qdip:"qual"}[S.pre]||"total";S.dir=-1;renderPresets();renderTable();return}
+  var dk=e.target.closest("[data-dphk]");if(dk){S.dphk=dk.dataset.dphk;dpHeatDraw();return}
   var mw_=e.target.closest("[data-mdw],[data-mdk]");if(mw_&&S.trk){if(mw_.dataset.mdw)S.mdW=mw_.dataset.mdw;else{var mk=mw_.dataset.mdk,ms=S.mdSel||(S.mdSel=MD_DEF.slice()),mi=ms.indexOf(mk);if(mi>=0)ms.splice(mi,1);else ms.push(mk)}trkMdRender(S.trk);return}
   var tw=e.target.closest("[data-tw],[data-th]");if(tw){S.tc=S.tc||{w:"all",h:"7",ex:false,dm:"alle",dv:"alle"};if(tw.dataset.tw)S.tc.w=tw.dataset.tw;else S.tc.h=tw.dataset.th;renderTrack();return}
   var dn=e.target.closest("[data-dpn],[data-dpm]");if(dn){S.dpc=S.dpc||{n:52,m:"sum"};if(dn.dataset.dpn)S.dpc.n=+dn.dataset.dpn;else S.dpc.m=dn.dataset.dpm;var A=analyse();if(A)$("dp-chart").innerHTML=depotChart(A);return}
