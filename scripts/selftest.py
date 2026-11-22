@@ -201,6 +201,14 @@ def main():
     ok &= check("Rücksetzer-Einordnungen nur in Phase 1 bis 3",
                 down["su"] not in ("Turnaround-Kandidat", "Qualität im Rücksetzer") or down["ph"][0] <= 3,
                 (down["su"], down["ph"]))
+    ok &= check("v8: Turnaround erst ab Phase 2, fallender Kurs nie Turnaround",
+                down["su"] != "Turnaround-Kandidat" or down["ph"][0] >= 2, (down["su"], down["ph"]))
+    ok &= check("v8: Kursbewegungswörter zählen nicht als Nachrichtenton",
+                [v[4] for v in scoring.news_view(
+                    [["Testfirma shares jumps after open", "Q", "2026-11-10", "u"],
+                     ["Testfirma stock falls 5%", "Q", "2026-11-10", "u"],
+                     ["Testfirma beats estimates", "Q", "2026-11-10", "u"]], "Testfirma AG", date(2026, 11, 13))[0]]
+                == [0, 0, 1] and not set(scoring.PRICE_WORDS) & set(scoring.POS_WORDS + scoring.NEG_WORDS))
     ok &= check("Qualitäts-Dip: sechs Prüfungen ausgewiesen", down["D"] is None or len(down["D"]) == 6, down["D"])
 
     # 11. Kurzfristige Lage und Tagesbewegung
@@ -261,6 +269,11 @@ def main():
     st = TK._stats([(r7[0], r7[1], r7[2], "AAA"), (5.0, 12.2, 9.0, "BBB")])
     ok &= check("Trefferquote: Überrendite und Anteile", st[0] == 2 and st[3] == round((21.0 - 12.2 + 5.0 - 12.2) / 2, 2)
                 and st[4] == 50.0, st)
+    rx = TK._rx_stats([(5.0, 2.0), (1.0, 2.0)])
+    gsx = TK.group_stats([dict(a_case, r={"7": [5.0, 1.0, 2.0, 3.0]}), dict(a_case, s="BBB", r={"7": [1.0, 1.0, 2.0]})])
+    ok &= check("Trefferquote: Vergleich mit der eigenen Region nur zusätzlich",
+                rx == [2, 50.0, 2.0, 1.0] and gsx["Anlauf"]["rx"]["7"][0] == 1 and gsx["Anlauf"]["alle"]["7"][0] == 2
+                and TK.avg_ratio_rg(d1, d2, curs, {"AAA": "Europa"}, "Europa") is None, (rx, gsx["Anlauf"].get("rx")))
     # Einfrieren und Löschen: ein Fall mit allen Horizonten
     full = dict(a_case, i=99, d="2024-01-10", r={str(h): [1.0, 0.5, 0.2] for h in TK.HORIZONS}, st=0)
     sm = TK.build_summary([full], None, [], "2026-12-05", "2024-01-10")

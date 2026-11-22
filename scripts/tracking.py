@@ -239,6 +239,19 @@ def avg_ratio(day_a, day_b, curs):
     return sum(vals) / len(vals) if len(vals) >= 50 else None
 
 
+def avg_ratio_rg(day_a, day_b, curs, regs, rg):
+    """Wie avg_ratio, aber nur Aktien derselben Region (regs: {Kürzel: Region}). Seit 22.11.2026, nur Zusatzanzeige."""
+    if not regs or not rg:
+        return None
+    vals = []
+    for s in day_a["p"]:
+        if s in day_b["p"] and regs.get(s) == rg:
+            r = eur_ratio(day_a, day_b, s, curs.get(s))
+            if r is not None and 0.1 < r < 6:
+                vals.append(r)
+    return sum(vals) / len(vals) if len(vals) >= 20 else None
+
+
 def day_at_or_after(days, idx_by_date, target):
     """Index des ersten Tagesstands am Zieltag oder danach."""
     for k in range(0, 15):
@@ -315,19 +328,35 @@ def update_cases(cases, day, info, start=False):
     return new
 
 
-def fill_results(cases, days, curs, today):
+def fill_results(cases, days, curs, today, regs=None):
     """Füllt fällige Horizonte. Ergebnis je Horizont: [Rendite %, MSCI World %, Durchschnitt aller Aktien %] in Euro,
-    oder "na", wenn LATE_DAYS nach dem Horizont noch immer kein Kurs vorliegt."""
+    oder "na", wenn LATE_DAYS nach dem Horizont noch immer kein Kurs vorliegt. Mit regs (Kürzel → Region) kommt als
+    viertes Element der Durchschnitt aller Aktien derselben Region dazu (seit 22.11.2026, auch rückwirkend für schon
+    gefüllte Ergebnisse; die ersten drei Werte bleiben unverändert)."""
     idx = {d["d"]: i for i, d in enumerate(days)}
     cache = {}
+    rcache = {}
     filled = 0
     for c in cases:
         if c["d"] not in idx:
             continue
         a = days[idx[c["d"]]]
+        rg = (c.get("m") or {}).get("rg") or (regs or {}).get(c["s"])
         for h in HORIZONS:
             key = str(h)
             if key in c["r"]:
+                old = c["r"][key]
+                if regs and rg and isinstance(old, list) and len(old) == 3:
+                    try:
+                        j = day_at_or_after(days, idx, d2s(s2d(c["d"]) + timedelta(days=h)))
+                        if j is not None:
+                            rk = (a["d"], days[j]["d"], rg)
+                            if rk not in rcache:
+                                rcache[rk] = avg_ratio_rg(a, days[j], curs, regs, rg)
+                            ar = rcache[rk]
+                            old.append(None if ar is None else round((ar - 1) * 100, 1))
+                    except Exception:            # Zusatzwert darf das Bestehende nie gefährden
+                        pass
                 continue
             target = d2s(s2d(c["d"]) + timedelta(days=h))
             if target > today:
@@ -344,6 +373,15 @@ def fill_results(cases, days, curs, today):
                     mw, av = cache[ck]
                     res = [round((r - 1) * 100, 1), None if mw is None else round((mw - 1) * 100, 1),
                            None if av is None else round((av - 1) * 100, 1)]
+                    if regs and rg:
+                        try:
+                            rk = (a["d"], b["d"], rg)
+                            if rk not in rcache:
+                                rcache[rk] = avg_ratio_rg(a, b, curs, regs, rg)
+                            ar = rcache[rk]
+                            res.append(None if ar is None else round((ar - 1) * 100, 1))
+                        except Exception:
+                            pass
             if res is None and (s2d(today) - s2d(target)).days > LATE_DAYS:
                 res = "na"
             if res is not None:
@@ -380,6 +418,16 @@ def _short(rows):
     return None if st is None else [st[0], round(st[1], 1), round(st[2], 1), st[4], st[5]]
 
 
+def _rx_stats(rows):
+    """Vergleich mit dem Durchschnitt der eigenen Region. rows: (Rendite, Ø Region). Werte: [n, Anteil > Region,
+    Ø Region, Ø Überrendite gegenüber der Region]."""
+    n = len(rows)
+    if not n:
+        return None
+    return [n, round(100 * sum(1 for a, b in rows if a > b) / n, 1), round(sum(b for _, b in rows) / n, 2),
+            round(sum(a - b for a, b in rows) / n, 2)]
+
+
 def group_stats(cases, dims=True):
     """{Kategorie: {"alle": {Horizont: Werte}, Dimension: {Wert: {Horizont: Kurzwerte}}}}."""
     acc = {}
@@ -391,6 +439,8 @@ def group_stats(cases, dims=True):
             row = (r[0], r[1], r[2], c["s"])
             g = acc.setdefault(c["k"], {})
             g.setdefault("alle", {}).setdefault(str(h), []).append(row)
+            if len(r) >= 4 and r[3] is not None:
+                g.setdefault("_rx", {}).setdefault(str(h), []).append((r[0], r[3]))
             if dims:
                 for dm in DIMS:
                     v = c["m"].get(dm)
@@ -399,6 +449,8 @@ def group_stats(cases, dims=True):
     out = {}
     for k, g in acc.items():
         out[k] = {"alle": {h: _stats(rows) for h, rows in g["alle"].items()}}
+        if g.get("_rx"):
+            out[k]["rx"] = {h: _rx_stats(rows) for h, rows in g["_rx"].items()}
         for dm in DIMS:
             if dm in g:
                 out[k][dm] = {v: {h: _short(rows) for h, rows in hs.items()} for v, hs in g[dm].items()}
@@ -756,6 +808,7 @@ def run(today, version, stocks, adj, fx, mw_adj, info, paths, extra_adj=None):
         old_summary = None
     curs = dict(json.load(open(paths["meta"]))) if os.path.exists(paths["meta"]) else {}
     curs.update({s: v["cur"] for s, v in info.items() if v.get("cur")})
+    regs = {s: v.get("rg") for s, v in info.items() if v.get("rg")}   # für den Vergleich mit der eigenen Region
     if need_fix and days:
         n = repair_tri(days, adj, mw_adj, extra_adj)
         first = days[0]["d"]
@@ -766,7 +819,7 @@ def run(today, version, stocks, adj, fx, mw_adj, info, paths, extra_adj=None):
             old_summary["corr"] = []
         print("Trefferquote: Gesamtrendite für", n, "Kürzel rückwirkend korrigiert", flush=True)
         if days[-1]["d"] == today:               # heute schon gemessen: nur neu auswerten
-            fill_results(cases, days, curs, today)
+            fill_results(cases, days, curs, today, regs)
             corr = update_corr([], days, curs)
             summary = build_summary(cases, old_summary, corr, today, (old_summary or {}).get("since") or days[0]["d"])
             summary["chg"] = (old_summary or {}).get("chg")
@@ -802,7 +855,7 @@ def run(today, version, stocks, adj, fx, mw_adj, info, paths, extra_adj=None):
         update_cases(cases, day, info, start=True)
     else:
         update_cases(cases, day, info)
-    fill_results(cases, days, curs, today)
+    fill_results(cases, days, curs, today, regs)
     corr = update_corr(list((old_summary or {}).get("corr", [])), days, curs)
     since = days[0]["d"]
     summary = build_summary(cases, old_summary, corr, today, (old_summary or {}).get("since") or since)

@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-VERSION = 7
+VERSION = 8
 
 # Schwellen je Lynch-Kategorie. Belegt aus öffentlichen Analysen: Average 6/6/6/10 und Verschuldung 3,0,
 # Fast Grower EBIT-Marge 20. Die übrigen Werte sind Annahmen.
@@ -682,14 +682,17 @@ def quality(rec, w=WEIGHTS):
     return _parts(rec, w, False)
 
 
+# Reine Kursbewegungswörter (falls, drops, rises, jumps …) zählen seit 22.11.2026 nicht mehr: Sie beschreiben den
+# Kursverlauf, der schon in der Chart-Note steckt, nicht den Inhalt der Meldung.
 NEG_WORDS = ["downgrade", "cuts ", "cut to", "slashes", "lawsuit", "sues", "sued", "probe", "investigation",
-             "recall", "fraud", "warning", "warns", "misses", "missed", "plunge", "tumble", "sinks", "slump",
-             "layoffs", "antitrust", "short seller", "resigns", "steps down", "fined", " ban", "halts", "bankrupt",
-             "scandal", "subpoena", "lowers", "selloff", "sell-off", "falls", "drops", "slides", "weak", "concern",
-             "disappoint", "delay", "loss ", "losses", "crash", "underperform", "bearish"]
-POS_WORDS = ["upgrade", "beats", "beat ", "raises", "raised", "record", "buyback", "surges", "soars", "jumps",
-             "rallies", "rally", "wins", "approval", "approved", "tops", "outperform", "all-time high", "boosts",
-             "hikes", "strong", "gains", "climbs", "rises", "bullish", "breakthrough", "expands"]
+             "recall", "fraud", "warning", "warns", "misses", "missed", "layoffs", "antitrust", "short seller",
+             "resigns", "steps down", "fined", " ban", "halts", "bankrupt", "scandal", "subpoena", "lowers", "weak",
+             "concern", "disappoint", "delay", "loss ", "losses", "underperform", "bearish"]
+POS_WORDS = ["upgrade", "beats", "beat ", "raises", "raised", "record", "buyback", "wins", "approval", "approved",
+             "tops", "outperform", "boosts", "hikes", "strong", "bullish", "breakthrough", "expands"]
+# Nur zur Dokumentation und für den Selbsttest: diese Wörter zählen nicht mehr
+PRICE_WORDS = ["plunge", "tumble", "sinks", "slump", "selloff", "sell-off", "falls", "drops", "slides", "crash",
+               "surges", "soars", "jumps", "rallies", "rally", "all-time high", "gains", "climbs", "rises"]
 NAME_SKIP = {"the", "inc", "corp", "corporation", "company", "co", "ltd", "plc", "group", "holdings", "holding",
              "ag", "se", "sa", "nv", "and"}
 
@@ -1858,6 +1861,9 @@ def finalize(recs):
         dip = all(c[2] for c in D)
         r["D"] = D if (d52 is not None and 12 <= dr <= 35 and ql_nn >= 70) else None
         early = ph is not None and ph[0] <= 3
+        # Turnaround erst, wenn die Wende begonnen hat (Phase 2 Stabilisierung oder 3 Bodenbildung). Seit v7: Solange der
+        # Kurs noch fällt (Phase 1), ist eine gesunde Firma kein Turnaround, sondern „Qualität im Rücksetzer“.
+        turn_ok = ph is not None and 2 <= ph[0] <= 3
         if (rsi_v is not None and rsi_v >= 78) or x["ext"] >= 0.40:
             setup = "Überhitzt"
         elif r["hot"] >= HOT_MIN and dr <= 10:
@@ -1866,7 +1872,7 @@ def finalize(recs):
             setup = "Trendstark"
         elif dip:
             setup = "Qualitäts-Dip"
-        elif U and r["tu"] >= 5 and 15 <= dr <= 50 and early:
+        elif U and r["tu"] >= 5 and 15 <= dr <= 50 and turn_ok:
             setup = "Turnaround-Kandidat"
         elif qr >= 70 and 15 <= dr <= 40 and early:
             setup = "Qualität im Rücksetzer"
