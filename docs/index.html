@@ -1628,7 +1628,7 @@ function renderTrack(){
   var ctl='<div class="chips">'+[["l12","Letzte 12 Monate"],["all","Seit Start"]].map(function(o){return'<button data-tw="'+o[0]+'" aria-pressed="'+(c.w===o[0])+'">'+o[1]+"</button>"}).join("")+'<span style="width:10px"></span>'+t.horizons.map(function(h){return'<button data-th="'+h+'" aria-pressed="'+(c.h===String(h))+'">nach '+TRK_HL[h]+"</button>"}).join("")+"</div>";
   ctl+='<div class="row" style="gap:12px;align-items:end"><label class="f" style="width:250px">Unterkategorie<select id="trk-dm">'+Object.keys(TRK_DIM).map(function(k){return'<option value="'+k+'"'+(k===c.dm?" selected":"")+">"+TRK_DIM[k]+"</option>"}).join("")+"</select></label>"+(c.dm!=="alle"?'<label class="f" style="width:220px">Wert<select id="trk-dv">'+vlist.map(function(v){return'<option value="'+esc(v)+'"'+(v===c.dv?" selected":"")+">"+esc(trkVal(c.dm,v))+"</option>"}).join("")+"</select></label>":"")+'<label class="chk"><input type="checkbox" id="trk-ex"'+(c.ex?" checked":"")+'> Startbestand ausblenden</label></div>';
   $("trk-ctl").innerHTML=ctl;
-  var b='<p class="muted" style="font-size:12.5px">Messung seit '+dat(t.since)+" ("+weeks+" Wochen), "+t.n_cases+" Fälle, davon "+t.n_open+" noch in ihrer Kategorie. Ergebnisse nach "+TRK_HL[c.h]+"; ein Fall zählt erst, wenn dieser Zeitraum vorbei ist."+(c.dm!=="alle"?" Gefiltert: "+TRK_DIM[c.dm]+" = "+esc(trkVal(c.dm,c.dv))+".":"")+"</p>";
+  var b=trkFazit(t)+'<p class="muted" style="font-size:12.5px">Messung seit '+dat(t.since)+" ("+weeks+" Wochen), "+t.n_cases+" Fälle, davon "+t.n_open+" noch in ihrer Kategorie. Ergebnisse nach "+TRK_HL[c.h]+"; ein Fall zählt erst, wenn dieser Zeitraum vorbei ist."+(c.dm!=="alle"?" Gefiltert: "+TRK_DIM[c.dm]+" = "+esc(trkVal(c.dm,c.dv))+".":"")+"</p>";
   b+='<div class="tablewrap"><table class="grid trk"><thead><tr><th>Kategorie</th><th class="r">Fälle</th><th class="r">Ø Rendite</th><th class="r">Median</th>'+(c.dm==="alle"?'<th class="r">Ø ggü. MSCI World</th>':"")+'<th class="r">besser als MSCI World</th><th class="r">besser als Ø aller Aktien</th>'+(c.dm==="alle"?"<th>bester / schlechtester Fall</th>":"")+"<th>Aussagekraft</th></tr></thead><tbody>";
   t.cats.forEach(function(k){var g=V[k],st=null;if(g){st=c.dm==="alle"?(g.alle||{})[c.h]:((g[c.dm]||{})[c.dv]||{})[c.h]}
     var lab=(SUC[k]?'<span class="pill '+SUC[k]+'">'+k+"</span>":"<b>"+esc(k)+"</b>");
@@ -1637,9 +1637,65 @@ function renderTrack(){
     b+="<tr><td>"+lab+'</td><td class="r num">'+n+'</td><td class="r num '+cls(mean)+'">'+sgp(mean,1)+'</td><td class="r num '+cls(med)+'">'+sgp(med,1)+(st[10]?" ≈":"")+"</td>"+(full?'<td class="r num '+cls(st[3])+'"><b>'+sg(st[3],1)+" Pp.</b></td>":"")+'<td class="r num">'+(bm==null?"–":fmt(bm,0)+" %")+'</td><td class="r num">'+(ba==null?"–":fmt(ba,0)+" %")+"</td>"+(full?'<td class="num" style="font-size:12px">'+esc(trkName(st[6][0]))+" "+sgp(st[6][1],0)+" / "+esc(trkName(st[7][0]))+" "+sgp(st[7][1],0)+"</td>":"")+"<td>"+trkAmpel(n,weeks)+"</td></tr>"});
   b+='</tbody></table></div><p class="muted" style="font-size:12px">„Besser als“: Anteil der Fälle, die im selben Zeitraum den MSCI World bzw. den gleichgewichteten Durchschnitt aller Aktien geschlagen haben; 50 % wäre Zufall. Aussagekraft: unter '+TRK_N_MIN+" Fällen zu wenig Daten, bis "+(TRK_N_OK-1)+" vorläufig, ab "+TRK_N_OK+" Fällen und "+TRK_WEEKS+" Wochen Messdauer belastbar. Startbestand: Aktien, die am ersten Messtag schon in ihrer Kategorie waren; ihr Eintrittszeitpunkt ist zufällig. ≈ beim Median: aus Monatswerten zusammengesetzt.</p>";
   $("trk-body").innerHTML=b;
-  $("trk-more").hidden=false;$("trk-more").innerHTML=trkTop(t,V)+trkPath(t,V)+trkQuarters(t,c)+trkCorr(t)+trkBuckets(t)+trkCorrHz(t)+'<details class="fold" id="trk-cases"><summary>Einzelfälle</summary><div id="trk-cases-body"><p class="muted">Wird beim Aufklappen geladen …</p></div></details>';
+  $("trk-more").hidden=false;$("trk-more").innerHTML='<div class="sec" id="trk-md"></div>'+trkTop(t,V)+trkPath(t,V)+trkQuarters(t,c)+trkCorr(t)+trkBuckets(t)+trkCorrHz(t)+'<div class="sec" id="trk-op"></div><details class="fold" id="trk-cases"><summary>Einzelfälle</summary><div id="trk-cases-body"><p class="muted">Wird beim Aufklappen geladen …</p></div></details>';
+  trkMdRender(t);trkOpenRender(t);
   var dd=$("trk-cases");dd.addEventListener("toggle",function(){if(dd.open)trkCases(t)});
   ["trk-dm","trk-dv","trk-ex"].forEach(function(id){var e=$(id);if(e)e.addEventListener("change",function(){if(id==="trk-dm"){c.dm=this.value;c.dv="alle"}else if(id==="trk-dv")c.dv=this.value;else c.ex=this.checked;renderTrack()})})}
+// ---------------------------------------------------------------- Trefferquote: Musterdepots, laufende Fälle, Fazit
+var MD_DEF=["Rangliste Top 20","Anlauf","Trendstark","_mw","_av"],MD_LBL={_mw:"MSCI World",_av:"Ø aller Aktien"};
+function mdLbl(k){return MD_LBL[k]||k}
+function mdCut(md,w){var n=md.d.length,i0=0;if(w!=="all"){var lim=new Date(md.d[n-1]);lim.setDate(lim.getDate()-(+w));var ls=lim.toISOString().slice(0,10);for(var i=0;i<n;i++){if(md.d[i]>=ls){i0=i;break}}}return i0}
+function mdStat(v,i0){var b=null,lo=null,pk=null,dd=0,last=null;for(var i=i0;i<v.length;i++){var x=v[i];if(x==null)continue;if(b==null)b=x;last=x;if(pk==null||x>pk)pk=x;dd=Math.min(dd,x/pk-1)}return b==null?null:{r:(last/b-1)*100,dd:dd*100}}
+function trkMdRender(t){var el=$("trk-md");if(!el)return;var md=t.md;
+  if(!md||!md.d||md.d.length<3){el.innerHTML='<h3>Musterdepots je Kategorie</h3><p class="muted">Erscheint nach den ersten Messtagen.</p>';return}
+  var sel=S.mdSel||(S.mdSel=MD_DEF.slice()),w=S.mdW||"all",i0=mdCut(md,w),names=t.cats.concat(["_mw","_av"]);
+  var st={};names.forEach(function(k){st[k]=md.s[k]?mdStat(md.s[k],i0):null});var mw=st._mw,av=st._av;
+  var h='<h3>Musterdepots: Was wäre, wenn man jede Kategorie einfach gehalten hätte?</h3><div class="chips">'+[["all","Seit Start"],["91","3 Monate"],["30","1 Monat"]].map(function(o){return'<button data-mdw="'+o[0]+'" aria-pressed="'+(w===o[0])+'">'+o[1]+"</button>"}).join("")+"</div>";
+  // Chart
+  var W=600,H=220,L=6,R=60,T=8,B=22,n=md.d.length-i0,lines=[];
+  sel.forEach(function(k){var v=md.s[k];if(!v)return;var b=null,pts=[];for(var i=i0;i<md.d.length;i++){var x=v[i];if(x!=null&&b==null)b=x;pts.push(x==null||b==null?null:100*x/b)}lines.push({k:k,v:pts,c:k==="_mw"||k==="_av"?null:LCOL[t.cats.indexOf(k)%8]})});
+  var mn=Infinity,mx=-Infinity;lines.forEach(function(l){l.v.forEach(function(x){if(x!=null){mn=Math.min(mn,x);mx=Math.max(mx,x)}})});
+  if(lines.length&&mn<Infinity&&n>1){var pad=(mx-mn)*0.08||1;mn-=pad;mx+=pad;
+    var X=function(i){return L+(W-L-R)*i/(n-1)},Y=function(x){return T+(H-T-B)*(1-(x-mn)/(mx-mn))},g="";
+    for(var j=0;j<=3;j++){var gv=mn+(mx-mn)*j/3,gy=Y(gv);g+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+gy.toFixed(1)+'" y2="'+gy.toFixed(1)+'"/><text x="'+(W-R+5)+'" y="'+(gy+3).toFixed(1)+'">'+fmt(gv,0)+"</text>"}
+    [0,Math.floor((n-1)/2),n-1].forEach(function(i,q){g+='<text x="'+(X(i)-(q===2?52:q===1?26:0)).toFixed(1)+'" y="'+(H-6)+'">'+dat(md.d[i0+i])+"</text>"});
+    var paths=lines.map(function(l){var d="",on=false;l.v.forEach(function(x,i){if(x==null){on=false;return}d+=(on?"L":"M")+X(i).toFixed(1)+" "+Y(x).toFixed(1);on=true});return'<path class="'+(l.c?"ln":"bm")+'" d="'+d+'"'+(l.c?' style="stroke:'+l.c+'"':l.k==="_av"?' style="stroke-dasharray:2 3"':"")+"/>"}).join("");
+    h+='<svg class="chart" viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Verlauf der Musterdepots">'+g+paths+"</svg>";
+    h+='<div class="legend">'+lines.map(function(l){return'<span><i class="c" style="border-top-color:'+(l.c||"var(--muted)")+(l.c?"":";border-top-style:dashed")+'"></i>'+esc(mdLbl(l.k))+"</span>"}).join("")+"</div>"}
+  // Tabelle
+  h+='<div class="tablewrap"><table class="grid trk"><thead><tr><th>Im Chart</th><th>Depot</th><th class="r">Ergebnis</th><th class="r">ggü. MSCI World</th><th class="r">ggü. Ø aller Aktien</th><th class="r">größter Rückgang</th><th class="r">Aktien zuletzt</th></tr></thead><tbody>';
+  names.forEach(function(k){var s=st[k],bm=k==="_mw"||k==="_av",on=sel.indexOf(k)>=0;
+    var lc=bm?"var(--muted)":LCOL[t.cats.indexOf(k)%8],lab='<span class="legend" style="display:inline"><i class="c" style="border-top-color:'+lc+(bm?";border-top-style:dashed":"")+(on?"":";opacity:.25")+'"></i></span>'+(bm?"<i>"+esc(mdLbl(k))+"</i>":"<b>"+esc(k)+"</b>");
+    h+='<tr><td><input type="checkbox" data-mdk="'+esc(k)+'"'+(on?" checked":"")+' aria-label="'+esc(mdLbl(k))+' im Chart zeigen"></td><td>'+lab+"</td>";
+    if(!s){h+='<td colspan="5" class="muted">noch keine Werte</td></tr>';return}
+    var dm=bm||!mw?null:s.r-mw.r,da=bm||!av?null:s.r-av.r;
+    h+='<td class="r num '+cls(s.r)+'">'+sgp(s.r,1)+'</td><td class="r num '+cls(dm)+'">'+(dm==null?"":"<b>"+sg(dm,1)+" Pp.</b>")+'</td><td class="r num '+cls(da)+'">'+(da==null?"":sg(da,1)+" Pp.")+'</td><td class="r num '+cls(s.dd)+'">'+sgp(s.dd,1)+'</td><td class="r num">'+(bm?"":fmt((md.nl||{})[k],0))+"</td></tr>"});
+  h+='</tbody></table></div><p class="muted" style="font-size:12px">Jede Kategorie als Musterdepot: täglich gleichgewichtet alle Aktien, die gerade in der Kategorie stehen, in Euro mit Dividenden, ohne Kosten und Steuern. Eine Aktie kommt erst einen Tag nach ihrer Einordnung ins Depot, damit nichts eingerechnet wird, was man beim Kauf noch nicht wissen konnte. „Größter Rückgang“: stärkster Verlust vom bisherigen Höchststand im gewählten Zeitraum. Kurze Zeiträume sagen wenig; erst über viele Monate zeigt sich, ob eine Kategorie den Markt schlägt. Ein gedachtes Depot, keine Empfehlung.</p>';
+  el.innerHTML=h}
+function trkOpenRender(t){var el=$("trk-op");if(!el)return;var op=t.op||[],c=S.tc||{},k=S.opK==null?"Rangliste Top 20":S.opK;
+  var rows=op.filter(function(o){return(!k||o[1]===k)&&(!c.ex||!o[8])});rows.sort(function(a,b){return b[3]-a[3]});
+  var h='<h3>Laufende Fälle: Wie stehen die Aktien seit ihrer Einordnung?</h3><div class="row" style="margin:6px 0"><label class="f" style="width:240px">Kategorie<select id="trk-opk"><option value="">Alle</option>'+t.cats.map(function(q){return"<option"+(k===q?" selected":"")+">"+esc(q)+"</option>"}).join("")+"</select></label></div>";
+  if(!rows.length){el.innerHTML=h+'<p class="muted">Keine laufenden Fälle in dieser Auswahl.</p>';trkOpenBind();return}
+  var m=rows.filter(function(o){return o[4]!=null}),s=rows.filter(function(o){return o[6]!=null}),avg=0;rows.forEach(function(o){avg+=o[3]});avg/=rows.length;
+  var dd=rows.filter(function(o){return o[2]<t.updated}).length;
+  h+='<p style="font-size:13px">'+rows.length+" Fälle, Ø "+sgp(avg,1)+" seit Eintritt. "+(m.length?fmt(100*m.filter(function(o){return o[3]>o[4]}).length/m.length,0)+" % liegen vor dem MSCI World, ":"")+(s.length?fmt(100*s.filter(function(o){return o[3]>o[6]}).length/s.length,0)+" % vor ihrer Branche.":"")+(dd<rows.length?' <span class="muted">Fälle von heute stehen noch bei 0.</span>':"")+"</p>";
+  h+='<div class="tablewrap"><table class="grid trk"><thead><tr><th>Aktie</th>'+(k?"":"<th>Kategorie</th>")+'<th>seit</th><th class="r">Ergebnis</th><th class="r">ggü. MSCI World</th><th class="r">ggü. Branche</th><th class="r">größter Rückgang</th></tr></thead><tbody>';
+  rows.slice(0,150).forEach(function(o){var dm=o[4]==null?null:o[3]-o[4],ds=o[6]==null?null:o[3]-o[6];
+    h+='<tr><td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+stockLink(o[0])+"</td>"+(k?"":'<td><span class="pill '+(SUC[o[1]]||"neutral")+'">'+esc(o[1])+"</span></td>")+'<td class="num">'+dat(o[2])+(o[8]?' <span class="muted" title="Startbestand: war am ersten Messtag schon in der Kategorie">S</span>':"")+'</td><td class="r num '+cls(o[3])+'">'+sgp(o[3],1)+'</td><td class="r num '+cls(dm)+'">'+(dm==null?"–":sg(dm,1)+" Pp.")+'</td><td class="r num '+cls(ds)+'">'+(ds==null?"–":sg(ds,1)+" Pp.")+'</td><td class="r num '+cls(o[7])+'">'+sgp(o[7],1)+"</td></tr>"});
+  h+='</tbody></table></div><p class="muted" style="font-size:12px">Aktien, die gerade in der Kategorie stehen, mit ihrem Ergebnis seit dem Eintritt in Euro mit Dividenden (Stand '+dat(t.updated)+"). „ggü. Branche“: Abstand zum Durchschnitt aller Aktien derselben Branche im selben Zeitraum; zeigt, ob die Aktie selbst gut lief oder nur ihre Branche. „Größter Rückgang“: tiefster Stand seit Eintritt gegenüber dem Einstieg. S = Startbestand."+(rows.length>150?" Gezeigt die ersten 150 von "+rows.length+".":"")+"</p>";
+  el.innerHTML=h;trkOpenBind()}
+function trkOpenBind(){var e=$("trk-opk");if(e)e.addEventListener("change",function(){S.opK=this.value;trkOpenRender(S.trk)})}
+function trkFazit(t){var md=t.md,out=[];if(!md||!md.d||md.d.length<3)return"";
+  var nd=Math.round((new Date(md.d[md.d.length-1])-new Date(md.d[0]))/864e5),mw=mdStat(md.s._mw||[],0);if(!mw)return"";
+  var top=md.s["Rangliste Top 20"]?mdStat(md.s["Rangliste Top 20"],0):null;
+  if(top)out.push("Wer seit dem "+dat(md.d[0])+" ("+nd+" Tage) die Top 20 der Rangliste gehalten hätte, läge bei "+sgp(top.r,1)+", der MSCI World bei "+sgp(mw.r,1)+": "+(Math.abs(top.r-mw.r)<0.05?"gleichauf.":fmt(Math.abs(top.r-mw.r),1)+" Punkte "+(top.r>mw.r?"besser.":"schlechter.")));
+  var cs=t.cats.filter(function(k){return md.s[k]}).map(function(k){var s=mdStat(md.s[k],0);return s?[k,s.r-mw.r]:null}).filter(Boolean);
+  if(cs.length){cs.sort(function(a,b){return b[1]-a[1]});var up=cs.filter(function(q){return q[1]>0}).length;
+    out.push(up+" von "+cs.length+" Kategorien liegen vor dem MSCI World. Am besten lief "+cs[0][0]+" ("+sg(cs[0][1],1)+" Pp.), am schwächsten "+cs[cs.length-1][0]+" ("+sg(cs[cs.length-1][1],1)+" Pp.).")}
+  var op=(t.op||[]).filter(function(o){return o[4]!=null&&o[2]<t.updated});
+  if(op.length>=20)out.push("Von "+op.length+" laufenden Fällen liegen "+fmt(100*op.filter(function(o){return o[3]>o[4]}).length/op.length,0)+" % vor dem MSCI World.");
+  out.push(nd<91?"Achtung: Unter drei Monaten Messdauer entscheidet vor allem der Zufall. Die Zahlen zeigen den Stand, noch keinen Beleg.":nd<365?"Noch vorläufig: Belastbar wird es nach etwa einem Jahr.":"");
+  return'<div class="verdict" style="margin-bottom:10px"><b>Kurz gesagt:</b> '+esc(out.join(" "))+"</div>"}
 function trkName(sym){var x=S.by[sym];return x?x.n:sym}
 function trkTop(t,V){var rows=t.horizons.map(function(h){var a=((V["Rangliste Top 20"]||{}).alle||{})[h],b=((V["Rangliste Top 3"]||{}).alle||{})[h];if(!a&&!b)return"";var r=a||b;
     return"<tr><td>nach "+TRK_HL[h]+'</td><td class="r num '+cls(b?b[1]:null)+'">'+(b?sgp(b[1],1)+' <span class="muted">('+b[0]+")</span>":"–")+'</td><td class="r num '+cls(a?a[1]:null)+'">'+(a?sgp(a[1],1)+' <span class="muted">('+a[0]+")</span>":"–")+'</td><td class="r num '+cls(r[9])+'">'+sgp(r[9],1)+'</td><td class="r num '+cls(r[8])+'">'+sgp(r[8],1)+"</td></tr>"}).join("");
@@ -1818,6 +1874,7 @@ document.addEventListener("click",function(e){
   var st=e.target.closest("[data-star]");if(st){e.stopPropagation();toggleStar(st.dataset.star);return}
   var del=e.target.closest("[data-del]");if(del){e.stopPropagation();S.depot.pos=S.depot.pos.filter(function(p){return p.id!==del.dataset.del});saveDepot();renderDepot();return}
   var pr=e.target.closest("[data-pre]");if(pr){S.pre=pr.dataset.pre;S.shown=100;S.sort={turn:"ql",pullb:"ql",relst:"ql",capit:"ql",short:"ka",rise:"c7",hot:"hot",div:"dy",an:"a",qual:"qual",dip:"qual",qdip:"qual"}[S.pre]||"total";S.dir=-1;renderPresets();renderTable();return}
+  var mw_=e.target.closest("[data-mdw],[data-mdk]");if(mw_&&S.trk){if(mw_.dataset.mdw)S.mdW=mw_.dataset.mdw;else{var mk=mw_.dataset.mdk,ms=S.mdSel||(S.mdSel=MD_DEF.slice()),mi=ms.indexOf(mk);if(mi>=0)ms.splice(mi,1);else ms.push(mk)}trkMdRender(S.trk);return}
   var tw=e.target.closest("[data-tw],[data-th]");if(tw){S.tc=S.tc||{w:"all",h:"7",ex:false,dm:"alle",dv:"alle"};if(tw.dataset.tw)S.tc.w=tw.dataset.tw;else S.tc.h=tw.dataset.th;renderTrack();return}
   var dn=e.target.closest("[data-dpn],[data-dpm]");if(dn){S.dpc=S.dpc||{n:52,m:"sum"};if(dn.dataset.dpn)S.dpc.n=+dn.dataset.dpn;else S.dpc.m=dn.dataset.dpm;var A=analyse();if(A)$("dp-chart").innerHTML=depotChart(A);return}
   var op=e.target.closest("[data-open]");if(op){S.sel=op.dataset.open;renderAll();if(window.matchMedia("(max-width:1199px)").matches)$("detail").scrollIntoView({behavior:"smooth",block:"start"});return}
