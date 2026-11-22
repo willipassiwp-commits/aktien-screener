@@ -1927,6 +1927,21 @@ def neutral_text(r, x):
     return "Einordnung: neutral. Keine der Sonderlagen trifft zu, die Kennzahlen sind mittelmäßig (Qualität %d)." % q
 
 
+def overheat_text(r, x):
+    """Einordnungstext „Überhitzt“ nach dem Kriterium, das tatsächlich greift (RSI ab 78 oder Kurs mindestens 40 %
+    über der 200-Tage-Linie). Nur Text, ändert nichts an Einordnung oder Score."""
+    rsi = r.get("rsi")
+    if rsi is not None and rsi >= 78:
+        t = "Einordnung: überhitzt. Der Kurs ist kurzfristig weit vorausgelaufen (RSI 14 Tage bei %s)." % de(rsi, 0)
+    else:
+        t = ("Einordnung: überhitzt. Der Kurs liegt %s %% über seinem 200-Tage-Durchschnitt, also langfristig weit "
+             "vorausgelaufen." % de(x["ext"] * 100, 0))
+    kl = r.get("kl")
+    if kl and kl[0] == "F":
+        t += " Kurzfristig läuft er bereits zurück (%s)." % kl[1]
+    return t
+
+
 def texts(r, x):
     """Stärken, Punkte zum Aufpassen und eine Einordnung in Sätzen. Jede Aussage nennt die Zahl, auf der sie beruht."""
     pro, con = [], []
@@ -2023,7 +2038,7 @@ def texts(r, x):
                                   "ist es derzeit nicht.",
         "Turnaround-Kandidat": "Einordnung: Turnaround-Kandidat. %d von 7 Turnaround-Prüfungen sind erfüllt."
                                % (r["tu"] or 0),
-        "Überhitzt": "Einordnung: überhitzt. Der Kurs ist kurzfristig weit vorausgelaufen.",
+        "Überhitzt": overheat_text(r, x),
         "Schwach": "Einordnung: schwach. Weder Kennzahlen noch Kursbild überzeugen.",
         "Neutral": neutral_text(r, x),
     }[su]

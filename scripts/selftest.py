@@ -406,6 +406,9 @@ def main():
     ok &= check("Trefferquote: Score-Stufen getrennt, 80+ vor unter 50",
                 bk and bk[0][1] == 7 and st["80+"][1] > 0 > st["unter 50"][1] and sum(b[4] for b in bk[0][3]) == 100, bk)
 
+    ot = scoring.overheat_text({"rsi": 41.0, "kl": ["F", "Fällt noch"]}, {"ext": 0.6})
+    ok &= check("Überhitzt-Text nennt das greifende Kriterium", "60 % über" in ot and "kurzfristig weit" not in ot
+                and "läuft er bereits zurück" in ot, ot)
     # Musterdepots: Aufnahme mit einem Tag Verzögerung, gleichgewichtet
     # Tag 0: A in Anlauf. Tag 1: A +10 %, B −10 %. Tag 2: A +10 %, B 0 %.
     # Schritt 0→1 hat noch keine Mitglieder (Verzögerung) → 100. Schritt 1→2 hält A (Mitglied an Tag 0) → 110.
