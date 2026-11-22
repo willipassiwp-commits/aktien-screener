@@ -829,6 +829,12 @@ html.gesperrt .wrap{display:none}
       <div id="tab-depot" class="left" hidden>
         <section class="panel pad">
           <div><h2>Mein Depot</h2><p class="muted" style="max-width:90ch">Trage deine Positionen mit ihrem aktuellen Wert ein. Die Angaben bleiben nur in diesem Browser gespeichert und verlassen dein Gerät nicht. Mit Einstandswert und Kaufdatum rechnet die Auswertung auch deine Rendite gegenüber dem MSCI World. Um eine vorhandene Position zu ergänzen, trage sie einfach noch einmal ein, sie wird dann aktualisiert. Die Auswertung ist regelbasiert und vergleicht dein Depot mit üblichen Richtwerten. Sie ist keine Anlageberatung.</p></div>
+          <details id="dp-imp" open style="margin:10px 0 14px;padding:12px 14px;border:1px solid var(--accent);border-radius:4px;background:var(--sunken)"><summary style="cursor:pointer;font-weight:700;font-size:15px">Depot aus Datei einlesen <span class="muted" style="font-weight:400;font-size:13px">(Trade Republic, Scalable, comdirect …)</span></summary>
+            <p class="muted" style="font-size:12.5px;max-width:90ch">Lade die CSV-Datei deines Brokers hoch, zum Beispiel bei Trade Republic in der App: Profil → Kontoauszüge → Transaktionsexport. Aus Käufen und Verkäufen werden Stückzahl, Einstand und Kaufdatum je Wertpapier berechnet; eine Bestandsliste mit ISIN und Stückzahl geht auch. Die Datei wird nur in diesem Browser gelesen und nirgendwohin gesendet.</p>
+            <label class="f" style="max-width:420px">CSV-Datei<input type="file" id="dp-file" accept=".csv,.txt,text/csv"></label>
+            <details class="fold" style="margin-top:6px"><summary>Oder Tabelle als Text einfügen</summary><textarea id="dp-paste" rows="5" style="width:100%;font-size:12px" placeholder="Depotübersicht beim Broker markieren, kopieren und hier einfügen (mit Kopfzeile, z. B. Name, ISIN, Stück)"></textarea><button type="button" id="dp-paste-go">Einlesen</button></details>
+            <p class="notice" id="dp-imp-msg" hidden></p><div id="dp-imp-prev"></div></details>
+          <p class="muted" style="font-size:12.5px;margin:0 0 4px">Oder einzeln eintragen:</p>
           <form id="dp-form" class="row" autocomplete="off">
             <label class="f grow">Aktie aus dem Screener<input type="text" id="dp-name" list="dp-list" placeholder="Name oder Kürzel eingeben und auswählen"><datalist id="dp-list"></datalist></label>
             <label class="f" style="width:110px">Stück<input type="number" id="dp-qty" min="0" step="any" inputmode="decimal"></label>
@@ -843,11 +849,7 @@ html.gesperrt .wrap{display:none}
             <label class="f" style="width:130px">Aktueller Wert in €<input type="number" id="dp-oval" min="0" step="any" inputmode="decimal"></label>
             <button type="submit">Hinzufügen</button>
           </form>
-          <details class="fold" id="dp-imp" style="margin:4px 0 8px"><summary>Depot aus Datei einlesen (Trade Republic, Scalable, comdirect …)</summary>
-            <p class="muted" style="font-size:12.5px;max-width:90ch">Lade die CSV-Datei deines Brokers hoch, zum Beispiel bei Trade Republic in der App: Profil → Kontoauszüge → Transaktionsexport. Aus Käufen und Verkäufen werden Stückzahl, Einstand und Kaufdatum je Wertpapier berechnet; eine Bestandsliste mit ISIN und Stückzahl geht auch. Die Datei wird nur in diesem Browser gelesen und nirgendwohin gesendet.</p>
-            <label class="f" style="max-width:420px">CSV-Datei<input type="file" id="dp-file" accept=".csv,.txt,text/csv"></label>
-            <details class="fold" style="margin-top:6px"><summary>Oder Tabelle als Text einfügen</summary><textarea id="dp-paste" rows="5" style="width:100%;font-size:12px" placeholder="Depotübersicht beim Broker markieren, kopieren und hier einfügen (mit Kopfzeile, z. B. Name, ISIN, Stück)"></textarea><button type="button" id="dp-paste-go">Einlesen</button></details>
-            <p class="notice" id="dp-imp-msg" hidden></p><div id="dp-imp-prev"></div></details>
+          
           <p class="notice" id="dp-msg" hidden></p>
           <div class="row">
             <label class="f" style="width:200px">Risikoprofil<select id="dp-profile"><option value="def">defensiv</option><option value="bal" selected>ausgewogen</option><option value="off">offensiv</option></select></label>
