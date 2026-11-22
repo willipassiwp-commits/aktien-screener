@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
 <title>Aktien-Qualitätsscreener</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <script>try{var _t=localStorage.getItem("theme");if(_t==="light"||_t==="dark")document.documentElement.dataset.theme=_t}catch(e){}</script>
@@ -630,9 +631,41 @@ input[type=search],input[type=text],input[type=number],select{border-radius:3px}
   .dhead .big{font-size:38px}
   nav.tabs button{padding:8px 10px;font-size:11px}
 }
+/* Zugangssperre (nur ein Vorhang: data.json und das Repository bleiben öffentlich) */
+html.gesperrt .wrap{display:none}
+.gate{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px}
+.gate form{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px;max-width:360px;width:100%;display:grid;gap:10px}
+.gate h2{margin:0;font-size:19px}.gate input{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--fg)}
+.gate button{font:inherit;padding:9px 10px;border:0;border-radius:6px;background:var(--accent);color:var(--surface);cursor:pointer}
+.gate .err{color:var(--bad);font-size:13px;margin:0}.gate code{word-break:break-all;font-size:12px;user-select:all}
 </style>
 </head>
 <body>
+<script>
+/* Zugangssperre: PW_HASH leer = Sperre aus. Prüfwert erzeugen: Seite mit #pw-setup öffnen. */
+(function(){
+  var PW_HASH="",ZKEY="screener-zugang-v1",SALT="aktien-screener|";
+  var root=document.documentElement,setup=location.hash==="#pw-setup",ok=false;
+  try{ok=!PW_HASH||localStorage.getItem(ZKEY)===PW_HASH}catch(e){}
+  if(ok&&!setup)return;
+  if(!(window.crypto&&crypto.subtle&&window.TextEncoder))return;
+  root.classList.add("gesperrt");
+  function hash(t){return crypto.subtle.digest("SHA-256",new TextEncoder().encode(SALT+t)).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return("0"+x.toString(16)).slice(-2)}).join("")})}
+  function build(){
+    var g=document.createElement("div");g.className="gate";
+    g.innerHTML=setup
+      ?'<form><h2>Passwort einrichten</h2><p class="muted" style="margin:0;font-size:13px">Das Passwort verlässt dieses Gerät nicht. Angezeigt wird nur der Prüfwert, der in die Seite eingetragen wird.</p><input type="password" autocomplete="new-password" placeholder="Neues Passwort (lang)" required><button>Prüfwert berechnen</button><p class="out" style="margin:0"></p></form>'
+      :'<form><h2>Aktien-Screener</h2><input type="password" autocomplete="current-password" placeholder="Passwort" required autofocus><button>Öffnen</button><p class="err" hidden>Passwort falsch.</p></form>';
+    document.body.appendChild(g);
+    var f=g.querySelector("form"),inp=g.querySelector("input");
+    f.addEventListener("submit",function(e){e.preventDefault();hash(inp.value).then(function(h){
+      if(setup){g.querySelector(".out").innerHTML='Prüfwert:<br><code>'+h+'</code>';return}
+      if(h===PW_HASH){try{localStorage.setItem(ZKEY,h)}catch(x){}root.classList.remove("gesperrt");g.remove()}
+      else{g.querySelector(".err").hidden=false;inp.value="";inp.focus()}})});
+  }
+  if(document.body)build();else document.addEventListener("DOMContentLoaded",build);
+})();
+</script>
 <div class="wrap">
   <header class="top">
     <div class="brand">
@@ -775,7 +808,7 @@ input[type=search],input[type=text],input[type=number],select{border-radius:3px}
         </section>
         <section class="panel">
           <div class="sechead"><h2>Rücksetzer und Turnaround: Wende noch nicht bestätigt</h2>
-            <p>Unternehmen mit starken Kennzahlen, deren Kurs 15 bis 50 % unter dem 52-Wochen-Hoch steht und noch unter der 200-Tage-Linie liegt (Phase 1 bis 3). Sobald die Wende bestätigt ist oder der Kurs wieder nahe am Hoch steht, fällt die Aktie aus dieser Liste. Die Turnaround-Prüfungen fragen: Sind Fundamentaldaten und Burggraben stark? Stabilisiert sich der Kurs? Bleiben Analysten und Gewinnschätzungen positiv? Ist der Rückgang tiefer als frühere Korrekturen dieser Aktie? Die Spalte „Stand“ zeigt, wie weit die Wende im Kurs ist: 1 Abwärtsbewegung läuft, 2 Stabilisierung, 3 Bodenbildung, 4 Wende bestätigt. Ein Rücksetzer kann sich fortsetzen, die Liste zeigt nur, wo Qualität und Kurs auseinanderlaufen.</p></div>
+            <p>Unternehmen mit starken Kennzahlen, deren Kurs 15 bis 50 % unter dem 52-Wochen-Hoch steht und noch unter der 200-Tage-Linie liegt (Phase 1 bis 3). Als Turnaround-Kandidat gilt eine Aktie erst ab Phase 2, also wenn der Kurs aufgehört hat zu fallen. Sobald die Wende bestätigt ist oder der Kurs wieder nahe am Hoch steht, fällt die Aktie aus dieser Liste. Die Turnaround-Prüfungen fragen: Sind Fundamentaldaten und Burggraben stark? Stabilisiert sich der Kurs? Bleiben Analysten und Gewinnschätzungen positiv? Ist der Rückgang tiefer als frühere Korrekturen dieser Aktie? Die Spalte „Stand“ zeigt, wie weit die Wende im Kurs ist: 1 Abwärtsbewegung läuft, 2 Stabilisierung, 3 Bodenbildung, 4 Wende bestätigt. Ein Rücksetzer kann sich fortsetzen, die Liste zeigt nur, wo Qualität und Kurs auseinanderlaufen.</p></div>
           <div class="tablewrap"><table class="grid"><thead><tr><th>Unternehmen</th><th>Einordnung</th><th>Prüfungen</th><th>Stand</th><th>Lage</th><th class="r">Qualität</th><th class="r">unter 52-W.-Hoch</th><th class="r">Rückgang jetzt / früher max.</th><th class="r">Analysten</th><th class="r">Kursziel</th><th class="r">1 M.</th><th>Trendstatus</th></tr></thead><tbody id="turn-rows"></tbody></table></div>
           <div class="empty" id="turn-empty" hidden>Derzeit kein Treffer.</div>
         </section>
@@ -826,6 +859,7 @@ input[type=search],input[type=text],input[type=number],select{border-radius:3px}
         <section class="panel pad">
           <h2>Trefferquote: Wie liefen die Aktien nach ihrer Einordnung?</h2>
           <p class="muted" style="max-width:92ch">Jedes Mal, wenn eine Aktie neu in eine Kategorie kommt, entsteht ein Fall. Gemessen wird, wie sie sich ab diesem Tag nach 1 Woche, 1, 3, 6 und 12 Monaten entwickelt hat, in Euro und mit Dividenden, verglichen mit dem MSCI World und dem Durchschnitt aller Aktien im selben Zeitraum. Das zeigt dauerhaft, ob der Screener gute Aktien erkennt. Keine Anlageberatung. Vergangene Entwicklungen sagen nichts Sicheres über die Zukunft, und bei wenigen Fällen sind die Zahlen stark vom Zufall geprägt.</p>
+          <p class="notice" style="max-width:92ch;margin-top:10px"><b>Noch wenig aussagekräftig:</b> Die Messung läuft seit dem 13.11.2026. Alle Fälle des Startbestands beginnen am selben Tag und damit in derselben Marktphase. Belastbare Aussagen gibt es frühestens nach 3 bis 6 Monaten mit Fällen aus verschiedenen Marktphasen. Bis dahin sind die Zahlen eine Momentaufnahme.</p>
           <div id="trk-ctl" style="display:grid;gap:8px;margin:12px 0"></div>
           <div id="trk-body"></div>
         </section>
@@ -879,7 +913,7 @@ input[type=search],input[type=text],input[type=number],select{border-radius:3px}
         <details class="meth"><summary>Renditeerwartung, Analystenbild, Einordnung, Risiko</summary><div class="body">
           <p><b>Renditeerwartung</b> nach der Multiple-Methode über fünf Jahre: Der Gewinn je Aktie wächst mit der angesetzten Rate, am Ende steht ein Ziel-KGV. Das ist der Median der KGVs zu den letzten Jahresabschlüssen, gedeckelt je Kategorie (Slow 18, Average 22, Fast 28, Zykliker 15, bei Finanzwerten die Hälfte) und nie höher als das heutige KGV. Dazu kommt die Dividendenrendite. Ab 12 % p. a. gibt es die volle Punktzahl. Die Szenario-Spanne ist ein Rechenbeispiel und kein Kursziel.</p>
           <p><b>Analystenbild (0–10)</b>: Konsens der Empfehlungen im Vergleich zum Durchschnitt des eigenen Landes (bis 3 Punkte; Analysten in Indien, Korea oder Taiwan urteilen im Schnitt deutlich freundlicher als in Deutschland oder Australien, deshalb gilt: bereinigter Konsens = Konsens − Median des Landes + weltweiter Median; Länder mit weniger als 8 Aktien nutzen den Median ihrer Region), Abstand des mittleren Kursziels zum Kurs (bis 3), Veränderung der Gewinnschätzung in 90 Tagen (bis 2), mehr Hoch- als Abstufungen in 90 Tagen (1), mindestens zehn Analysten (1). Das sind Meinungen Dritter. Sie liegen oft daneben und fließen deshalb nur mit 15 % in den Gesamtscore ein. Bei weniger als drei Analysten entfällt der Baustein.</p>
-          <p><b>Einordnung</b>: Jede Aktie bekommt genau eine Einordnung. Die Regeln werden in fester Reihenfolge geprüft, die erste zutreffende gilt. 1. „Überhitzt“: RSI ab 78 oder mindestens 40 % über der 200-Tage-Linie. 2. „Anlauf“: mindestens sieben Anlauf-Signale und höchstens 10 % unter dem 52-Wochen-Hoch. 3. „Trendstark“: Qualität ab 65, Kurs über der 200- und der 50-Tage-Linie, höchstens 10 % unter dem Hoch. 4. „Qualitäts-Dip“: Qualität ab 85 (ohne Nachrichtenlage), Burggraben ab 20, 12 bis 35 % unter dem Hoch, Gewinnschätzung in 90 Tagen nicht gesenkt, operativer Cashflow positiv, Kurs über der 200-Tage-Linie oder zehn Handelstage ohne neues Tief. 5. „Turnaround-Kandidat“: mindestens fünf Turnaround-Prüfungen, 15 bis 50 % unter dem Hoch, Phase 1 bis 3. 6. „Qualität im Rücksetzer“: Qualität ab 70, 15 bis 40 % unter dem Hoch, Phase 1 bis 3. 7. „Schwach“: Qualität unter 45 und Kurs unter der 200-Tage-Linie. 8. sonst „Neutral“. Steht eine Aktie wieder weniger als 15 % unter dem Hoch oder über der 200-Tage-Linie (Phase 4), verliert sie die Einordnung Turnaround oder Rücksetzer. Im Qualitäts-Dip zählt eine Nachrichtenlage unter 5 nicht in den Score.</p>
+          <p><b>Einordnung</b>: Jede Aktie bekommt genau eine Einordnung. Die Regeln werden in fester Reihenfolge geprüft, die erste zutreffende gilt. 1. „Überhitzt“: RSI ab 78 oder mindestens 40 % über der 200-Tage-Linie. 2. „Anlauf“: mindestens sieben Anlauf-Signale und höchstens 10 % unter dem 52-Wochen-Hoch. 3. „Trendstark“: Qualität ab 65, Kurs über der 200- und der 50-Tage-Linie, höchstens 10 % unter dem Hoch. 4. „Qualitäts-Dip“: Qualität ab 85 (ohne Nachrichtenlage), Burggraben ab 20, 12 bis 35 % unter dem Hoch, Gewinnschätzung in 90 Tagen nicht gesenkt, operativer Cashflow positiv, Kurs über der 200-Tage-Linie oder zehn Handelstage ohne neues Tief. 5. „Turnaround-Kandidat“: mindestens fünf Turnaround-Prüfungen, 15 bis 50 % unter dem Hoch, Phase 2 oder 3 (die Wende hat begonnen; seit 22.11.2026, vorher auch Phase 1). 6. „Qualität im Rücksetzer“: Qualität ab 70, 15 bis 40 % unter dem Hoch, Phase 1 bis 3. 7. „Schwach“: Qualität unter 45 und Kurs unter der 200-Tage-Linie. 8. sonst „Neutral“. Steht eine Aktie wieder weniger als 15 % unter dem Hoch oder über der 200-Tage-Linie (Phase 4), verliert sie die Einordnung Turnaround oder Rücksetzer. Im Qualitäts-Dip zählt eine Nachrichtenlage unter 5 nicht in den Score.</p>
           <p><b>Risikoklasse</b> 1 bis 5: steigt mit Kursschwankung (ab 25 % und ab 40 % pro Jahr), einem Einbruch über 40 % in fünf Jahren, hoher Verschuldung (bei Finanzwerten: zu wenig Eigenkapital) und mehreren Gewinnrückgängen.</p>
           <p><b>Nachrichtenlage (0–10)</b>: Gewertet werden die Schlagzeilen von Yahoo Finance aus den letzten 30 Tagen, die das Unternehmen im Titel nennen: mit dem Namen (bei Allerweltswörtern wie „Bank“ oder „Taiwan“ mit den ersten Wörtern zusammen), einem gängigen Kurznamen wie TSMC oder dem Börsenkürzel. Meldungen über die Branche oder über Konkurrenten fallen weg. Eine Stichwortsuche ordnet jede Überschrift als positiv, negativ oder neutral ein. Die Note ist 5 plus 5 mal (positive minus negative) geteilt durch die Zahl der Schlagzeilen, mindestens vier. Unter drei Schlagzeilen gibt es keine Note. Die Suche erkennt den Ton der Überschrift, nicht den Inhalt des Artikels, und kann danebenliegen. Deshalb zählt der Baustein nur 5 %, und jede Schlagzeile steht mit ihrer Einordnung und dem Link zur Quelle im Steckbrief.</p>
         </div></details>
@@ -903,7 +937,7 @@ input[type=search],input[type=text],input[type=number],select{border-radius:3px}
 <script>
 (function(){
 "use strict";
-var VERSION=7,KEY="screener-gewichte-v4",WKEY="screener-watch-v1",DKEY="screener-depot-v1";
+var VERSION=8,KEY="screener-gewichte-v4",WKEY="screener-watch-v1",DKEY="screener-depot-v1";
 var S={all:[],by:{},w:{f:30,m:15,t:20,r:15,a:15,n:5},sel:null,sort:"total",dir:-1,shown:100,updated:null,d:null,pre:"all",watch:{},charts:null,chartsState:0,tab:"rangliste",depot:{pos:[],profile:"bal"},hotMin:6};
 function isDark(){var t=document.documentElement.dataset.theme;return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
 function load(k,def){try{var v=JSON.parse(localStorage.getItem(k)||"null");return v==null?def:v}catch(e){return def}}
@@ -1629,13 +1663,13 @@ function renderTrack(){
   ctl+='<div class="row" style="gap:12px;align-items:end"><label class="f" style="width:250px">Unterkategorie<select id="trk-dm">'+Object.keys(TRK_DIM).map(function(k){return'<option value="'+k+'"'+(k===c.dm?" selected":"")+">"+TRK_DIM[k]+"</option>"}).join("")+"</select></label>"+(c.dm!=="alle"?'<label class="f" style="width:220px">Wert<select id="trk-dv">'+vlist.map(function(v){return'<option value="'+esc(v)+'"'+(v===c.dv?" selected":"")+">"+esc(trkVal(c.dm,v))+"</option>"}).join("")+"</select></label>":"")+'<label class="chk"><input type="checkbox" id="trk-ex"'+(c.ex?" checked":"")+'> Startbestand ausblenden</label></div>';
   $("trk-ctl").innerHTML=ctl;
   var b=trkFazit(t)+'<p class="muted" style="font-size:12.5px">Messung seit '+dat(t.since)+" ("+weeks+" Wochen), "+t.n_cases+" Fälle, davon "+t.n_open+" noch in ihrer Kategorie. Ergebnisse nach "+TRK_HL[c.h]+"; ein Fall zählt erst, wenn dieser Zeitraum vorbei ist."+(c.dm!=="alle"?" Gefiltert: "+TRK_DIM[c.dm]+" = "+esc(trkVal(c.dm,c.dv))+".":"")+"</p>";
-  b+='<div class="tablewrap"><table class="grid trk"><thead><tr><th>Kategorie</th><th class="r">Fälle</th><th class="r">Ø Rendite</th><th class="r">Median</th>'+(c.dm==="alle"?'<th class="r">Ø ggü. MSCI World</th>':"")+'<th class="r">besser als MSCI World</th><th class="r">besser als Ø aller Aktien</th>'+(c.dm==="alle"?"<th>bester / schlechtester Fall</th>":"")+"<th>Aussagekraft</th></tr></thead><tbody>";
+  b+='<div class="tablewrap"><table class="grid trk"><thead><tr><th>Kategorie</th><th class="r">Fälle</th><th class="r">Ø Rendite</th><th class="r">Median</th>'+(c.dm==="alle"?'<th class="r">Ø ggü. MSCI World</th>':"")+'<th class="r">besser als MSCI World</th><th class="r">besser als Ø aller Aktien</th>'+(c.dm==="alle"?'<th class="r" title="Anteil der Fälle, die den gleichgewichteten Durchschnitt der Aktien aus derselben Region geschlagen haben (Nordamerika, Europa, Asien-Pazifik). Gleicht aus, dass der MSCI World zu rund 70 % aus US-Aktien besteht.">besser als Ø eigene Region</th>':"")+(c.dm==="alle"?"<th>bester / schlechtester Fall</th>":"")+"<th>Aussagekraft</th></tr></thead><tbody>";
   t.cats.forEach(function(k){var g=V[k],st=null;if(g){st=c.dm==="alle"?(g.alle||{})[c.h]:((g[c.dm]||{})[c.dv]||{})[c.h]}
     var lab=(SUC[k]?'<span class="pill '+SUC[k]+'">'+k+"</span>":"<b>"+esc(k)+"</b>");
-    if(!st){b+="<tr><td>"+lab+'</td><td colspan="'+(c.dm==="alle"?8:6)+'" class="muted">noch keine abgeschlossenen Fälle</td></tr>';return}
+    if(!st){b+="<tr><td>"+lab+'</td><td colspan="'+(c.dm==="alle"?9:6)+'" class="muted">noch keine abgeschlossenen Fälle</td></tr>';return}
     var full=c.dm==="alle",n=st[0],mean=st[1],med=st[2],bm=full?st[4]:st[3],ba=full?st[5]:st[4];
-    b+="<tr><td>"+lab+'</td><td class="r num">'+n+'</td><td class="r num '+cls(mean)+'">'+sgp(mean,1)+'</td><td class="r num '+cls(med)+'">'+sgp(med,1)+(st[10]?" ≈":"")+"</td>"+(full?'<td class="r num '+cls(st[3])+'"><b>'+sg(st[3],1)+" Pp.</b></td>":"")+'<td class="r num">'+(bm==null?"–":fmt(bm,0)+" %")+'</td><td class="r num">'+(ba==null?"–":fmt(ba,0)+" %")+"</td>"+(full?'<td class="num" style="font-size:12px">'+esc(trkName(st[6][0]))+" "+sgp(st[6][1],0)+" / "+esc(trkName(st[7][0]))+" "+sgp(st[7][1],0)+"</td>":"")+"<td>"+trkAmpel(n,weeks)+"</td></tr>"});
-  b+='</tbody></table></div><p class="muted" style="font-size:12px">„Besser als“: Anteil der Fälle, die im selben Zeitraum den MSCI World bzw. den gleichgewichteten Durchschnitt aller Aktien geschlagen haben; 50 % wäre Zufall. Aussagekraft: unter '+TRK_N_MIN+" Fällen zu wenig Daten, bis "+(TRK_N_OK-1)+" vorläufig, ab "+TRK_N_OK+" Fällen und "+TRK_WEEKS+" Wochen Messdauer belastbar. Startbestand: Aktien, die am ersten Messtag schon in ihrer Kategorie waren; ihr Eintrittszeitpunkt ist zufällig. ≈ beim Median: aus Monatswerten zusammengesetzt.</p>";
+    b+="<tr><td>"+lab+'</td><td class="r num">'+n+'</td><td class="r num '+cls(mean)+'">'+sgp(mean,1)+'</td><td class="r num '+cls(med)+'">'+sgp(med,1)+(st[10]?" ≈":"")+"</td>"+(full?'<td class="r num '+cls(st[3])+'"><b>'+sg(st[3],1)+" Pp.</b></td>":"")+'<td class="r num">'+(bm==null?"–":fmt(bm,0)+" %")+'</td><td class="r num">'+(ba==null?"–":fmt(ba,0)+" %")+"</td>"+(full?(function(){var rx=(g.rx||{})[c.h];return'<td class="r num"'+(rx?' title="'+rx[0]+' Fälle mit Regionsvergleich, Ø Überrendite gegenüber der eigenen Region '+sg(rx[3],1)+' Pp."':"")+">"+(rx?fmt(rx[1],0)+" %":"–")+"</td>"})():"")+(full?'<td class="num" style="font-size:12px">'+esc(trkName(st[6][0]))+" "+sgp(st[6][1],0)+" / "+esc(trkName(st[7][0]))+" "+sgp(st[7][1],0)+"</td>":"")+"<td>"+trkAmpel(n,weeks)+"</td></tr>"});
+  b+='</tbody></table></div><p class="muted" style="font-size:12px">„Besser als“: Anteil der Fälle, die im selben Zeitraum den MSCI World, den gleichgewichteten Durchschnitt aller Aktien bzw. den Durchschnitt der Aktien aus derselben Region geschlagen haben; 50 % wäre Zufall. Der Regionsvergleich ist am fairsten, weil der MSCI World zu rund 70 % aus US-Aktien besteht (seit 22.11.2026, rückwirkend berechnet). Aussagekraft: unter '+TRK_N_MIN+" Fällen zu wenig Daten, bis "+(TRK_N_OK-1)+" vorläufig, ab "+TRK_N_OK+" Fällen und "+TRK_WEEKS+" Wochen Messdauer belastbar. Startbestand: Aktien, die am ersten Messtag schon in ihrer Kategorie waren; ihr Eintrittszeitpunkt ist zufällig. ≈ beim Median: aus Monatswerten zusammengesetzt.</p>";
   $("trk-body").innerHTML=b;
   $("trk-more").hidden=false;$("trk-more").innerHTML='<div class="sec" id="trk-md"></div>'+trkTop(t,V)+trkPath(t,V)+trkQuarters(t,c)+trkCorr(t)+trkBuckets(t)+trkCorrHz(t)+'<div class="sec" id="trk-op"></div><details class="fold" id="trk-cases"><summary>Einzelfälle</summary><div id="trk-cases-body"><p class="muted">Wird beim Aufklappen geladen …</p></div></details>';
   trkMdRender(t);trkOpenRender(t);
