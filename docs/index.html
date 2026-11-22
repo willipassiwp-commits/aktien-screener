@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Aktien-Qualitätsscreener</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <script>try{var _t=localStorage.getItem("theme");if(_t==="light"||_t==="dark")document.documentElement.dataset.theme=_t}catch(e){}</script>
 <style>
 /* Layout: Analyseblatt. Reiter oben, links die Liste des Reiters, rechts der Steckbrief der gewählten Aktie. */
@@ -676,6 +676,66 @@ html.gesperrt .wrap{display:none}
 .dchh h2{font-size:19px;margin:0;line-height:1.25}
 .dchh p{font-size:12.5px;color:var(--muted);margin:2px 0 0}
 @media (max-width:1199px){.dnav{top:0}}
+/* Titelseite „Tagesnotiz“ (23.11.2026): gesetzt wie eine Research-Notiz */
+.tn{--serif:"Source Serif 4",Georgia,serif;background:var(--surface);border:1px solid var(--line);padding:22px 48px 30px;max-width:1180px;width:100%;margin:0 auto;font-size:15px}
+.tnmast{display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;gap:12px;padding-bottom:10px;border-bottom:3px double var(--fg)}
+.tnname{font-family:var(--serif);font-weight:600;font-size:21px;letter-spacing:-.01em}
+.tnmd{font-family:var(--serif);font-size:15px}
+.tnmi{justify-self:end;font-size:13px;color:var(--muted)}
+.tnlead{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px 56px;padding:30px 0 30px;border-bottom:1px solid var(--line)}
+.tnamp{font-size:13.5px;color:var(--muted);margin:0 0 10px}.tnamp .ldot{width:9px;height:9px;margin-right:7px;box-shadow:none;vertical-align:0}
+.tntitle{font-family:var(--serif);font-weight:600;font-size:44px;line-height:1.08;letter-spacing:-.018em;margin:0 0 18px;max-width:none;text-wrap:balance;color:var(--fg)}
+.tndeck{font-family:var(--serif);font-size:19px;line-height:1.5;margin:0;max-width:56ch}
+.tnmk{display:flex;flex-direction:column;gap:18px;padding-top:28px}
+.tnmt{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+.tnmt th{font-weight:500;color:var(--muted);text-align:right;padding:0 0 6px 10px;font-size:12.5px;border-bottom:1px solid var(--fg)}
+.tnmt td{text-align:right;padding:6px 0 6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tnmt td:first-child{text-align:left;padding-left:0}
+.tnfg p{margin:0;font-size:13.5px}.tnfg p span{display:block;color:var(--muted);font-size:12.5px;margin-bottom:2px}.tnfg b{font-family:var(--serif);font-size:26px;font-weight:600;margin-right:4px}
+.tnfgc{width:100%;height:54px;display:block;margin:6px 0 2px}.tnfgc polyline{fill:none;stroke:var(--fg);stroke-width:1.4}.tnfgc .mid{stroke:var(--line);stroke-dasharray:2 3}.tnfgc circle{fill:var(--bad)}
+.tnsm{font-size:12px!important;color:var(--muted)}
+.tnfieldw{padding:26px 0 28px;border-bottom:1px solid var(--line)}
+.tnsh{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.tnsh h3{font-family:var(--serif);font-weight:600;font-size:21px;margin:0;color:var(--fg)}
+.tnsh p{margin:0;font-size:13.5px;color:var(--muted)}
+.tnsh2{margin-top:22px}
+.tnfbox{position:relative;padding-right:180px}
+.tnfield{display:block;width:100%;height:200px;overflow:visible}
+.tnfield rect{cursor:pointer}.tnfield rect:hover{fill:var(--fg)!important}
+.tnfield .b1{fill:var(--bad)}.tnfield .b2{fill:#c9a227}.tnfield .b3{fill:#5aa77c}.tnfield .b4{fill:var(--good)}
+.tnfield .thr{stroke:var(--muted);stroke-width:1;stroke-dasharray:2 4;vector-effect:non-scaling-stroke}.tnfield .base{stroke:var(--fg);stroke-width:1;vector-effect:non-scaling-stroke}
+.tnfl{position:absolute;inset:0 180px 0 0;pointer-events:none}.tnfl span{position:absolute;left:0;transform:translateY(-120%);font-size:11.5px;color:var(--muted);background:var(--surface);padding:0 4px 0 0}
+.tnann{position:absolute;right:0;top:4px;width:168px;font-size:13.5px;line-height:1.8;border-left:1px solid var(--fg);padding-left:12px}
+.tnann b{font-variant-numeric:tabular-nums;font-weight:600}.tnann div{display:flex;justify-content:space-between;gap:8px;white-space:nowrap}.tnann div .tnn{overflow:hidden;text-overflow:ellipsis;min-width:0}.tnann p{margin:0 0 2px;font-size:12.5px;color:var(--muted)}
+.tnscale{display:flex;margin:10px 180px 0 0;font-size:13px;color:var(--muted)}
+.tnscale span{flex-basis:0;min-width:max-content;white-space:nowrap;padding-right:10px}
+.tnscale i{display:inline-block;width:9px;height:9px;margin-right:6px}.tnscale b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+.tnscale .b1{background:var(--bad)}.tnscale .b2{background:#c9a227}.tnscale .b3{background:#5aa77c}.tnscale .b4{background:var(--good)}
+.tncols{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px 56px;padding:26px 0;border-bottom:1px solid var(--line)}
+.tnside{border-left:1px solid var(--line);padding-left:28px;min-width:0}.tnside>p{margin:0;line-height:1.55;font-size:14.5px}
+.tng+.tng{margin-top:16px}
+.tngl{margin:0 0 4px;font-weight:600}
+.tnt{border-collapse:collapse;width:100%;font-size:14px}
+.tng .tnt{table-layout:fixed}.tng .tnt td:nth-child(1){width:32%}.tng .tnt td:nth-child(3){width:92px}.tng .tnt td:nth-child(4){width:40px}.tng .tnt td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tnt td,.tnt th{padding:6px 12px 6px 0;border-bottom:1px solid var(--line);vertical-align:middle}
+.tnt th{font-weight:500;color:var(--muted);font-size:12.5px;text-align:left;border-bottom-color:var(--fg)}
+.tnt .r{text-align:right}.tnt td:last-child,.tnt th:last-child{padding-right:0}
+.tnt small{display:block;font-size:12px;color:var(--muted)}
+.tnr{color:var(--muted);font-size:13px}
+.tnsp{width:80px}.tnsp svg{display:block}
+.tns{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;width:34px}.tns.b4,.tns.b3,.tnann .b4,.tnann .b3{color:var(--good)}.tns.b2,.tnann .b2{color:var(--mid)}.tns.b1,.tnann .b1{color:var(--bad)}
+.tnno{color:var(--muted);width:18px;font-variant-numeric:tabular-nums}
+.tnrank td{padding-top:8px;padding-bottom:8px}
+.tnmore{margin:12px 0 0;font-size:14px}
+.tnl{background:none;border:0;padding:0;font:inherit;color:var(--accent);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;cursor:pointer;border-radius:0;text-align:left}
+.tnl:hover{text-decoration-thickness:2px}
+.tnn{color:var(--fg);text-decoration-color:var(--line);font-weight:500}.tnn:hover{color:var(--accent);text-decoration-color:var(--accent)}
+.tnfoot{font-size:12.5px;color:var(--muted);margin:16px 0 0}
+@media (max-width:980px){.tn{padding:16px 18px 22px}.tnmast{grid-template-columns:1fr auto}.tnmd{display:none}.tnlead,.tncols{grid-template-columns:minmax(0,1fr)}
+ .tntitle{font-size:34px}.tndeck{font-size:17px}.tnmk{padding-top:0}.tnside{border-left:0;padding-left:0;border-top:1px solid var(--line);padding-top:18px}
+ .tnfbox{padding-right:0}.tnfl{right:0}.tnann{position:static;width:auto;border-left:0;padding-left:0;margin-top:10px;line-height:1.7}.tnscale{margin-right:0;flex-wrap:wrap;gap:4px 12px}.tnscale span{flex:none!important}
+ .tnins th:nth-child(4),.tnins td:nth-child(4){display:none}.tnfield{height:150px}.tnsp{display:none}.tnr{font-size:12px}.tng .tnt td:nth-child(1){width:44%}.tng .tnt td:nth-child(3){width:0}}
+.mstrip.onstart{display:none!important}
 </style>
 </head>
 <body>
@@ -729,6 +789,7 @@ html.gesperrt .wrap{display:none}
   <p class="notice" id="msg" hidden></p>
 
   <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-tab="start" aria-selected="false">Start</button>
     <button role="tab" data-tab="rangliste" aria-selected="true">Rangliste</button>
     <button role="tab" data-tab="markt" aria-selected="false">Markt</button>
     <button role="tab" data-tab="chancen" aria-selected="false">Chancen: Anlauf, Dips &amp; Turnaround<span class="cnt" id="cnt-hot">0</span></button>
@@ -740,6 +801,9 @@ html.gesperrt .wrap{display:none}
 
   <div class="main with-detail" id="main">
     <div class="left">
+
+      <!-- ================= Start (Titelseite, 23.11.2026) ================= -->
+      <div id="tab-start" class="left" hidden><div id="st-body"><p class="muted">Daten werden geladen …</p></div></div>
 
       <!-- ================= Rangliste ================= -->
       <div id="tab-rangliste" class="left">
@@ -1706,7 +1770,7 @@ function candHtml(c){var q=c.q,x=q.x,p=q.p,an=x.an||{},cur=esc(x.cur),e,mk=[],z=
 var TRK_N_MIN=20,TRK_N_OK=50,TRK_WEEKS=10,TRK_HL={"7":"1 Woche","30":"1 Monat","91":"3 Monaten","182":"6 Monaten","365":"12 Monaten"};
 var TRK_DIM={alle:"Alle Fälle",kl:"Kurzfristige Lage bei Eintritt",ph:"Turnaround-Phase",ta:"Trendalter",cd:"Chart-Deckel",sg:"Anzahl erfüllter Signale",t3:"Unter den besten 3 der Kategorie",rg:"Region",sc:"Sektor"};
 function trkVal(dm,v){if(dm==="cd"||dm==="t3")return v==="1"?"ja":"nein";if(dm==="ph")return"Phase "+v;if(dm==="sc")return sek(v);return v}
-function trkLoad(){if(S.trk!=null)return;S.trk=0;fetch("track_summary.json?t="+Date.now()).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){S.trk=j;renderTrack();renderChg()}).catch(function(){S.trk=false;renderTrack();renderChg()})}
+function trkLoad(){if(S.trk!=null)return;S.trk=0;fetch("track_summary.json?t="+Date.now()).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){S.trk=j;renderTrack();renderChg();if(S.tab==="start")renderStart()}).catch(function(){S.trk=false;renderTrack();renderChg()})}
 function trkAmpel(n,weeks){return n<TRK_N_MIN?'<span class="pill neutral">zu wenig Daten</span>':n<TRK_N_OK||weeks<TRK_WEEKS?'<span class="pill mid">vorläufig</span>':'<span class="pill good">belastbar</span>'}
 function renderTrack(){
   trkLoad();var t=S.trk;
@@ -2057,11 +2121,12 @@ function renderInsider(){var o=$("ins-sort").value,ob=$("ins-b").checked;
   $("ins-rows").innerHTML=L.map(function(q){var x=q.x,i=x.ins,n=q.b-q.v,l=i.last&&i.last[0];return'<tr data-id="'+esc(x.s)+'" tabindex="0" class="'+(x.s===S.sel?"sel":"")+'"><td>'+coCell(x)+'</td><td class="r num">'+(i.nb?'<span class="up">'+i.nb+"</span>":"–")+'</td><td class="r num">'+e(q.b)+'</td><td class="r num">'+(i.ns||"–")+'</td><td class="r num">'+e(q.v)+'</td><td class="r num '+cls(n)+'">'+(n?(n>0?"+":"−")+mon(Math.abs(n))+" €":"–")+"</td><td style=\"white-space:nowrap\" title=\""+(l?esc(l[1]):"")+"\">"+(l?'<span class="num">'+dat(l[0])+"</span> "+(l[3]==="B"?'<span class="tag pos">Kauf</span>':'<span class="tag neg">Verkauf</span>'):"–")+'</td><td class="r num">'+fmt(x.total,0)+'</td><td class="r num">'+(x.mc==null?"–":fmt(x.mc,0)+" Mrd. $")+"</td></tr>"}).join("");
   $("ins-empty").hidden=L.length>0}
 function renderFsum(){var n=0;["f-reg","f-land","f-sec","f-cat","f-strat","f-q"].forEach(function(i){if($(i).value)n++});if(+$("f-min").value)n++;if(+$("f-risk").value<5)n++;if($("f-up").checked)n++;$("fsum").textContent=n?"Filter ("+n+" aktiv)":"Filter"}
-function renderAll(){renderHz();renderFsum();renderPresets();renderTable();renderChancen();renderInsider();renderMarket();if(S.tab==="depot")renderDepot();renderDetail();renderHero()}
+function renderAll(){if(S.tab==="start")renderStart();renderHz();renderFsum();renderPresets();renderTable();renderChancen();renderInsider();renderMarket();if(S.tab==="depot")renderDepot();renderDetail();renderHero()}
 function toggleStar(s){if(S.watch[s])delete S.watch[s];else S.watch[s]=1;store(WKEY,Object.keys(S.watch));renderPresets();renderAll()}
-function setTab(t){if(!$("tab-"+t))t="rangliste";S.tab=t;["rangliste","markt","chancen","insider","depot","treffer","methodik"].forEach(function(k){$("tab-"+k).hidden=k!==t});
+function setTab(t){if(!$("tab-"+t))t="start";S.tab=t;["start","rangliste","markt","chancen","insider","depot","treffer","methodik"].forEach(function(k){$("tab-"+k).hidden=k!==t});
+  $("hero").hidden=true;$("mstrip").classList.toggle("onstart",t==="start");if(t==="start")renderStart();
   [].forEach.call(document.querySelectorAll("#tabs button"),function(b){b.setAttribute("aria-selected",b.dataset.tab===t?"true":"false")});
-  var nd=t==="methodik"||t==="treffer"||t==="markt";$("detail").hidden=nd;$("main").classList.toggle("with-detail",!nd);
+  var nd=t==="methodik"||t==="treffer"||t==="markt"||t==="start";$("detail").hidden=nd;$("main").classList.toggle("with-detail",!nd);
   if(t==="depot")renderDepot();if(t==="treffer")renderTrack();if(t==="markt")setTimeout(heatmap,0);try{history.replaceState(null,"","#"+t)}catch(e){}}
 
 document.addEventListener("click",function(e){
@@ -2104,11 +2169,76 @@ fetch("data.json?t="+Date.now()).then(function(r){if(!r.ok)throw new Error(r.sta
   var up=new Date(d.updated),age=(Date.now()-up)/864e5,qa=0;S.all.forEach(function(x){if(x.q==="A")qa++});
   $("stand").innerHTML="Datenstand <b>"+up.toLocaleString("de-DE",{dateStyle:"medium",timeStyle:"short"})+" Uhr</b> <span class=\"muted\">("+(function(){try{return Intl.DateTimeFormat("de-DE",{timeZoneName:"short"}).formatToParts(up).filter(function(p){return p.type==="timeZoneName"})[0].value}catch(e){return"Ortszeit"}})()+")</span><br><span class=\"muted\">"+S.all.length+" von "+(d.universe-(d.dupes||0))+" Unternehmen bewertet · "+qa+" mit Datenqualität A</span>";
   if(age>2){$("msg").hidden=false;$("msg").textContent="Der letzte erfolgreiche Datenabruf ist "+Math.floor(age)+" Tage her. Die Listen zeigen den alten Stand."}
-  renderThr();setTab((location.hash||"").replace("#","")||"rangliste");renderAll();
+  renderThr();setTab((location.hash||"").replace("#","")||"start");renderAll();
 }).catch(function(){
   $("summary").textContent="Keine Daten";
   $("msg").hidden=false;$("msg").textContent="Die Daten konnten nicht geladen werden. Bitte lade die Seite später neu.";
 });
+/* ---------------------------------------------------------------- Titelseite „Tagesnotiz“ (Reiter „Start“, nur Anzeige, 23.11.2026) */
+function tnList(a){return a.length<2?a.join(""):a.slice(0,-1).join(", ")+" und "+a[a.length-1]}
+function tnRole(r){r=r||"";if(/10%/.test(r))return"Großaktionär";if(/chief executive|ceo/i.test(r))return"Vorstandschef";if(/chief financial|cfo/i.test(r))return"Finanzvorstand";if(/officer|president/i.test(r))return"Vorstand";if(/director/i.test(r))return"Board-Mitglied";return r}
+function tnShort(n){return n.replace(/,? (Inc|Corp|Corporation|Ltd|Limited|AG|SE|S\.A|N\.V|plc|Co|Company|Holdings?|Incorporated|Group)\.?$/i,"").replace(/,? (Inc|Corp|Corporation|Ltd|Limited|Co|Company|Holdings?)\.?$/i,"").replace(/^The /,"")}
+function tnPct(v){return v==null?"–":sgp(v*100,1).replace("+","+ ").replace("−","− ")}
+function renderStart(){var box=$("st-body");if(!box)return;
+  if(!S.all||!S.all.length){box.innerHTML='<p class="muted">Daten werden geladen …</p>';return}
+  function lk(tab,txt){return'<button type="button" class="tnl" data-gotab="'+tab+'">'+txt+"</button>"}
+  function nm(x){return'<button type="button" class="tnl tnn" data-gostock="'+esc(x.s)+'">'+esc(tnShort(x.n))+"</button>"}
+  var BC=["","b1","b2","b3","b4"],BN=["","schwach","solide","stark","sehr stark"];
+  var all=S.all.slice().sort(function(a,b){return a.total-b.total}),cnt=[0,0,0,0,0];all.forEach(function(x){cnt[band(x.total)]++});
+  var m=S.d&&S.d.mx,L=m&&m.light,lb=L?L.lb:"";
+  var s1=!L?"Die Marktlage wird gerade berechnet.":/Stress/.test(lb)?"Die Märkte stehen unter Stress.":/Abwärts/.test(lb)?"Die Märkte stehen unter Abwärtsdruck.":/Rückenwind/.test(lb)?"Die Märkte haben Rückenwind.":/Korrektur/.test(lb)?"Die Märkte korrigieren im Aufwärtstrend.":/Boden/.test(lb)?"An den Märkten bildet sich ein Boden.":"Die Märkte zeigen ein gemischtes Bild.";
+  var s2=cnt[4]===1?"Ein Unternehmen steht sehr stark da.":cnt[4]+" Unternehmen stehen sehr stark da.";
+  var up=S.d&&S.d.updated?new Date(S.d.updated):new Date(),iss=Math.max(1,Math.floor((up-new Date("2026-11-13T00:00:00Z"))/864e5)+1);
+  // Kopf
+  var h='<header class="tnmast"><span class="tnname">Tagesnotiz</span><span class="tnmd">'+esc(up.toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"}))+'</span><span class="tnmi">Ausgabe '+iss+", Datenstand "+esc(up.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}))+" Uhr</span></header>";
+  // Leitartikel + Märkte
+  var u=(m&&m.upd)||{},deck=L?(u.txt||L.t||"").split(/(?<=\.)\s+/).slice(0,2).join(" "):"";
+  var mk="";
+  if(m){var rows=[["^GSPC",m.us],["^NDX",m.us],["^STOXX50E",m.eu],["^GDAXI",m.eu]].map(function(r){return(r[1]||[]).find(function(q){return q[0]===r[0]})}).filter(Boolean);
+    var NM={"^GSPC":"S&P 500","^NDX":"Nasdaq 100","^STOXX50E":"Euro Stoxx 50","^GDAXI":"DAX"};
+    mk='<div class="tnmk"><table class="tnmt"><thead><tr><th></th><th>Tag</th><th>Woche</th><th>Monat</th></tr></thead><tbody>'+rows.map(function(q){var v=q[2];return"<tr><td>"+NM[q[0]]+"</td>"+[v.d1,v.w1,v.m1].map(function(z){return'<td class="'+cls(z)+'">'+tnPct(z)+"</td>"}).join("")+"</tr>"}).join("")+"</tbody></table>";
+    if(m.fg&&m.fg.h&&m.fg.h.length>10){var hh=m.fg.h.slice(-130),W=260,H=54,n=hh.length,pt=hh.map(function(v,i){return(i*(W-8)/(n-1)+4).toFixed(1)+","+(H-6-v/100*(H-12)).toFixed(1)}).join(" "),ly=(H-6-m.fg.v/100*(H-12)).toFixed(1);
+      mk+='<div class="tnfg"><p><span>Angst und Gier</span><b>'+m.fg.v+'</b> von 100, '+esc(m.fg.lb)+'</p><svg viewBox="0 0 '+W+" "+H+'" class="tnfgc" aria-label="Verlauf des Angst-und-Gier-Werts über sechs Monate"><line x1="4" x2="'+(W-4)+'" y1="'+(H-6-0.5*(H-12)).toFixed(1)+'" y2="'+(H-6-0.5*(H-12)).toFixed(1)+'" class="mid"/><polyline points="'+pt+'"/><circle cx="'+(W-4)+'" cy="'+ly+'" r="3"/></svg><p class="tnsm">Sechs Monate. Die Linie in der Mitte ist 50, neutral.</p></div>'}
+    mk+="</div>"}
+  h+='<section class="tnlead"><div><p class="tnamp">'+(L?'<i class="ldot '+L.c+'"></i>Marktampel: '+esc(lb):"")+'</p><h2 class="tntitle">'+s1+"<br>"+s2+'</h2><p class="tndeck">'+esc(deck)+" "+lk("markt","Mehr zum Markt")+"</p></div>"+mk+"</section>";
+  // Das Feld heute: Diagramm aller Unternehmen
+  var W=1000,H=200,base=172,top=16,n=all.length,bw=W/n,Y=function(v){return base-(v/100)*(base-top)};
+  var g='<svg class="tnfield" viewBox="0 0 '+W+" "+H+'" preserveAspectRatio="none" role="img" aria-label="'+n+" Unternehmen nach Gesamtscore: "+cnt[1]+" schwach, "+cnt[2]+" solide, "+cnt[3]+" stark, "+cnt[4]+' sehr stark">';
+  [[48,"solide ab 48"],[62,"stark ab 62"],[75,"sehr stark ab 75"]].forEach(function(t){g+='<line class="thr" x1="0" x2="'+W+'" y1="'+Y(t[0]).toFixed(1)+'" y2="'+Y(t[0]).toFixed(1)+'"/>'});
+  all.forEach(function(x,i){var y=Y(Math.max(2,x.total));g+='<rect class="'+BC[band(x.total)]+'" x="'+(i*bw).toFixed(2)+'" y="'+y.toFixed(1)+'" width="'+(bw+0.35).toFixed(2)+'" height="'+(base-y).toFixed(1)+'" data-gostock="'+esc(x.s)+'"><title>'+esc(x.n)+": "+fmt(x.total,0)+"</title></rect>"});
+  g+='<line class="base" x1="0" x2="'+W+'" y1="'+base+'" y2="'+base+'"/></svg>';
+  var med=all[Math.floor(n/2)].total,tops=all.slice(-3).reverse();
+  var lab='<div class="tnfl">'+[[48,"solide ab 48"],[62,"stark ab 62"],[75,"sehr stark ab 75"]].map(function(t){return'<span style="top:'+(Y(t[0])/H*100).toFixed(1)+'%">'+t[1]+"</span>"}).join("")+"</div>";
+  var ann='<div class="tnann"><p>Ganz oben</p>'+tops.map(function(x){return"<div>"+nm(x)+' <b class="'+BC[band(x.total)]+'">'+fmt(x.total,0)+"</b></div>"}).join("")+"</div>";
+  var scale='<div class="tnscale">'+[1,2,3,4].map(function(k){return cnt[k]?'<span style="flex-grow:'+cnt[k]+'"><i class="'+BC[k]+'"></i><b>'+cnt[k]+"</b> "+BN[k]+"</span>":""}).join("")+"</div>";
+  h+='<section class="tnfieldw"><div class="tnsh"><h3>Das Feld heute</h3><p>Alle '+n+" Unternehmen, sortiert nach Gesamtscore. Die Hälfte liegt über "+fmt(med,0)+'. Ein Klick auf einen Balken öffnet den Steckbrief.</p></div><div class="tnfbox">'+g+lab+ann+"</div>"+scale+"</section>";
+  // Auffällig + Die Stärksten
+  var fq=$("hot-q")&&$("hot-q").checked;
+  var G=[["Anlauf",S.all.filter(function(x){return x.su==="Anlauf"&&(!fq||x.f>=6)}).sort(function(a,b){return b.hot-a.hot||b.total-a.total}),function(c){return c===1?"Eine Aktie läuft gerade an.":c+" Aktien laufen gerade an."},function(x){return x.hot+" von 8 Anlauf-Signalen"}],
+    ["Qualitäts-Dip",S.all.filter(function(x){return x.su==="Qualitäts-Dip"}).sort(function(a,b){return b.qual-a.qual}),function(c){return c===1?"Eine sehr gute Firma nach einem Rücksetzer.":c+" sehr gute Firmen nach einem Rücksetzer."},function(x){return"Qualität "+fmt(x.qual,0)+", "+fmt(x.d52,0)+" % unter dem Hoch"}],
+    ["Turnaround-Kandidat",S.all.filter(function(x){return x.su==="Turnaround-Kandidat"}).sort(function(a,b){return(b.tu||0)-(a.tu||0)||b.qual-a.qual}),function(c){return c===1?"Bei einer Firma hat die Wende begonnen.":"Bei "+c+" Firmen hat die Wende begonnen."},function(x){return x.ph?"Phase "+x.ph[0]+": "+x.ph[1]:""}]];
+  var au=G.map(function(gr){var l=gr[1];if(!l.length)return"";return'<div class="tng"><p class="tngl">'+gr[2](l.length)+'</p><table class="tnt"><tbody>'+l.slice(0,3).map(function(x){return"<tr><td>"+nm(x)+'</td><td class="tnr">'+esc(gr[3](x))+'</td><td class="tnsp">'+spark(x)+'</td><td class="tns '+BC[band(x.total)]+'">'+fmt(x.total,0)+"</td></tr>"}).join("")+"</tbody></table></div>"}).join("");
+  var top5=S.all.slice().sort(function(a,b){return b.total-a.total}).slice(0,5);
+  h+='<section class="tncols"><div class="tnmain"><div class="tnsh"><h3>Auffällig heute</h3></div>'+(au||'<p>Heute erfüllt keine Aktie die Regeln für Anlauf, Qualitäts-Dip oder Turnaround.</p>')+'<p class="tnmore">'+lk("chancen","Alle Chancen ansehen")+'</p></div><aside class="tnside"><div class="tnsh"><h3>Die Stärksten</h3></div><table class="tnt tnrank"><tbody>'+
+    top5.map(function(x,i){return'<tr><td class="tnno">'+(i+1)+"</td><td>"+nm(x)+'<small>'+esc(x.su)+'</small></td><td class="tns '+BC[band(x.total)]+'">'+fmt(x.total,0)+"</td></tr>"}).join("")+'</tbody></table><p class="tnmore">'+lk("rangliste","Ganze Rangliste")+"</p></aside></section>";
+  // Insider + Außerdem
+  var lim=new Date(Date.now()-30*864e5).toISOString().slice(0,10),agg=[];
+  S.all.forEach(function(x){var i=x.ins;if(!i)return;var seen={},sum=0,who=[],last="";(i.last||[]).concat(i.top||[]).forEach(function(r){if(r[3]!=="B"||r[0]<lim)return;var k=r[0]+r[1]+r[4]+r[5];if(seen[k])return;seen[k]=1;sum+=(r[5]||0);if(!who.some(function(w){return w[0]===r[1]}))who.push([r[1],r[2]]);if(r[0]>last)last=r[0]});
+    if(sum>0)agg.push([x,sum*(eurF(x)||1),who,last])});
+  agg.sort(function(a,b){return b[1]-a[1]});
+  var ins=agg.length?'<table class="tnt tnins"><thead><tr><th>Unternehmen</th><th>Käufer</th><th class="r">Betrag</th><th class="r">Zuletzt</th></tr></thead><tbody>'+agg.slice(0,4).map(function(q){var w=q[2][0];return"<tr><td>"+nm(q[0])+"</td><td>"+esc(w[0])+'<small>'+esc(tnRole(w[1]))+(q[2].length>1?", dazu "+(q[2].length-1)+(q[2].length>2?" weitere":" weiterer"):"")+'</small></td><td class="r">'+mon(q[1])+' €</td><td class="r">'+dat(q[3])+"</td></tr>"}).join("")+"</tbody></table>":'<p>In den letzten 30 Tagen haben keine Vorstände, Aufsichtsräte oder Großaktionäre gekauft.</p>';
+  var pos=(S.depot&&S.depot.pos)||[],dtx;
+  if(pos.length){var A=null;try{A=analyse()}catch(e){}dtx=(A&&A.score!=null?"Depot-Score <b>"+fmt(A.score,0)+"</b> von 100 bei ":"")+pos.length+(pos.length===1?" Position. ":" Positionen. ")+lk("depot","Depot öffnen")}
+  else dtx="Noch nicht angelegt. Es bleibt nur in diesem Browser. "+lk("depot","Depot aus Datei einlesen");
+  var t=S.trk,tq;
+  if(t&&t.win){var a=((t.win.all||{}).a||{})["Anlauf"],r=a&&a.alle&&a.alle["7"];tq=r?"Seit dem "+dat(t.since)+" gemessen. „Anlauf“ lag nach einer Woche in "+fmt(r[4],0)+" % der "+r[0]+" Fälle vor dem MSCI World. Noch wenig aussagekräftig. ":"Seit dem "+dat(t.since)+" gemessen. Erste Werte folgen. "}
+  else{tq="Wird geladen. ";if(typeof trkLoad==="function")trkLoad()}
+  h+='<section class="tncols"><div class="tnmain"><div class="tnsh"><h3>Insiderkäufe der letzten 30 Tage</h3><p>Vorstände, Aufsichtsräte und Großaktionäre. Daten fast nur für US-Aktien.</p></div>'+ins+'<p class="tnmore">'+lk("insider","Alle Insidergeschäfte")+'</p></div><aside class="tnside"><div class="tnsh"><h3>Dein Depot</h3></div><p>'+dtx+'</p><div class="tnsh tnsh2"><h3>Trefferquote</h3></div><p>'+esc(tq)+lk("treffer","Zur Trefferquote")+"</p></aside></section>";
+  h+='<p class="tnfoot">Vorauswahl nach festen Regeln, keine Kauf- oder Verkaufsempfehlung.</p>';
+  box.innerHTML='<article class="tn">'+h+"</article>"}
+document.addEventListener("click",function(e){var g=e.target.closest&&e.target.closest("[data-gotab]");if(g){setTab(g.getAttribute("data-gotab"));window.scrollTo(0,0);return}
+  var k=e.target.closest&&e.target.closest("[data-gostock]");if(k){S.sel=k.getAttribute("data-gostock");setTab("rangliste");renderAll();window.scrollTo(0,0);if(window.matchMedia("(max-width:1199px)").matches)$("detail").scrollIntoView({block:"start"})}});
+
 })();
 
 document.addEventListener("click",function(e){var j=e.target.closest&&e.target.closest("[data-jump]");if(!j)return;var t=document.getElementById(j.getAttribute("data-jump")),d=document.getElementById("detail");if(!t||!d)return;
