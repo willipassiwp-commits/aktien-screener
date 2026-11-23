@@ -790,6 +790,24 @@ table.grid th{text-transform:none;letter-spacing:0;font-size:12px;font-weight:50
 .stand{font-size:12.5px}
 .dhead .big{font-weight:500;letter-spacing:-.02em}
 @media (max-width:760px){nav.tabs button.tfirst{margin-left:0}}
+
+/* Schnelle Kurse und Tagesnachrichten (23.11.2026) */
+.tnnews.tncols{grid-template-columns:minmax(0,1fr) 300px}
+.tnnl{list-style:none;margin:0;padding:0}
+.tnnl li{display:grid;grid-template-columns:72px minmax(0,1fr);gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+.tnnl li:first-child{padding-top:2px}.tnnl li:last-child{border-bottom:0}
+.tnnl time{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:4px}
+.tnnl .tnh{font-family:var(--serif);font-weight:600;font-size:17.5px;line-height:1.35;color:var(--fg);text-decoration:none}
+.tnnl li:first-child .tnh{font-size:22px;line-height:1.25}
+.tnnl .tnh:hover{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.tnnm{margin:5px 0 0;font-size:13px;color:var(--muted)}.tnnm .tnn{font-size:13px}.tnnm b{font-weight:600;font-variant-numeric:tabular-nums}
+.vbin{font-size:12px;color:var(--muted);margin-left:2px}
+.tnsub{margin:-6px 0 8px!important;font-size:13px!important;color:var(--muted)}
+.vbt td.r{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.vbnote{font-size:12px!important;color:var(--muted);margin:12px 0 0!important;line-height:1.5!important}
+.vbtag{display:inline-block;font-size:11.5px;line-height:1.5;color:var(--accent);border:1px solid currentColor;border-radius:3px;padding:0 6px;margin-right:4px;vertical-align:1px;white-space:nowrap}
+.vbline{margin:10px 0 0;font-size:13px;color:var(--muted);line-height:1.5}.vbline b{font-weight:600}
+@media (max-width:980px){.tnnews.tncols{grid-template-columns:minmax(0,1fr)}.tnnl li{grid-template-columns:minmax(0,1fr);gap:2px}.tnnl li:first-child .tnh{font-size:19px}}
 </style>
 </head>
 <body>
@@ -1605,6 +1623,7 @@ function renderDetail(){
   C.ov+=ampel(x);
   C.ov+='<div class="subs"><div><span>Fundamental · '+wp("f")+"</span><b>"+fmt(x.f,1)+"/10</b>"+sb(x.f*10)+"</div><div><span>Burggraben · "+wp("m")+"</span><b>"+fmt(x.m,1)+"/25</b>"+sb(x.m*4)+"</div><div><span>Chart · "+wp("t")+"</span><b>"+fmt(x.t,1)+"/10</b>"+sb(x.t*10)+"</div><div><span>Rendite · "+wp("r")+"</span><b>"+rTxt(x)+"</b>"+sb(x.rs)+"</div><div><span>Analysten"+(x.a==null?"":" · "+wp("a"))+"</span><b>"+(x.a==null?"–":fmt(x.a,0)+"/10")+"</b>"+sb(x.a==null?null:x.a*10)+"</div><div><span>Nachrichten"+(x.ns==null?"":" · "+wp("n"))+"</span><b>"+(x.ns==null?(x.nsx!=null?"zählt nicht":"–"):fmt(x.ns,1)+"/10")+"</b>"+sb(x.ns==null?null:x.ns*10)+"</div></div>";
   C.ov+='<div class="kpis" style="margin-top:8px"><div><span>Kurs '+dat(x.d)+'</span><b>'+px(x.p)+" "+esc(x.cur)+"</b><small>"+(x.pxe!=null&&CURN[x.cur]!=="EUR"?"≈ "+eurPx(x.pxe):"")+'</small></div><div><span>Letzter Handelstag</span><b class="'+cls(x.p1d)+'">'+sgp(x.p1d,1)+'</b></div><div><span>1 Woche</span><b class="'+cls(x.p1w)+'">'+sgp(x.p1w,1)+'</b></div><div><span>Kurzfristige Lage</span><b style="font-size:14px">'+(x.kl?esc(x.kl[1]):"–")+"</b></div></div>";
+  var vb=vbOf(x.s);if(vb)C.ov+='<p class="vbline"><span class="vbtag">schneller Kurs</span> In Deutschland <b class="'+cls(vb.c)+'">'+sgp(vb.c,1)+"</b> seit dem US-Schluss, umgerechnet ≈ "+px(vb.p)+" "+esc(x.cur)+" ("+esc(vb.x)+", "+esc(vbTime(vb.t))+' Uhr). Noch kein US-Handel; Score und Kennzahlen rechnen mit dem letzten Schlusskurs.</p>';
   C.pro+=proBlock(x);
   C.ov+='<div class="sec"><h3>Einordnung</h3><p class="verdict">'+esc(x.txt||"")+'</p><div class="two">'+((x.pro||[]).length?'<div><h3 style="margin-bottom:4px">Was auffällt</h3><ul class="plain pro">'+x.pro.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul></div>":"")+((x.con||[]).length?'<div><h3 style="margin-bottom:4px">Worauf achten</h3><ul class="plain con">'+x.con.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul></div>":"")+"</div></div>";
   C.k+=lageBlock(x)+dFold("ka","Kurzfristige Chartanalyse",x.ka?"Note "+fmt(x.ka.n,1)+" von 10, "+x.ka.lb:"",kaBlock(x))+dFold("kx","Markt, Erschöpfung und Wende","Beta, relative Stärke, Erschöpfung, Wende-Treppe, frühere Fälle",kxBlock(x))+dFold("ext","Externe Chartanalysen","Trading Central und TradingView",extBlock(x));C.i+=insBlock(x)+dFold("iv","Großinvestoren","größte Fondsbestände laut Pflichtmeldungen",instBlock(x));
@@ -2238,9 +2257,9 @@ fetch("data.json?t="+Date.now()).then(function(r){if(!r.ok)throw new Error(r.sta
   fill("f-sec",uniq("sec").sort(function(a,b){return sek(a).localeCompare(sek(b),"de")}),sek);
   $("dp-list").innerHTML=S.all.slice().sort(function(a,b){return a.n.localeCompare(b.n)}).map(function(x){return'<option value="'+esc(x.n+" ("+x.s+")")+'">'}).join("");
   var up=new Date(d.updated),age=(Date.now()-up)/864e5,qa=0;S.all.forEach(function(x){if(x.q==="A")qa++});
-  $("stand").innerHTML="Datenstand <b>"+up.toLocaleString("de-DE",{dateStyle:"medium",timeStyle:"short"})+" Uhr</b> <span class=\"muted\">("+(function(){try{return Intl.DateTimeFormat("de-DE",{timeZoneName:"short"}).formatToParts(up).filter(function(p){return p.type==="timeZoneName"})[0].value}catch(e){return"Ortszeit"}})()+")</span><br><span class=\"muted\">"+S.all.length+" von "+(d.universe-(d.dupes||0))+" Unternehmen bewertet · "+qa+" mit Datenqualität A</span>";
+  $("stand").innerHTML="Datenstand <b>"+up.toLocaleString("de-DE",{dateStyle:"medium",timeStyle:"short"})+" Uhr</b> <span class=\"muted\">("+(function(){try{return Intl.DateTimeFormat("de-DE",{timeZoneName:"short"}).formatToParts(up).filter(function(p){return p.type==="timeZoneName"})[0].value}catch(e){return"Ortszeit"}})()+")</span><br><span class=\"muted\">"+S.all.length+" von "+(d.universe-(d.dupes||0))+" Unternehmen bewertet · "+qa+" mit Datenqualität A</span><br><span class=\"muted\" id=\"stand-us\"></span>";
   if(age>2){$("msg").hidden=false;$("msg").textContent="Der letzte erfolgreiche Datenabruf ist "+Math.floor(age)+" Tage her. Die Listen zeigen den alten Stand."}
-  renderThr();setTab((location.hash||"").replace("#","")||"start");renderAll();
+  renderThr();setTab((location.hash||"").replace("#","")||"start");renderAll();vbLoad();
 }).catch(function(){
   $("summary").textContent="Keine Daten";
   $("msg").hidden=false;$("msg").textContent="Die Daten konnten nicht geladen werden. Bitte lade die Seite später neu.";
@@ -2265,7 +2284,7 @@ function renderStart(){var box=$("st-body");if(!box)return;
   var s2=cnt[4]===1?"Ein Unternehmen steht sehr stark da.":cnt[4]+" Unternehmen stehen sehr stark da.";
   var up=S.d&&S.d.updated?new Date(S.d.updated):new Date(),iss=Math.max(1,Math.floor((up-new Date("2026-11-13T00:00:00Z"))/864e5)+1);
   // Kopf
-  var h='<header class="tnmast"><span class="tnname">Tagesnotiz</span><span class="tnmd">'+esc(up.toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"}))+'</span><span class="tnmi">Ausgabe '+iss+", Datenstand "+esc(up.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}))+" Uhr</span></header>";
+  var h='<header class="tnmast"><span class="tnname">Tagesnotiz</span><span class="tnmd">'+esc(up.toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"}))+'</span><span class="tnmi">Ausgabe '+iss+", Datenstand "+esc(up.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}))+" Uhr"+(vbUs()?"<br>"+esc(vbUs()):"")+"</span></header>";
   // Leitartikel + Märkte
   var u=(m&&m.upd)||{},deck=L?(u.txt||L.t||"").split(/(?<=\.)\s+/).slice(0,2).join(" "):"";
   var mk="";
@@ -2276,6 +2295,7 @@ function renderStart(){var box=$("st-body");if(!box)return;
       mk+='<div class="tnfg"><p><span>Angst und Gier</span><b>'+m.fg.v+'</b> von 100, '+esc(m.fg.lb)+'</p><svg viewBox="0 0 '+W+" "+H+'" class="tnfgc" aria-label="Verlauf des Angst-und-Gier-Werts über sechs Monate"><line x1="4" x2="'+(W-4)+'" y1="'+(H-6-0.5*(H-12)).toFixed(1)+'" y2="'+(H-6-0.5*(H-12)).toFixed(1)+'" class="mid"/><polyline points="'+pt+'"/><circle cx="'+(W-4)+'" cy="'+ly+'" r="3"/></svg><p class="tnsm">Sechs Monate. Die Linie in der Mitte ist 50, neutral.</p></div>'}
     mk+="</div>"}
   h+='<section class="tnlead"><div><p class="tnamp">'+(L?'<i class="ldot '+L.c+'"></i>Marktampel: '+esc(lb):"")+'</p><h2 class="tntitle">'+s1+"<br>"+s2+'</h2><p class="tndeck">'+esc(deck)+" "+lk("markt","Mehr zum Markt")+"</p></div>"+mk+"</section>";
+  h+=vbSection(nm,lk);
   // Das Feld heute: Diagramm aller Unternehmen
   var W=1000,H=200,base=172,top=16,n=all.length,bw=W/n,Y=function(v){return base-(v/100)*(base-top)};
   var g='<svg class="tnfield" viewBox="0 0 '+W+" "+H+'" preserveAspectRatio="none" role="img" aria-label="'+n+" Unternehmen nach Gesamtscore: "+cnt[1]+" schwach, "+cnt[2]+" solide, "+cnt[3]+" stark, "+cnt[4]+' sehr stark">';
@@ -2313,6 +2333,28 @@ function renderStart(){var box=$("st-body");if(!box)return;
   box.innerHTML='<article class="tn">'+h+"</article>"}
 document.addEventListener("click",function(e){var g=e.target.closest&&e.target.closest("[data-gotab]");if(g){setTab(g.getAttribute("data-gotab"));window.scrollTo(0,0);return}
   var k=e.target.closest&&e.target.closest("[data-gostock]");if(k){S.sel=k.getAttribute("data-gostock");setTab("rangliste");renderAll();window.scrollTo(0,0);if(window.matchMedia("(max-width:1199px)").matches)$("detail").scrollIntoView({block:"start"})}});
+
+/* ---------------------------------------------------------------- Schnelle Kurse und Tagesnachrichten (vorb.json, nur Anzeige, 23.11.2026) */
+function vbOk(){var v=S.vorb;return!!(v&&v.ts&&Date.now()-new Date(v.ts)<4*36e5)}
+function vbOf(s){return vbOk()&&S.vorb.us&&!S.vorb.us.open&&S.vorb.st&&S.vorb.st[s]||null}
+function vbTime(iso){var t=new Date(iso),n=new Date(),y=new Date(Date.now()-864e5);return(t.toDateString()===n.toDateString()?"":t.toDateString()===y.toDateString()?"gestern ":t.toLocaleDateString("de-DE",{weekday:"short"})+" ")+t.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}
+function vbUs(){var u=S.vorb&&S.vorb.us;if(!u||!vbOk())return"";if(u.open)return"US-Handel läuft, Kurse stündlich";if(!u.close)return"";var c=new Date(u.close);return"US-Kurse: Schluss "+c.toLocaleDateString("de-DE",{weekday:"long"})+", "+c.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})+" Uhr"}
+function vbLoad(){fetch("vorb.json?t="+Date.now()).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(v){S.vorb=v;var e=$("stand-us");if(e)e.textContent=vbUs();if(S.tab==="start")renderStart();if(S.sel)renderDetail()}).catch(function(){})}
+function vbSection(nm,lk){
+  var v=vbOk()?S.vorb:null,nw=v&&v.news&&v.news.length?v.news:null;
+  if(!nw){var mn=(S.d&&S.d.mx&&S.d.mx.news)||[];nw=mn.filter(function(n){return n.u&&!/prediction markets|simply wall|insider monkey|motley fool|zacks|tipranks|benzinga|beincrypto|24\/7/i.test(n.p||"")}).slice(0,5).map(function(n){return{t:n.t,d:n.d,u:n.u,p:n.p,s:[]}})}
+  function mv(s){var q=vbOf(s),x=S.by[s];if(q)return' <b class="'+cls(q.c)+'">'+sgp(q.c,1)+'</b><span class="vbin"> in DE</span>';return x&&x.p1d!=null?' <b class="'+cls(x.p1d)+'">'+sgp(x.p1d,1)+"</b>":""}
+  var L=nw.length?'<ul class="tnnl">'+nw.slice(0,5).map(function(n){var who=(n.s||[]).filter(function(s){return S.by[s]}).map(function(s){return nm(S.by[s])+mv(s)});
+    return'<li><time>'+(n.d?esc(vbTime(n.d)):"")+'</time><div><a class="tnh" href="'+esc(n.u)+'" target="_blank" rel="noopener noreferrer">'+esc(n.t)+'</a><p class="tnnm">'+esc(n.p||"")+(n.k?", "+esc(n.k):"")+(who.length?". Betrifft "+who.join(", "):"")+"</p></div></li>"}).join("")+"</ul>":'<p class="muted">Gerade liegen keine aktuellen Schlagzeilen vor.</p>';
+  var A="";
+  if(v&&v.us&&v.us.open)A='<div class="tnsh"><h3>US-Handel läuft</h3></div><p>Die Kurse im Screener kommen jetzt stündlich direkt von der US-Börse.</p>';
+  else if(v&&((v.fut&&v.fut.length)||Object.keys(v.st||{}).length)){
+    var cl=v.us&&v.us.close?new Date(v.us.close):null,rows=Object.keys(v.st||{}).filter(function(s){return S.by[s]}).sort(function(a,b){return Math.abs(v.st[b].c)-Math.abs(v.st[a].c)}).slice(0,6);
+    A='<div class="tnsh"><h3>Vor dem US-Börsenstart</h3></div><p class="tnsub">Veränderung seit dem US-Schluss'+(cl?" am "+esc(cl.toLocaleDateString("de-DE",{weekday:"long"}))+", "+esc(cl.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}))+" Uhr":"")+'</p><table class="tnt vbt"><tbody>'+
+      (v.fut||[]).slice(0,2).map(function(f){return"<tr><td>"+esc(f[0])+'<small>Terminkontrakt</small></td><td class="r '+cls(f[1])+'">'+sgp(f[1],1)+"</td></tr>"}).join("")+
+      rows.map(function(s){var q=v.st[s];return"<tr><td>"+nm(S.by[s])+'<small>'+esc(q.x)+", "+esc(vbTime(q.t))+' Uhr</small></td><td class="r '+cls(q.c)+'">'+sgp(q.c,1)+"</td></tr>"}).join("")+
+      '</tbody></table><p class="vbnote"><span class="vbtag">schnelle Kurse</span> Gehandelt in Deutschland, bis zu 15 Minuten verzögert und oft dünn gehandelt. Sie zeigen die Richtung vor 15:30 Uhr. Score und Rangliste rechnen weiter mit dem letzten Schlusskurs.</p>'}
+  return'<section class="tncols tnnews"><div class="tnmain"><div class="tnsh"><h3>Was heute bewegt</h3><p>Die wichtigsten Schlagzeilen der letzten 24 Stunden, im englischen Original.</p></div>'+L+"</div>"+(A?'<aside class="tnside">'+A+"</aside>":"")+"</section>"}
 
 })();
 
