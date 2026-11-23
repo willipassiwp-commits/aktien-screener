@@ -809,6 +809,25 @@ table.grid th{text-transform:none;letter-spacing:0;font-size:12px;font-weight:50
 .vbtag{display:inline-block;font-size:11.5px;line-height:1.5;color:var(--accent);border:1px solid currentColor;border-radius:3px;padding:0 6px;margin-right:4px;vertical-align:1px;white-space:nowrap}
 .vbline{margin:10px 0 0;font-size:13px;color:var(--muted);line-height:1.5}.vbline b{font-weight:600}
 @media (max-width:980px){.tnnews.tncols{grid-template-columns:minmax(0,1fr)}.tnnl li{grid-template-columns:minmax(0,1fr);gap:2px}.tnnl li:first-child .tnh{font-size:19px}}
+/* Gesamtbild (23.11.2026) */
+.gb{border-top:2px solid var(--fg);padding:12px 0 6px;margin-bottom:10px}
+.gbk{margin:0;font-size:12.5px;color:var(--muted)}
+.gbh{font-family:"Source Serif 4",Georgia,serif;font-size:21px;line-height:1.3;font-weight:600;margin:2px 0 6px;text-wrap:balance}
+.gbm{font-family:"Source Serif 4",Georgia,serif;font-size:15.5px;line-height:1.5;margin:0 0 10px}
+.gbq{border-collapse:collapse;width:100%;font-size:13.5px}
+.gbq th{text-align:left;font-weight:400;color:var(--muted);padding:6px 12px 6px 0;vertical-align:top;width:34%}
+.gbq td{padding:6px 0;vertical-align:top}
+.gbq tr+tr th,.gbq tr+tr td{border-top:1px solid var(--line)}
+.gbq small{display:block;color:var(--muted);font-size:12.5px;line-height:1.4;margin-top:1px}
+.gbq td.gbl{text-align:right;padding-left:10px;white-space:nowrap}
+.gbq td.gbl .link{font-size:12.5px;text-decoration:underline;text-underline-offset:2px;background:none;border:0;padding:0;color:var(--muted);cursor:pointer}
+.gbv{font-weight:600}
+.gbv::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px;background:var(--line)}
+.gbv.good::before{background:var(--good)}.gbv.mid::before{background:var(--mid)}.gbv.bad::before{background:var(--bad)}
+.gbw{margin:12px 0 0;font-size:13.5px}.gbw ul{margin:4px 0 0;padding-left:18px}.gbw li{margin:2px 0}
+.gbe{margin:10px 0 0;font-size:13px;color:var(--muted)}.gbe b{color:var(--fg);font-weight:600}
+.gbf{margin:6px 0 0;font-size:11.5px;color:var(--muted)}
+@media (max-width:560px){.gbq th{display:block;width:auto;padding:8px 0 0}.gbq tr+tr td{border-top:0}.gbq td{padding:2px 0 8px}.gbh{font-size:19px}}
 </style>
 </head>
 <body>
@@ -1611,6 +1630,56 @@ function dSumCh(x){var ph=x.ph,zs=(x.zs||[])[0];
   return dSum(t,[["Chart-Note",fmt(x.t,1)+" von 10"+(x.tc?" (gedeckelt)":"")],["RSI 14 Tage",fmt(x.rsi,0)],["Nächste Unterstützung",zs?px(zs[0])+" bis "+px(zs[1])+" "+esc(x.cur):null],["Trendalter",x.tm||null]])}
 function dSumIn(x){var i=x.ins||{},ev=x.ev||{};var t=i.nb||i.ns?"In sechs Monaten "+(i.nb?i.nb+(i.nb===1?" Kauf":" Käufe"):"keine Käufe")+" und "+(i.ns?i.ns+(i.ns===1?" Verkauf":" Verkäufe"):"keine Verkäufe")+" von Insidern.":"Keine Insidergeschäfte in sechs Monaten gemeldet.";
   return dSum(t,[["Nächste Quartalszahlen",ev.earn?dat(ev.earn):"nicht bekannt"],["Insiderkäufe",i.vb?mon(i.vb*(eurF(x)||1))+" €":null],["Insiderverkäufe",i.vs?mon(i.vs*(eurF(x)||1))+" €":null]])}
+/* Gesamtbild (23.11.2026): bündelt die Einzelanalysen in sechs Fragen und einem Lagebild. Nur Anzeige, keine Empfehlung. */
+var GBV={good:1,mid:0,bad:-1,neutral:0};
+function gbSecMed(){var d=S.d,key=d&&d.updated;if(S._gbm&&S._gbm.k===key)return S._gbm;var all=(d&&d.stocks)||[],by={};
+  all.forEach(function(y){var v=(y.pf||[])[0];if(v==null)return;(by[y.sec]=by[y.sec]||[]).push(v)});
+  var o={k:key,all:medArr(all.map(function(y){return(y.pf||[])[0]})),sec:{}};Object.keys(by).forEach(function(k){if(by[k].length>=3)o.sec[k]=medArr(by[k])});S._gbm=o;return o}
+function gbRows(x){var R=[],an=x.an||{};
+  var q=x.qual,U=q==null?["–","neutral"]:q>=75?["sehr gut","good"]:q>=62?["gut","good"]:q>=48?["solide","mid"]:["schwach","bad"];
+  R.push(["u","Ist das Unternehmen gut?",U[0],U[1],"Fundamental "+fmt(x.f,1)+" von 10, Burggraben "+fmt(x.m,1)+" von 25"+(x.fo!=null?", "+x.fo+" von "+x.fa+" Prüfungen bestanden":""),"dch-fu"]);
+  var r=x.r,P=x.pe!=null&&x.pe>100?["sehr teuer","bad"]:r==null?["unklar","neutral"]:r>=12?["günstig","good"]:r>=8?["fair","good"]:r>=4?["eher teuer","mid"]:["teuer","bad"];
+  R.push(["p","Ist der Preis vernünftig?",P[0],P[1],(x.pe!=null?"KGV "+fmt(x.pe,1)+", ":"")+(x.pe!=null&&x.pe>100?"Renditeerwartung nicht aussagekräftig":"erwartete Rendite "+pct(r)+" pro Jahr aus Gewinnwachstum, Dividende und Bewertung"),"dch-fu"]);
+  var st=x.st||"",T=/^Aufwärtstrend/.test(st)?["intakt","good"]:/Erholung|Bodenbildung/.test(st)?["erholt sich","mid"]:/Korrektur/.test(st)?["in Korrektur","mid"]:/Trendbruch|Abwärts/.test(st)?["gebrochen","bad"]:["unklar","neutral"];
+  R.push(["t","Läuft der große Trend?",T[0],T[1],(x.s200?"Kurs "+sgp((x.p/x.s200-1)*100,0)+" zur 200-Tage-Linie, ":"")+(x.rsr!=null?"stärker als "+x.rsr+" % aller Aktien in 12 Monaten":"Trendstatus "+st),"dch-ch"]);
+  var kl=x.kl,kc=kl?({S:"good",D:"good",A:"good",U:"mid",G:"mid",E:"mid",N:"neutral",F:"bad"}[kl[0]]||"neutral"):"neutral";
+  R.push(["k","Wie sind die letzten Wochen?",kl?kl[1]:"–",kc,x.ka?"Kurzfrist-Note "+fmt(x.ka.n,1)+" von 10, "+x.ka.lb:"keine Kurzfristanalyse","dch-kf"]);
+  var i=x.ins||{},iv=x.iv||[],up=iv.filter(function(v){return v[2]!=null&&v[2]>0.02}).length,dn=iv.filter(function(v){return v[2]!=null&&v[2]<-0.02}).length,ac=x.ac,g=0,gb=[];
+  if(ac){g+=ac==="A"||ac==="B"?1:ac==="D"||ac==="E"?-1:0;gb.push("Kaufdruck "+ac+" ("+ACCW[ac]+")")}
+  if(i.nb){g+=1;gb.push("Insider: "+i.nb+(i.nb===1?" Kauf":" Käufe")+" in 6 Monaten")}else if(i.ns)gb.push("Insider: nur Verkäufe ("+i.ns+")");
+  if(iv.length){g+=up-dn>=3?1:dn-up>=3?-1:0;gb.push("Fonds: "+up+" aufgestockt, "+dn+" reduziert")}
+  var G=!ac&&!i.nb&&!iv.length?["keine Daten","neutral"]:g>=2?["fließt zu","good"]:g===1?["eher Zufluss","good"]:g===0?["kein klares Bild","mid"]:["fließt ab","bad"];
+  R.push(["g","Wohin fließt das Geld?",G[0],G[1],gb.join("; ")||"Keine Angaben","dch-in"]);
+  var mk=S.d&&S.d.mx&&S.d.mx.light,K=kfull(x),hm=K.kx&&K.kx.mx&&K.kx.mx.hm,mcode=hm?K.kx.mx.c:mk?mk.c:null,mlab=hm?hm[1]:mk?mk.lb:"–";
+  var mv={green:1,blue:0,yellow:0,gray:0,orange:-1,red:-1}[mcode],sm=gbSecMed(),sv=sm.sec[x.sec],rel=sv==null||sm.all==null?null:sv-sm.all,sw=rel==null?0:rel>=2?1:rel<=-2?-1:0;
+  var mt=(mv==null?0:mv)+sw,M=mv==null&&rel==null?["unklar","neutral"]:mt>=1?["Rückenwind","good"]:mt<=-1?["Gegenwind","bad"]:["gemischt","mid"];
+  R.push(["m","Wie ist das Umfeld?",M[0],M[1],(hm?"Heimatmarkt ("+hm[0]+"): ":"Markt: ")+mlab+(sv!=null?"; "+sek(x.sec)+" im Monat "+sgp(sv,0)+", alle Aktien "+sgp(sm.all,0):""),"dch-ch"]);
+  return R}
+function gbHead(R){var v={};R.forEach(function(r){v[r[0]]=GBV[r[3]]});
+  var u=v.u,t=v.t,k=v.k,uw=u>0?"Gutes Unternehmen":u<0?"Schwaches Unternehmen":"Solides Unternehmen";
+  var kw=t>0&&k>=0?"Kurs läuft":t>0&&k<0?"Rücksetzer im intakten Trend":t<0&&k>0?"Kurs versucht eine Wende":t<0?"Kurs unter Druck":k>0?"Kurs erholt sich":k<0?"Kurs unter Druck":"Kurs ohne klare Richtung";
+  var ks=t+k,head=(u<0&&ks>0?"Widersprüchlich: ":"")+uw+", "+kw+(v.p<0?", aber teuer":"");
+  var m=u>0&&ks>0?"Unternehmen und Kurs zeigen in dieselbe Richtung.":u>0&&ks<0?"Das Unternehmen spricht für sich, der Kurs noch nicht. Ob die schwache Phase endet, zeigt erst der Kurs.":u>0?"Das Unternehmen spricht für sich, der Kurs gibt noch keine klare Richtung vor.":u<0&&ks>0?"Der Kurs steigt, ohne dass die Zahlen des Unternehmens das stützen. So ein Lauf hängt stärker an der Stimmung als an der Substanz.":u<0&&ks<0?"Weder die Zahlen noch der Kurs sprechen derzeit für die Aktie.":u<0?"Die Zahlen sind schwach, der Kurs ohne klare Richtung.":ks>0?"Ein durchschnittliches Unternehmen mit gutem Kursbild.":ks<0?"Ein durchschnittliches Unternehmen, dessen Kurs unter Druck steht.":"Die Befunde halten sich die Waage; ein klares Bild gibt es nicht.";
+  if(v.p<0&&u>=0)m+=" Der Preis ist hoch: Aus Gewinnwachstum und Bewertung ergibt sich nur eine niedrige erwartete Rendite.";
+  if(v.p>0&&u>0&&ks<0)m+=" Gemessen an Gewinn und Wachstum ist die Aktie günstig bewertet.";
+  var pos=R.filter(function(r){return r[3]==="good"}).length,neg=R.filter(function(r){return r[3]==="bad"}).length;
+  return{h:head,m:m,pos:pos,neg:neg}}
+function gbWatch(x){var w=[],ev=x.ev||{},an=x.an||{},cu=esc(x.cur);
+  if(ev.earn&&ev.ed!=null&&ev.ed>=0&&ev.ed<=30)w.push("Quartalszahlen am "+dat(ev.earn)+(ev.ed===0?", heute":ev.ed===1?", morgen":", in "+ev.ed+" Tagen")+".");
+  if(x.s50&&x.p<x.s50)w.push("50-Tage-Linie bei "+px(x.s50)+" "+cu+" ("+sgp((x.s50/x.p-1)*100,0)+"): Ein Schluss darüber wäre ein erstes Zeichen, dass der Druck nachlässt.");
+  else if(x.s200&&x.p<x.s200)w.push("200-Tage-Linie bei "+px(x.s200)+" "+cu+" ("+sgp((x.s200/x.p-1)*100,0)+"): Darüber wäre auch der langfristige Trend wieder intakt.");
+  else{var z=(x.zs||[])[0];if(z)w.push("Nächste Unterstützung "+px(z[0])+" bis "+px(z[1])+" "+cu+" ("+(z[3]===0?"am Kurs":sgp(z[3],0))+"): Hält sie bei einem Rücksetzer, bleibt das Kursbild intakt.")}
+  var zr=(x.zr||[])[0],zl=zr?zr[2].join(", "):"",used=x.s50&&x.p<x.s50?"50-Tage":x.s200&&x.p<x.s200?"200-Tage":"";if(zr&&zr[3]>0&&zr[3]<=8&&!(used&&zl.indexOf(used)>=0))w.push("Widerstand "+px(zr[0])+" bis "+px(zr[1])+" "+cu+" ("+sgp(zr[3],0)+", "+esc(zr[2].join(", "))+").");
+  if(an.stale)w.push("Die Kursziele der Analysten sind nach dem Kursrutsch vermutlich noch nicht angepasst.");
+  return w.slice(0,3)}
+function gesamtBild(x){var R=gbRows(x),H=gbHead(R),W=gbWatch(x);
+  var h='<div class="gb"><p class="gbk">Gesamtbild</p><p class="gbh">'+esc(H.h)+'</p><p class="gbm">'+esc(H.m)+" "+H.pos+" von 6 Fragen "+(H.pos===1?"spricht":"sprechen")+" dafür, "+H.neg+" dagegen.</p>";
+  h+='<table class="gbq"><tbody>'+R.map(function(r){return'<tr><th>'+r[1]+'</th><td><b class="gbv '+r[3]+'">'+esc(r[2])+'</b><small>'+esc(r[4])+'</small></td><td class="gbl"><button type="button" class="link" data-gbtab="'+r[5]+'">Details</button></td></tr>'}).join("")+"</tbody></table>";
+  if(W.length)h+='<div class="gbw"><b>Worauf achten</b><ul>'+W.map(function(t){return"<li>"+t+"</li>"}).join("")+"</ul></div>";
+  var ch=[];if(x.c7!=null)ch.push("Score in 7 Tagen "+sg(x.c7,1));if(x.c30!=null)ch.push("in 30 Tagen "+sg(x.c30,1));
+  h+='<p class="gbe">Einordnung im Regelwerk: <b>'+esc(x.su)+"</b>"+(ch.length?". "+ch.join(", ")+".":".")+' Die Begründung steht unten unter „Alle Einzelbefunde“.</p>';
+  return h+'<p class="gbf">Zusammenfassung der Einzelanalysen nach festen Regeln, keine Kauf- oder Verkaufsempfehlung.</p></div>'}
+document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("[data-gbtab]");if(!b)return;var t=document.querySelector('#detail .dnav [data-dtab="'+b.getAttribute("data-gbtab")+'"]');if(t){t.click();var d=$("detail");if(d&&d.scrollIntoView)d.scrollIntoView({block:"start"})}});
 function renderDetail(){
   var x=S.by[S.sel];if(!x)return;
   var b=band(x.total),w=S.w,pf=x.pf||[],tr=x.tr||[0,0,0],an=x.an||{},ev=x.ev||{},cur=CURN[x.cur]||x.cur,unit=x.cur==="GBp"?" (Kurse in Pence)":"";
@@ -1621,13 +1690,14 @@ function renderDetail(){
   var h='<div class="dwrap"><div class="dhead"><div><h2>'+esc(x.n)+' <button class="star'+(S.watch[x.s]?" on":"")+'" data-star="'+esc(x.s)+'" aria-label="Watchlist" aria-pressed="'+(S.watch[x.s]?"true":"false")+'">★</button></h2><p class="muted">'+esc(x.s)+" · "+esc(land(x.c))+" · "+esc(sek(x.sec))+(x.ind?" · "+esc(x.ind):"")+'</p><p style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"><span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+'</span><span class="pill neutral">'+x.cat+'</span><span class="pill neutral">'+x.strat+"</span>"+(x.fin?'<span class="pill neutral">'+FINL[x.fin]+"</span>":"")+'</p></div><div><div class="big">'+fmt(x.total,0)+'<small> /100</small></div><div class="chg muted">'+BAND[b]+" · Rang "+x.rank+'</div><div class="chg muted">Qualität '+fmt(x.qual,0)+(x.sq?" · Sektor "+x.sq[0]+"/"+x.sq[1]:"")+'</div><div class="chg '+cls(x.c7)+'">'+(x.c30!=null?"Score 30 Tage "+sg(x.c30,1)+(x.c7!=null?" · 7 Tage "+sg(x.c7,1):""):x.c7==null?(x.c1==null?"":"Score seit Vortag "+sg(x.c1,1)):"Score 7 Tage "+sg(x.c7,1))+"</div></div></div>";
   var C={ov:"",pro:"",fu:"",an:"",dq:"",kv:"",ca:"",ph:"",ck:"",k:"",i:"",nw:""};
   function sb(v){if(v==null)return"";v=Math.max(0,Math.min(100,v));return'<i class="sbar"><i class="'+(v>=75?"g":v>=50?"m":"b")+'" style="width:'+v.toFixed(0)+'%"></i></i>'}
-  C.ov+=ampel(x);
-  C.ov+='<div class="subs"><div><span>Fundamental · '+wp("f")+"</span><b>"+fmt(x.f,1)+"/10</b>"+sb(x.f*10)+"</div><div><span>Burggraben · "+wp("m")+"</span><b>"+fmt(x.m,1)+"/25</b>"+sb(x.m*4)+"</div><div><span>Chart · "+wp("t")+"</span><b>"+fmt(x.t,1)+"/10</b>"+sb(x.t*10)+"</div><div><span>Rendite · "+wp("r")+"</span><b>"+rTxt(x)+"</b>"+sb(x.rs)+"</div><div><span>Analysten"+(x.a==null?"":" · "+wp("a"))+"</span><b>"+(x.a==null?"–":fmt(x.a,0)+"/10")+"</b>"+sb(x.a==null?null:x.a*10)+"</div><div><span>Nachrichten"+(x.ns==null?"":" · "+wp("n"))+"</span><b>"+(x.ns==null?(x.nsx!=null?"zählt nicht":"–"):fmt(x.ns,1)+"/10")+"</b>"+sb(x.ns==null?null:x.ns*10)+"</div></div>";
+  C.ov+=gesamtBild(x);var OVT=ampel(x);
+  OVT+='<div class="subs"><div><span>Fundamental · '+wp("f")+"</span><b>"+fmt(x.f,1)+"/10</b>"+sb(x.f*10)+"</div><div><span>Burggraben · "+wp("m")+"</span><b>"+fmt(x.m,1)+"/25</b>"+sb(x.m*4)+"</div><div><span>Chart · "+wp("t")+"</span><b>"+fmt(x.t,1)+"/10</b>"+sb(x.t*10)+"</div><div><span>Rendite · "+wp("r")+"</span><b>"+rTxt(x)+"</b>"+sb(x.rs)+"</div><div><span>Analysten"+(x.a==null?"":" · "+wp("a"))+"</span><b>"+(x.a==null?"–":fmt(x.a,0)+"/10")+"</b>"+sb(x.a==null?null:x.a*10)+"</div><div><span>Nachrichten"+(x.ns==null?"":" · "+wp("n"))+"</span><b>"+(x.ns==null?(x.nsx!=null?"zählt nicht":"–"):fmt(x.ns,1)+"/10")+"</b>"+sb(x.ns==null?null:x.ns*10)+"</div></div>";
   var vq=vbOf(x.s);
   C.ov+='<div class="kpis" style="margin-top:8px">'+(vq?'<div><span>Kurs in Deutschland, '+esc(vbTime(vq.t))+' Uhr</span><b>'+(vq.pe!=null?eurPx(vq.pe):px(vq.p)+" "+esc(x.cur))+'</b><small>≈ '+px(vq.p)+" "+esc(x.cur)+", US-Schluss "+px(x.p)+'</small></div><div><span>Seit US-Schluss</span><b class="'+cls(vq.c)+'">'+sgp(vq.c,1)+'</b><small>'+esc(vq.x)+', schneller Kurs</small></div>':'<div><span>Kurs '+dat(x.d)+'</span><b>'+px(x.p)+" "+esc(x.cur)+"</b><small>"+(x.pxe!=null&&CURN[x.cur]!=="EUR"?"≈ "+eurPx(x.pxe):"")+'</small></div><div><span>Letzter Handelstag</span><b class="'+cls(x.p1d)+'">'+sgp(x.p1d,1)+'</b></div>')+'<div><span>1 Woche</span><b class="'+cls(x.p1w)+'">'+sgp(x.p1w,1)+'</b></div><div><span>Kurzfristige Lage</span><b style="font-size:14px">'+(x.kl?esc(x.kl[1]):"–")+"</b></div></div>";
   var vb=vbOf(x.s);if(vb)C.ov+='<p class="vbline"><span class="vbtag">schneller Kurs</span> In Deutschland <b class="'+cls(vb.c)+'">'+sgp(vb.c,1)+"</b> seit dem US-Schluss, umgerechnet ≈ "+px(vb.p)+" "+esc(x.cur)+" ("+esc(vb.x)+", "+esc(vbTime(vb.t))+' Uhr). Noch kein US-Handel; Score und Kennzahlen rechnen mit dem letzten Schlusskurs.</p>';
   C.pro+=proBlock(x);
-  C.ov+='<div class="sec"><h3>Einordnung</h3><p class="verdict">'+esc(x.txt||"")+'</p><div class="two">'+((x.pro||[]).length?'<div><h3 style="margin-bottom:4px">Was auffällt</h3><ul class="plain pro">'+x.pro.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul></div>":"")+((x.con||[]).length?'<div><h3 style="margin-bottom:4px">Worauf achten</h3><ul class="plain con">'+x.con.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul></div>":"")+"</div></div>";
+  C.ov+=dFold("ovt","Teilnoten und Score je Zeitraum","die sechs Bausteine des Gesamtscores mit Gewichtung",OVT);
+  C.ov+=dFold("ove","Alle Einzelbefunde der Einordnung",(x.su||"")+": was auffällt, worauf achten",'<div class="sec"><h3>Einordnung</h3><p class="verdict">'+esc(x.txt||"")+'</p><div class="two">'+((x.pro||[]).length?'<div><h3 style="margin-bottom:4px">Was auffällt</h3><ul class="plain pro">'+x.pro.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul></div>":"")+((x.con||[]).length?'<div><h3 style="margin-bottom:4px">Worauf achten</h3><ul class="plain con">'+x.con.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul></div>":"")+"</div></div>");
   C.k+=lageBlock(x)+dFold("ka","Kurzfristige Chartanalyse",x.ka?"Note "+fmt(x.ka.n,1)+" von 10, "+x.ka.lb:"",kaBlock(x))+dFold("kx","Markt, Erschöpfung und Wende","Beta, relative Stärke, Erschöpfung, Wende-Treppe, frühere Fälle",kxBlock(x))+dFold("ext","Externe Chartanalysen","Trading Central und TradingView",extBlock(x));C.i+=insBlock(x)+dFold("iv","Großinvestoren","größte Fondsbestände laut Pflichtmeldungen",instBlock(x));
   if(x.ph){var ph=x.ph;
     C.ph+='<div class="sec"><h3>Stand '+(x.su==="Turnaround-Kandidat"?"der Wende":"des Rücksetzers")+" · Phase "+ph[0]+" von 4: "+esc(ph[1])+'</h3><div class="phase" role="img" aria-label="Phase '+ph[0]+' von 4">'+[1,2,3,4].map(function(i){return'<i class="'+(i<=ph[0]?"on":"")+'"></i>'}).join("")+'</div><p class="verdict">'+(ph[0]===1&&ph[1]!=="Abwärtsbewegung läuft"?"Der Kurs macht keine neuen Tiefs mehr, der Trend zeigt aber noch nach unten. Nach dem Regelwerk gibt es noch kein Wendezeichen.":PHR[ph[0]])+" "+esc(ph[2])+" "+esc(ph[3])+'</p><div class="kv"><span>Unter dem 52-Wochen-Hoch</span><span class="num">'+pct(x.d52,0)+'</span><span>Über dem Tief des Rücksetzers</span><span class="num">'+pct(x.ul,0)+'</span><span>Handelstage seit diesem Tief</span><span class="num">'+x.sl+"</span>"+(x.tu!=null?'<span>Turnaround-Prüfungen bestanden</span><span class="num">'+x.tu+" von 7</span>":"")+'</div><p class="muted" style="font-size:12px">„Tief des Rücksetzers“ ist der tiefste Schlusskurs seit dem 52-Wochen-Hoch. Phase 1: neues Tief in den letzten 20 Handelstagen oder Kurs unter der 50-Tage-Linie. Phase 2: 20 Tage ohne neues Tief und über der 50-Tage-Linie oder mindestens 10 % über dem Tief. Phase 3: über einer steigenden 50-Tage-Linie. Phase 4: über der 200-Tage-Linie. Die Phase beschreibt den Kursverlauf bis heute und sagt nicht, wie es weitergeht.</p></div>'}
@@ -1677,7 +1747,7 @@ function renderDetail(){
   C.fu+='<details class="fold"><summary>Bewertung und Renditeerwartung</summary><div class="kv"><span>KGV aktuell</span><span class="num">'+fmt(x.pe,1)+'</span><span>Gewinn je Aktie aus</span><span>'+es+'</span><span>KGV zu den letzten Abschlüssen (Median)</span><span class="num">'+fmt(x.hpe,1)+'</span><span>Ziel-KGV in 5 J.</span><span class="num">'+fmt(x.kgve,1)+'</span><span>Angesetztes Gewinnwachstum p. a.</span><span class="num">'+pct(x.g)+'</span><span>Grundlage des Wachstums</span><span>'+gs+'</span><span>Dividendenrendite</span><span class="num">'+pct(x.dy,2)+'</span><span>Ausschüttungsquote</span><span class="num">'+pct(x.po,0)+'</span><span>Renditeerwartung p. a.</span><span class="num">'+(x.pe!=null&&x.pe>100?"nicht aussagekräftig (KGV über 100)":pct(x.r))+'</span><span>Szenario-Spanne Kurs in 5 J.</span><span class="num">'+(x.lo==null?"–":sgp(x.lo)+" bis "+sgp(x.hi))+"</span></div></details>";
   C.dq+='<details class="fold"'+((x.qn||[]).length?" open":"")+'><summary>Daten · Qualität '+x.q+'</summary><div class="kv"><span>Risikoklasse (1 defensiv, 5 offensiv)</span><span>'+dots(x.risk,5)+' <span class="num">'+x.risk+'</span></span><span>Kursschwankung pro Jahr</span><span class="num">'+pct(x.vo,0)+'</span><span>Börsenwert</span><span class="num">'+(x.mc==null?"–":fmt(x.mc,1)+" Mrd. $")+'</span><span>Fundamentaldaten vom</span><span class="num">'+dat(x.fd)+"</span></div>"+((x.qn||[]).length?'<ul class="notes" style="margin-top:6px">'+x.qn.map(function(n){return"<li>"+esc(n)+"</li>"}).join("")+"</ul>":"")+"</details>";
   /* Steckbrief in sechs Abschnitten (23.11.2026, nur Anordnung; Inhalte unverändert) */
-  var CH=[["dch-ov","Überblick","Gesamtbild, Ampeln und Einordnung",C.ov,"Überblick"],
+  var CH=[["dch-ov","Überblick","Das Gesamtbild in sechs Fragen, darunter die Einzelheiten",C.ov,"Überblick"],
     ["dch-fu","Unternehmen und Bewertung","Kennzahlen, Fundamental, Burggraben, Bewertung, Analysten, Branche",dFold("pro","Profi-Kennzahlen","Stärke-Rang, Kaufdruck, Risiko und weitere Kennzahlen",C.pro)+C.fu+dFold("an","Analysten und Branche","Konsens, Kursziele, Auf- und Abstufungen, Vergleich mit der Branche",C.an)+C.dq,"Bewertung"],
     ["dch-ch","Chart langfristig","Kursverlauf, Trend, Unterstützungen und Prüfungen",C.kv+C.ca+C.ph+C.ck,"Chart"],
     ["dch-kf","Kurzfristige Analyse","Die letzten Wochen, ohne Einfluss auf den Gesamtscore",C.k,"Kurzfristig"],
