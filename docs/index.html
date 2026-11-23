@@ -853,6 +853,22 @@ button.fzl:hover{text-decoration-color:var(--fg)}
 .fzx{color:var(--muted);line-height:1.35}
 .fzn{margin:10px 0 0;padding-left:18px;font-size:13px}.fzn li{margin:3px 0}
 @media (max-width:560px){.fzsh{display:none}.fzr{grid-template-columns:1fr 42%;row-gap:2px}.fzx{grid-column:1/-1;font-size:12.5px}.fzv{font-size:17.5px}}
+/* Ausblick (24.11.2026) */
+.ab{border-top:1px solid var(--fg);padding:12px 0 8px;margin:6px 0 10px}
+.abs{width:100%;height:auto;display:block;margin:4px 0 8px}
+.abt{font-size:13px;fill:var(--fg);font-family:inherit}.abm{fill:var(--muted)}
+.absc p{margin:4px 0;font-size:13.5px;line-height:1.45}
+.abh{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:2px}
+.abh th{text-align:left;font-weight:400;color:var(--muted);padding:4px 8px 4px 0;vertical-align:top}
+.abh thead th{font-size:12px}
+.abh td{padding:4px 8px 4px 0;vertical-align:top;font-variant-numeric:tabular-nums}
+.abh td small{display:block;color:var(--muted)}
+.abh tbody tr+tr th,.abh tbody tr+tr td{border-top:1px solid var(--line)}
+.abbar{display:block;height:5px;background:color-mix(in srgb,var(--line) 60%,transparent);border-radius:3px;margin:3px 0 3px;position:relative}
+.abbar::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--muted)}
+.abbar i{display:block;height:100%;border-radius:3px;background:var(--mid)}.abbar i.good{background:var(--good)}.abbar i.bad{background:var(--bad)}
+.abn{font-size:12.5px;color:var(--muted);margin:8px 0 0;line-height:1.45}
+@media (max-width:560px){.abt{font-size:19px}.abh td b{display:block}.abh td{font-size:12px}}
 </style>
 </head>
 <body>
@@ -1707,7 +1723,7 @@ function gbWatch(x,dip){var w=[],ev=x.ev||{},an=x.an||{},cu=esc(x.cur),sy=x.sym|
   var zr=(x.zr||[])[0],zl=zr?zr[2].join(", "):"",used=x.s50&&x.p<x.s50?"50-Tage":x.s200&&x.p<x.s200?"200-Tage":"";if(!dip&&zr&&zr[3]>0&&zr[3]<=8&&!(used&&zl.indexOf(used)>=0))w.push("Widerstand "+px(zr[0])+" bis "+px(zr[1])+" "+cu+" ("+sgp(zr[3],0)+", "+esc(zl)+").");
   if(an.stale)w.push("Die Kursziele der Analysten sind nach dem Kursrutsch vermutlich noch nicht angepasst.");
   return w.slice(0,dip?4:3)}
-function gesamtBild(x){var R=gbRows(x),H=gbHead(R,x),W=gbWatch(x,H.dip);
+function gesamtBild(x,hasAb){var R=gbRows(x),H=gbHead(R,x),W=gbWatch(x,H.dip);if(hasAb)W=W.filter(function(t){return/Quartalszahlen|Kursziele|Korrekturen/.test(t)});
   var h='<div class="gb"><p class="gbk">Gesamtbild</p><p class="gbh">'+esc(H.h)+'</p><p class="gbm">'+esc(H.m)+" "+gbCnt(R)+"</p>"+gbHz(x);
   function row(r){return'<tr><th>'+r[1]+'</th><td><b class="gbv '+r[3]+'">'+esc(r[2])+'</b><small>'+esc(r[4])+'</small></td><td class="gbl"><button type="button" class="link" data-gbtab="'+r[5]+'">Details</button></td></tr>'}
   h+='<table class="gbq"><tbody><tr class="gbg"><td colspan="3">Langfristig: Unternehmen und Preis</td></tr>'+R.slice(0,2).map(row).join("")+'<tr class="gbg"><td colspan="3">Timing: Kurs, Geldfluss und Umfeld</td></tr>'+R.slice(2).map(row).join("")+"</tbody></table>";
@@ -1796,6 +1812,43 @@ function fzSub(x){var k=kfull(x).kx;if(!k)return"Markt, Erschöpfung, Divergenze
   if(k.ex)a.push("Erschöpfung "+k.ex.lb);if(k.tl)a.push("Wende "+k.tl.prog+" von 6");if(k.an&&k.an.all&&k.an.all["20"])a.push("frühere Fälle "+sgp(k.an.all["20"][0]*100,1)+" nach 20 Tagen");return a.join(", ")||"Markt, Erschöpfung und Wende"}
 function extSub(x){var e=x.xt||{},a=[],W=function(v){return v>=0.15?"positiv":v<=-0.15?"negativ":"neutral"};if(e.tv&&e.tv.r)a.push("TradingView "+W(e.tv.r[0]));if(e.tc&&e.tc.s)a.push("Trading Central "+({Bullish:"positiv",Bearish:"negativ",Neutral:"neutral"}[e.tc.s[0]]||e.tc.s[0]));return a.join(", ")||"Trading Central und TradingView"}
 document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("[data-fzopen]");if(!b)return;var sec=b.closest(".dch")||document,d=sec.querySelector('details[data-fold="'+b.getAttribute("data-fzopen")+'"]');if(!d)return;d.open=true;S.dopen=S.dopen||{};S.dopen[d.getAttribute("data-fold")]=true;if(d.scrollIntoView)d.scrollIntoView({block:"start",behavior:"smooth"})});
+/* Ausblick (24.11.2026, Prognose-Paket 1): Szenarien, Chance-Risiko, Kursleiter, frühere ähnliche Fälle. Nur Anzeige, keine Empfehlung. */
+function abLv(x){var p=x.p,zs=(x.zs||[]).filter(function(z){return z[0]<p}),zr=(x.zr||[]).filter(function(z){return z[1]>p}),o={p:p,sup:zs[0]||null,sup2:zs[1]||null,res:zr[0]||null,res2:zr[1]||null,inRes:false};
+  if(o.res&&o.res[0]<=p*1.015&&o.res2){o.inRes=true;o.brk=o.res[1];o.res=o.res2;o.res2=null}
+  o.up=o.res?o.res[0]:null;o.stop=o.sup?o.sup[0]*0.99:null;o.dn=o.sup2?o.sup2[1]:null;
+  o.upP=o.up?(o.up/p-1)*100:null;o.riskP=o.stop?(o.stop/p-1)*100:null;o.crv=o.upP!=null&&o.riskP!=null&&o.riskP<0?o.upP/-o.riskP:null;return o}
+function abSvg(x,o){var p=o.p,v=[p];[o.sup,o.sup2,o.res,o.res2].forEach(function(z){if(z){v.push(z[0],z[1])}});if(o.stop)v.push(o.stop);
+  var lo=Math.min.apply(null,v)*0.985,hi=Math.max.apply(null,v)*1.015,W=600,X=function(q){return 14+(q-lo)/(hi-lo)*(W-28)};
+  var g='<svg class="abs" viewBox="0 0 '+W+' 132" role="img" aria-label="Kursleiter: Kurs zwischen Unterstützungen und Widerständen">';
+  g+='<line x1="14" x2="'+(W-14)+'" y1="56" y2="56" style="stroke:var(--line)" stroke-width="1.5"/>';
+  function band(z,c){if(!z)return"";var a=X(z[0]),b=X(z[1]);return'<rect x="'+a.toFixed(1)+'" y="40" width="'+Math.max(3,b-a).toFixed(1)+'" height="32" rx="2" style="fill:var(--'+c+');opacity:.2"/>'}
+  g+=band(o.sup,"good")+band(o.sup2,"good")+band(o.res,"bad")+band(o.res2,"bad");if(o.inRes&&o.brk)g+=band([p,o.brk],"bad");
+  function arr(q,c,y,t){var a=X(p),b=X(q),d=b>a?-6:6;return'<line x1="'+a.toFixed(1)+'" x2="'+b.toFixed(1)+'" y1="'+y+'" y2="'+y+'" style="stroke:var(--'+c+')" stroke-width="2"/><path d="M'+b.toFixed(1)+" "+y+" l"+d+" -4 l0 8 z\" style=\"fill:var(--"+c+')"/><text x="'+b.toFixed(1)+'" y="'+(y<56?y-7:y+17)+'" text-anchor="'+(b>a?"end":"start")+'" class="abt" style="fill:var(--'+c+')">'+t+"</text>"}
+  if(o.up)g+=arr(o.up,"good",28,sgp(o.upP,0)+" bis Widerstand");
+  if(o.stop)g+=arr(o.stop,"bad",86,sgp(o.riskP,0)+" bis unter die Unterstützung");
+  g+='<line x1="'+X(p).toFixed(1)+'" x2="'+X(p).toFixed(1)+'" y1="34" y2="78" style="stroke:var(--fg)" stroke-width="2"/><text x="'+X(p).toFixed(1)+'" y="127" text-anchor="middle" class="abt"><tspan font-weight="600">Kurs</tspan>  '+px(p)+"</text>";
+  g+='<text x="14" y="127" class="abt abm">'+px(lo)+'</text><text x="'+(W-14)+'" y="127" text-anchor="end" class="abt abm">'+px(hi)+"</text></svg>";
+  return g}
+function abBlock(x){try{var K=kfull(x),kx=K.kx||{},an=kx.an,cu=esc(x.cur),o=abLv(x);if(!o.sup&&!o.res&&!an)return"";
+  var mk=S.d&&S.d.mx&&S.d.mx.light,weakMk=mk&&(mk.c==="red"||mk.c==="orange")||(kx.mx&&(kx.mx.c==="red"||kx.mx.c==="orange")),A=an&&an.all&&an.all.n>=8?an.all:null,Wk=weakMk&&an&&an.weak&&an.weak.n>=5?an.weak:null;
+  var h60=A&&A["60"]?A["60"][1]:null,lean=h60==null?0:h60>=60?1:h60<=40?-1:0;
+  var crvT=o.crv==null?null:o.crv>=5?"über 5 : 1":fmt(o.crv,1)+" : 1",vc=(o.crv!=null&&o.crv>=2&&lean>=0)||(lean>0&&(o.crv==null||o.crv>=1.2))?"good":(o.crv!=null&&o.crv<1)||lean<0?"bad":"mid";
+  var head=(crvT?"Chance-Risiko "+crvT:"Kein klares Chance-Risiko")+(A?", frühere Fälle "+(lean>0?"eher positiv":lean<0?"eher negativ":"ohne klare Richtung"):"");
+  var h='<div class="ab"><p class="gbk">Ausblick</p><p class="fzv"><i class="fzd '+vc+'"></i>'+esc(head)+"</p>";
+  var t=[];if(o.crv!=null)t.push("Bis zum nächsten Widerstand sind es "+sgp(o.upP,0)+", bis unter die nächste Unterstützung "+sgp(o.riskP,0)+". "+(o.crv>=2?"Das mögliche Plus ist deutlich größer als das Risiko bis zur Unterstützung.":o.crv>=1?"Plus und Risiko halten sich ungefähr die Waage.":"Das Risiko bis zur Unterstützung ist größer als das mögliche Plus bis zum Widerstand."));
+  else if(!o.res)t.push("Über dem Kurs liegt kein Widerstand: Die Aktie ist nahe ihrem Hoch, ein Kursziel aus dem Chart gibt es nicht.");
+  if(h60!=null)t.push(lean>0?"In früheren ähnlichen Lagen dieser Aktie ging es danach öfter nach oben als nach unten.":lean<0?"In früheren ähnlichen Lagen dieser Aktie ging es danach öfter nach unten als nach oben.":"Frühere ähnliche Lagen dieser Aktie endeten mal so, mal so.");
+  if(t.length)h+='<p class="fzt">'+esc(t.join(" "))+"</p>";
+  if(o.sup||o.res)h+=abSvg(x,o);
+  var sc=[];
+  if(o.res||o.inRes)sc.push(["good","Wenn es aufwärts geht",(o.inRes?"Der Kurs steckt in einem Widerstand. Erst ein Schluss über "+px(o.brk)+" "+cu+" macht den Weg frei. ":"")+(o.res?"Nächstes Ziel: "+px(o.res[0])+" bis "+px(o.res[1])+" "+cu+" ("+sgp((o.res[0]/x.p-1)*100,0)+", "+esc(o.res[2].join(", "))+")"+(o.res2?", danach "+px(o.res2[0])+" "+cu+" ("+sgp((o.res2[0]/x.p-1)*100,0)+")":"")+".":"Darüber liegt kein weiterer Widerstand.")]);
+  else sc.push(["good","Wenn es aufwärts geht","Kein Widerstand darüber, die Aktie notiert nahe am Hoch."]);
+  if(o.sup)sc.push(["bad","Wenn es abwärts geht","Entscheidend ist die Unterstützung bei "+px(o.sup[0])+" bis "+px(o.sup[1])+" "+cu+" ("+(o.sup[1]>=x.p?"am Kurs":sgp((o.sup[1]/x.p-1)*100,0))+", "+esc(o.sup[2].join(", "))+"). "+(o.sup2?"Bricht sie, liegt die nächste bei "+px(o.sup2[0])+" bis "+px(o.sup2[1])+" "+cu+" ("+sgp((o.sup2[1]/x.p-1)*100,0)+").":"Darunter ist keine weitere Unterstützung erkennbar.")]);
+  h+='<div class="absc">'+sc.map(function(q){return'<p><i class="fzd '+q[0]+'"></i><b>'+q[1]+":</b> "+q[2]+"</p>"}).join("")+"</div>";
+  if(A){var rows=[["alle "+A.n+" Fälle",A]];if(Wk)rows.push(["davon bei schwachem Markt ("+Wk.n+")",Wk]);
+    h+='<p class="fzg">Was früher in ähnlicher Lage dieser Aktie passierte</p><table class="abh"><thead><tr><th></th><th>nach 5 Tagen</th><th>nach 20 Tagen</th><th>nach 60 Tagen</th></tr></thead><tbody>'+rows.map(function(r){var q=r[1];return"<tr><th>"+r[0]+"</th>"+["5","20","60"].map(function(k){var v=q[k];if(!v)return"<td>–</td>";return'<td><span class="abbar"><i style="width:'+v[1]+'%" class="'+(v[1]>=58?"good":v[1]<=42?"bad":"mid")+'"></i></span><b>'+v[1]+' %</b> im Plus<small>Mitte '+sgp(v[0]*100,1)+"</small></td>"}).join("")+"</tr>"}).join("")+"</tbody></table>";
+    if(A.mae)h+='<p class="abn">Auf dem Weg dorthin fiel der Kurs zwischendurch im Mittel noch '+fmt(-A.mae[0]*100,0)+" %, im schlechtesten Fall "+fmt(-A.mae[1]*100,0)+" %. Aktien steigen über die Jahre, daher liegen auch zufällige Zeitpunkte oft über 50 % im Plus; der Vergleich mit allen Tagen folgt mit der Rückrechnung (Paket 3).</p>"}
+  return h+'<p class="gbf">Ausblick aus Chartmarken und der eigenen Kursgeschichte, keine Kursprognose mit Gewissheit und keine Kauf- oder Verkaufsempfehlung.</p></div>'}catch(e){return""}}
 function renderDetail(){
   var x=S.by[S.sel];if(!x)return;
   var b=band(x.total),w=S.w,pf=x.pf||[],tr=x.tr||[0,0,0],an=x.an||{},ev=x.ev||{},cur=CURN[x.cur]||x.cur,unit=x.cur==="GBp"?" (Kurse in Pence)":"";
@@ -1806,7 +1859,7 @@ function renderDetail(){
   var h='<div class="dwrap"><div class="dhead"><div><h2>'+esc(x.n)+' <button class="star'+(S.watch[x.s]?" on":"")+'" data-star="'+esc(x.s)+'" aria-label="Watchlist" aria-pressed="'+(S.watch[x.s]?"true":"false")+'">★</button></h2><p class="muted">'+esc(x.s)+" · "+esc(land(x.c))+" · "+esc(sek(x.sec))+(x.ind?" · "+esc(x.ind):"")+'</p><p style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"><span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+'</span><span class="pill neutral">'+x.cat+'</span><span class="pill neutral">'+x.strat+"</span>"+(x.fin?'<span class="pill neutral">'+FINL[x.fin]+"</span>":"")+'</p></div><div><div class="big">'+fmt(x.total,0)+'<small> /100</small></div><div class="chg muted">'+BAND[b]+" · Rang "+x.rank+'</div><div class="chg muted">Qualität '+fmt(x.qual,0)+(x.sq?" · Sektor "+x.sq[0]+"/"+x.sq[1]:"")+'</div><div class="chg '+cls(x.c7)+'">'+(x.c30!=null?"Score 30 Tage "+sg(x.c30,1)+(x.c7!=null?" · 7 Tage "+sg(x.c7,1):""):x.c7==null?(x.c1==null?"":"Score seit Vortag "+sg(x.c1,1)):"Score 7 Tage "+sg(x.c7,1))+"</div></div></div>";
   var C={ov:"",pro:"",fu:"",an:"",dq:"",kv:"",ca:"",ph:"",ck:"",k:"",i:"",nw:""};
   function sb(v){if(v==null)return"";v=Math.max(0,Math.min(100,v));return'<i class="sbar"><i class="'+(v>=75?"g":v>=50?"m":"b")+'" style="width:'+v.toFixed(0)+'%"></i></i>'}
-  C.ov+=gesamtBild(x);var OVT=ampel(x);
+  var ABX=abBlock(x);C.ov+=gesamtBild(x,!!ABX)+ABX;var OVT=ampel(x);
   OVT+='<div class="subs"><div><span>Fundamental · '+wp("f")+"</span><b>"+fmt(x.f,1)+"/10</b>"+sb(x.f*10)+"</div><div><span>Burggraben · "+wp("m")+"</span><b>"+fmt(x.m,1)+"/25</b>"+sb(x.m*4)+"</div><div><span>Chart · "+wp("t")+"</span><b>"+fmt(x.t,1)+"/10</b>"+sb(x.t*10)+"</div><div><span>Rendite · "+wp("r")+"</span><b>"+rTxt(x)+"</b>"+sb(x.rs)+"</div><div><span>Analysten"+(x.a==null?"":" · "+wp("a"))+"</span><b>"+(x.a==null?"–":fmt(x.a,0)+"/10")+"</b>"+sb(x.a==null?null:x.a*10)+"</div><div><span>Nachrichten"+(x.ns==null?"":" · "+wp("n"))+"</span><b>"+(x.ns==null?(x.nsx!=null?"zählt nicht":"–"):fmt(x.ns,1)+"/10")+"</b>"+sb(x.ns==null?null:x.ns*10)+"</div></div>";
   var vq=vbOf(x.s);
   C.ov+='<div class="kpis" style="margin-top:8px">'+(vq?'<div><span>Kurs in Deutschland, '+esc(vbTime(vq.t))+' Uhr</span><b>'+(vq.pe!=null?eurPx(vq.pe):px(vq.p)+" "+esc(x.cur))+'</b><small>≈ '+px(vq.p)+" "+esc(x.cur)+", US-Schluss "+px(x.p)+'</small></div><div><span>Seit US-Schluss</span><b class="'+cls(vq.c)+'">'+sgp(vq.c,1)+'</b><small>'+esc(vq.x)+', schneller Kurs</small></div>':'<div><span>Kurs '+dat(x.d)+'</span><b>'+px(x.p)+" "+esc(x.cur)+"</b><small>"+(x.pxe!=null&&CURN[x.cur]!=="EUR"?"≈ "+eurPx(x.pxe):"")+'</small></div><div><span>Letzter Handelstag</span><b class="'+cls(x.p1d)+'">'+sgp(x.p1d,1)+'</b></div>')+'<div><span>1 Woche</span><b class="'+cls(x.p1w)+'">'+sgp(x.p1w,1)+'</b></div><div><span>Kurzfristige Lage</span><b style="font-size:14px">'+(x.kl?esc(x.kl[1]):"–")+"</b></div></div>";
