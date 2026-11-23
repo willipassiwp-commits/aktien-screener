@@ -56,9 +56,9 @@ TOPICS = [
     ["Rohstoffe", r"\boil\b|\bopec\b|\bgold\b|crude"],
     ["Quartalszahlen", r"earnings|quarterly|\bresults\b|guidance|\bbeats?\b|\bmiss(es)?\b"],
 ]
-GOOD_SRC = r"^(reuters|bloomberg|cnbc|the wall street journal|wsj|financial times|associated press|ap|marketwatch|barron'?s|yahoo finance|investor'?s business daily|fortune|the new york times|axios|business insider|euronews)$"
+GOOD_SRC = r"^(reuters|bloomberg|cnbc|the wall street journal|wsj|financial times|associated press|ap|marketwatch|barron'?s|barrons\.com|yahoo finance|investor'?s business daily|fortune|the new york times|axios|business insider|euronews)$"
 WEAK_SRC = r"prediction markets|simply wall|insider monkey|motley fool|24/7 wall|zacks|investorplace|tipranks|gurufocus|tikr|benzinga|beincrypto|stocktwits|finbold|coincentral|seeking alpha|validea|kiplinger"
-PROMO = r"should you buy|\bbuy now\b|top \d+ |\d+ (stocks?|reasons)|is it (a|too late)|millionaire|forever|no-brainer|best .*stocks? to|could soar|prediction:|\bvs\.? "
+PROMO = r"should you buy|\bbuy now\b|top \d+ |\d+ (stocks?|reasons)|is it (a|too late)|millionaire|forever|no-brainer|best .*stocks? to|i'?d buy|to buy|could soar|prediction:|\bvs\.? "
 ALIAS = {"GOOGL": ["Google", "Alphabet"], "GOOG": ["Google", "Alphabet"], "META": ["Meta", "Facebook"],
          "2330.TW": ["TSMC", "Taiwan Semi"], "BRK-B": ["Berkshire"], "BRK-A": ["Berkshire"], "JNJ": ["J&J"],
          "005930.KS": ["Samsung"], "000660.KS": ["SK Hynix"], "0700.HK": ["Tencent"], "9988.HK": ["Alibaba"],
@@ -150,7 +150,7 @@ def rank_news(items, names, moves, now):
         src = (it.get("p") or "").strip().lower()
         w += 2 if re.search(GOOD_SRC, src) else (-2 if re.search(WEAK_SRC, src) else 0)
         if re.search(PROMO, t, re.I):
-            w -= 3
+            w -= 6                                  # Kaufempfehlungs- und Werbetitel nach unten
         if t.endswith("?"):
             w -= 1
         k = [name for name, rx in TOPICS if re.search(rx, t, re.I)]
