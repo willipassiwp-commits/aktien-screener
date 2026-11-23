@@ -47,6 +47,7 @@ SEED = {"AAPL": "APC", "MSFT": "MSF", "NVDA": "NVD", "AMZN": "AMZ", "GOOGL": "AB
 # Schlagzeilen: Themen mit deutschem Namen (Reihenfolge = Vorrang bei der Anzeige)
 TOPICS = [
     ["Trump / Politik", r"\btrump\b|white house|executive order|truth social|\bcongress\b|\bsenate\b"],
+    ["Chefwechsel", r"\bceo\b.*\b(return|resign|rehire|reinstat|appoint|step|oust|fire|replace|successor)|\breturn as\b.*\bceo\b|rehire|reinstat|\bresign|ousted|steps? down|successor"],
     ["Zölle / Handel", r"tariff|trade war|trade deal|export (ban|curb|control|restriction)|\bsanction"],
     ["Notenbank / Zinsen", r"\bfed\b|federal reserve|powell|rate (cut|hike)|interest rate|\becb\b|lagarde|treasury yield|bond yield"],
     ["Konjunkturdaten", r"\binflation\b|\bcpi\b|\bpce\b|jobs report|payroll|unemployment|\bgdp\b|recession|retail sales"],
@@ -56,12 +57,14 @@ TOPICS = [
     ["Rohstoffe", r"\boil\b|\bopec\b|\bgold\b|crude"],
     ["Quartalszahlen", r"earnings|quarterly|\bresults\b|guidance|\bbeats?\b|\bmiss(es)?\b"],
 ]
+HEAVY = {"Chefwechsel", "Trump / Politik", "Zölle / Handel", "Notenbank / Zinsen", "Konjunkturdaten"}
+PREVIEW = r"this week|week ahead|to watch|what to expect|before the bell|stocks? to watch|morning brief"
 GOOD_SRC = r"^(reuters|bloomberg|cnbc|the wall street journal|wsj|financial times|associated press|ap|marketwatch|barron'?s|barrons\.com|yahoo finance|investor'?s business daily|fortune|the new york times|axios|business insider|euronews)$"
-WEAK_SRC = r"prediction markets|simply wall|insider monkey|motley fool|24/7 wall|zacks|investorplace|tipranks|gurufocus|tikr|benzinga|beincrypto|stocktwits|finbold|coincentral|seeking alpha|validea|kiplinger"
+WEAK_SRC = r"prediction markets|simply wall|insider monkey|motley fool|24/7 wall|zacks|investorplace|tipranks|gurufocus|tikr|beincrypto|finbold|coincentral|seeking alpha|validea|kiplinger"
 PROMO = r"should you buy|\bbuy now\b|top \d+ |\d+ (stocks?|reasons)|is it (a|too late)|millionaire|forever|no-brainer|best .*stocks? to|i'?d buy|to buy|could soar|prediction:|\bvs\.? "
 ALIAS = {"GOOGL": ["Google", "Alphabet"], "GOOG": ["Google", "Alphabet"], "META": ["Meta", "Facebook"],
          "2330.TW": ["TSMC", "Taiwan Semi"], "BRK-B": ["Berkshire"], "BRK-A": ["Berkshire"], "JNJ": ["J&J"],
-         "005930.KS": ["Samsung"], "000660.KS": ["SK Hynix"], "0700.HK": ["Tencent"], "9988.HK": ["Alibaba"],
+         "NVDA": ["Nvidia", "Jensen Huang"], "005930.KS": ["Samsung"], "000660.KS": ["SK Hynix"], "0700.HK": ["Tencent"], "9988.HK": ["Alibaba"],
          "LLY": ["Eli Lilly", "Lilly"], "JPM": ["JPMorgan"], "XOM": ["Exxon"], "WMT": ["Walmart"], "V": ["Visa"],
          "MA": ["Mastercard"], "KO": ["Coca-Cola"], "PG": ["Procter"], "BAC": ["Bank of America"]}
 NOISE = {"american", "general", "united", "first", "international", "national", "bank", "global", "china", "japan",
@@ -110,7 +113,7 @@ def calc_move(home, ger, fx, tol_min=10):
         chg = pg / then[1] - 1
     if abs(chg) > MAX_MOVE:
         return None
-    return {"c": chg, "t": tg, "ref": ph, "th": th}
+    return {"c": chg, "t": tg, "ref": ph, "th": th, "pe": pg}
 
 
 def short_names(stocks):
@@ -131,6 +134,9 @@ def short_names(stocks):
     return out
 
 
+BIG = set()                                         # die 12 größten Werte (wird in run() gefüllt)
+
+
 def rank_news(items, names, moves, now):
     """items: [{t,d,u,p}]. names: {Suchwort: Kürzel}. moves: {Kürzel: Veränderung in %}.
     Gibt die wichtigsten (höchstens 6) mit Thema k und betroffenen Kürzeln s zurück."""
@@ -146,22 +152,23 @@ def rank_news(items, names, moves, now):
         age = (now - d).total_seconds() / 3600
         if age > 24 or age < -1:
             continue
-        w = 2.0 * max(0.0, 24 - age) / 24
+        w = 4.0 * max(0.0, 12 - age) / 12 + (0.5 if age <= 24 else 0)   # neue Meldungen deutlich vorn
         src = (it.get("p") or "").strip().lower()
-        w += 2 if re.search(GOOD_SRC, src) else (-2 if re.search(WEAK_SRC, src) else 0)
+        w += 2 if re.search(GOOD_SRC, src) else (-2 if re.search(WEAK_SRC, src) else (-1 if src == "stocktwits" else 0))
+        if re.search(PREVIEW, t, re.I):
+            w -= 2                                  # Wochenvorschauen
         if re.search(PROMO, t, re.I):
             w -= 6                                  # Kaufempfehlungs- und Werbetitel nach unten
         if t.endswith("?"):
             w -= 1
         k = [name for name, rx in TOPICS if re.search(rx, t, re.I)]
-        w += 2.5 * min(2, len(k))
+        w += sum(4 if x in HEAVY else 2 for x in k[:2])     # Politik, Notenbank, Chefwechsel zählen mehr
         hit = []
         for word, s in names.items():
             flags = 0 if word == s else re.I        # Börsenkürzel nur in Großbuchstaben
             if s not in hit and re.search(r"(?<![\w$])" + re.escape(word) + r"(?![\w])", t, flags):
                 hit.append(s)
-        for s in hit[:3]:
-            w += 1 + min(3.0, abs(moves.get(s) or 0) / 2)
+        w += min(6.0, sum(1 + min(2.0, abs(moves.get(s) or 0) / 3) + (1 if s in BIG else 0) for s in hit[:3]))
         scored.append({"t": t[:200], "d": it.get("d"), "u": it["u"], "p": it.get("p") or "", "k": k[0] if k else None,
                        "s": hit[:3], "w": round(w, 2)})
     scored.sort(key=lambda x: -x["w"])
@@ -338,7 +345,7 @@ def run(data_path=DATA_PATH, map_path=MAP_PATH, out_path=OUT_PATH, fund_path=FUN
             mp[s]["bad"] = 0
         if best:
             st[s] = {"c": _r(best["c"] * 100, 1), "p": _r(best["ref"] * (1 + best["c"]), 2), "ref": _r(best["ref"], 2),
-                     "t": _iso(best["t"]), "x": best["x"]}
+                     "t": _iso(best["t"]), "x": best["x"], "pe": _r(best["pe"], 2)}
     fut = []
     for f, lab in FUTURES:
         sr = D.get(f) or []
@@ -356,7 +363,9 @@ def run(data_path=DATA_PATH, map_path=MAP_PATH, out_path=OUT_PATH, fund_path=FUN
     big = sorted(st, key=lambda s: -abs(st[s]["c"] or 0))[:6]
     big += [x["s"] for x in sorted(stocks, key=lambda x: -abs(x.get("p1d") or 0) * (x.get("mc") or 0) ** 0.5)[:4]]
     items = list((d.get("mx") or {}).get("news") or [])
-    items += fetch_news(["ES=F", "NQ=F", "^GSPC"] + list(dict.fromkeys(big)))
+    BIG.clear()
+    BIG.update(x["s"] for x in sorted(stocks, key=lambda x: -(x.get("mc") or 0))[:12])
+    items += fetch_news(["ES=F", "NQ=F", "^GSPC", "^IXIC"] + list(dict.fromkeys(sorted(BIG) + big)))
     top = sorted(stocks, key=lambda x: -(x.get("mc") or 0))[:150]
     news = rank_news(items, short_names(top), moves, now)
     out = {"ts": _iso(now), "us": {"open": us_open, "close": _iso(us_close)}, "fut": fut, "st": st, "news": news}
