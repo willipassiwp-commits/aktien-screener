@@ -469,6 +469,38 @@ def main():
     ok &= check("Schlagzeilen: wichtig zuerst, Werbung und Altes raus, Doppelte zusammengefasst",
                 len(rk) == 1 and rk[0]["s"] == ["NVDA"] and rk[0]["k"] == "Trump / Politik", rk)
 
+    # Prognose-Bausteine (prognose.py): Zonen-Bewährung und Korridor mit konstruierten Kursen
+    try:
+        import prognose as PG
+        idx = pd.bdate_range("2019-01-01", periods=1300)
+        pgb = np.full(1300, 120.0)
+        for t0 in (300, 600, 900):                      # dreimal von 120 auf 100 und zurück: Unterstützung 100–102
+            pgb[t0:t0 + 10] = np.linspace(120, 100, 10)
+            pgb[t0 + 10:t0 + 30] = np.linspace(100, 120, 20)
+        pgb[1100:1110] = np.linspace(120, 100, 10)     # vierter Test: Bruch auf 85
+        pgb[1110:1140] = np.linspace(100, 85, 30)
+        pgb[1140:] = 85.0
+        dfz = pd.DataFrame({"Close": pgb, "High": pgb * 1.005, "Low": pgb * 0.995, "Open": pgb}, index=idx)
+        zr_ = PG.zone_record(dfz["Close"], dfz["High"], dfz["Low"], 100.0, 102.0, "s")
+        ok &= check("Prognose: Unterstützung 4-mal getestet, 3-mal gehalten", zr_ and zr_[0] == 4 and zr_[1] == 3, zr_)
+        rng = np.random.default_rng(7)
+        walk = 100 * np.exp(np.cumsum(rng.normal(0.0004, 0.015, 2600)))
+        dfw = pd.DataFrame({"Close": walk, "High": walk * 1.01, "Low": walk * 0.99, "Open": walk},
+                           index=pd.bdate_range("2016-01-01", periods=2600))
+        cp = PG.compute(dfw, [[walk[-1] * 0.9, walk[-1] * 0.92, ["Test"], -9.0]], [[walk[-1] * 1.08, walk[-1] * 1.1, ["Test"], 8.0]])
+        kk = (cp or {}).get("k", {}).get("20", {})
+        q = (kk.get("e") or {}).get("q")
+        ok &= check("Prognose: Korridor sortiert und Vergleich mit allen Tagen vorhanden",
+                    cp is not None and kk.get("b") is not None and (q is None or q == sorted(q)) and "v" in cp, cp)
+        vb = PG.vol_band(dfw["Close"])
+        ok &= check("Prognose: Schwankungsband symmetrisch um null (unten negativ, oben positiv)",
+                    vb and vb["20"][0] < 0 < vb["20"][1] and vb["60"][1] > vb["20"][1], vb)
+        ok &= check("Prognose: zu kurze Historie ergibt None", PG.compute(dfw.iloc[:100]) is None)
+        import json as _js
+        _js.dumps(cp)
+    except Exception as e:  # noqa: BLE001
+        ok &= check("Prognose-Bausteine", False, repr(e))
+
     try:
         import json
         json.dumps([r, down, weak, none])

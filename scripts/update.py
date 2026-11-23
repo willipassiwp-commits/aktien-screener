@@ -35,6 +35,7 @@ OUT_PATH = os.path.join(DOCS, "data.json")
 CHART_PATH = os.path.join(DOCS, "charts.json")
 DAILY_PATH = os.path.join(DOCS, "daily.json")          # Tageskurse der letzten Monate für den Kurzfrist-Chart
 EXT_PATH = os.path.join(DATA, "ext.json")              # Cache der externen Chartanalysen
+PROG_PATH = os.path.join(DOCS, "prog.json")            # Prognose-Bausteine je Aktie (Zonen-Bewährung, Korridor), nur Anzeige
 KURZ_PATH = os.path.join(DOCS, "kurz.json")            # ausführliche Kurzfristanalyse je Aktie (lädt die Seite erst beim Öffnen)
 MARKET_PATH = os.path.join(DATA, "market.json")        # Marktampel, Angst-/Gier-Index (Zustand und letzter Stand)
 MEGA = [["AAPL", "Apple"], ["MSFT", "Microsoft"], ["NVDA", "NVIDIA"], ["AMZN", "Amazon"], ["GOOGL", "Alphabet"],
@@ -709,6 +710,7 @@ def main():
     except Exception:
         old_daily = {}
     daily = {}
+    prog = {}
     MD = market.fetch()                            # Indizes, VIX, Sektor-ETFs (für Marktampel und Beta je Aktie)
     print("Marktdaten:", len(MD), "Reihen", flush=True)
 
@@ -793,6 +795,13 @@ def main():
                     daily[s]["rsn"] = hname
         except Exception as e:  # noqa: BLE001
             print("Erweiterte Kurzfristanalyse fehlgeschlagen:", s, type(e).__name__, flush=True)
+        try:                                       # Prognose-Bausteine (bewährte Zonen, Korridor), nur Anzeige
+            import prognose
+            pg_ = prognose.compute(df, rec.get("zs"), rec.get("zr"))
+            if pg_:
+                prog[s] = pg_
+        except Exception as e:  # noqa: BLE001
+            print("Prognose-Bausteine fehlgeschlagen:", s, type(e).__name__, flush=True)
         if "." not in s:
             try:
                 cc = pd.to_numeric(df["Close"], errors="coerce").dropna()
@@ -929,6 +938,20 @@ def main():
     if daily:
         with open(DAILY_PATH, "w") as f:
             json.dump(daily, f, separators=(",", ":"), default=plain)
+    try:                                           # Prognose-Bausteine in eigene Datei; fehlende Aktien behalten den alten Stand
+        try:
+            old_prog = json.load(open(PROG_PATH))
+        except Exception:
+            old_prog = {}
+        for x in stocks:
+            if x["s"] not in prog and old_prog.get(x["s"]):
+                prog[x["s"]] = old_prog[x["s"]]
+        if prog:
+            with open(PROG_PATH, "w") as f:
+                json.dump(prog, f, separators=(",", ":"), ensure_ascii=False, default=plain)
+            print("Prognose-Bausteine:", len(prog), "Aktien", flush=True)
+    except Exception as e:  # noqa: BLE001
+        print("Prognose-Datei übersprungen:", type(e).__name__, e, flush=True)
     q = {k: sum(1 for x in stocks if x.get("q") == k) for k in "ABC"}
     print("Geschrieben:", OUT_PATH, len(stocks), "Aktien | Datenqualität", q)
     try:                                           # schnelle Kurse und Tagesnachrichten für die Titelseite, nur Anzeige
