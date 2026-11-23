@@ -792,6 +792,7 @@ table.grid th{text-transform:none;letter-spacing:0;font-size:12px;font-weight:50
 @media (max-width:760px){nav.tabs button.tfirst{margin-left:0}}
 
 /* Schnelle Kurse und Tagesnachrichten (23.11.2026) */
+.vbde{font-style:normal;font-size:10px;color:var(--accent);margin-left:3px;vertical-align:1px}
 .tnnews.tncols{grid-template-columns:minmax(0,1fr) 300px}
 .tnnl{list-style:none;margin:0;padding:0}
 .tnnl li{display:grid;grid-template-columns:72px minmax(0,1fr);gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
@@ -1229,7 +1230,7 @@ function renderTable(){
     '<td class="r num">'+fmt(x.qual,0)+'</td><td class="r num">'+fmt(x.f,1)+'</td><td class="r num">'+fmt(x.m,1)+'</td><td class="r num">'+fmt(x.t,1)+'</td><td class="r num">'+(x.a==null?"–":fmt(x.a,0))+"</td>"+
     '<td class="r num">'+rTxt(x)+"</td>"+
     '<td><span class="pill '+(STC[x.st]||"neutral")+'">'+x.st+"</span>"+(stale(x)?' <span class="pill bad">veraltet</span>':"")+"</td>"+'<td class="r num">'+(x.ka?'<span class="'+(x.ka.n>=5.8?"up":x.ka.n<=4.2?"down":"")+'">'+fmt(x.ka.n,1)+"</span>":"–")+"</td>"+
-    '<td class="r num">'+eurPx(x.pxe)+'</td><td class="r num '+cls(x.p1d)+'">'+sgp(x.p1d,1)+'</td><td class="r num '+cls(x.p1w)+'">'+sgp(x.p1w,1)+"</td>"+
+    (vbOf(x.s)?vbCells(x):'<td class="r num">'+eurPx(x.pxe)+'</td><td class="r num '+cls(x.p1d)+'">'+sgp(x.p1d,1)+'</td>')+'<td class="r num '+cls(x.p1w)+'">'+sgp(x.p1w,1)+"</td>"+
     '<td class="r num '+cls(pf[0])+'">'+sgp(pf[0])+'</td><td class="r num '+cls(pf[2])+'">'+sgp(pf[2])+'</td><td class="r num '+cls(pf[3])+'">'+sgp(pf[3])+"</td>"+
     '<td class="r num">'+pct(x.dy)+'</td><td class="r num">'+(x.mc==null?"–":fmt(x.mc,0)+" Mrd. $")+"</td>"+
     '<td><span class="q '+x.q+'" title="Datenqualität '+x.q+'">'+x.q+"</span></td></tr>"}).join("");
@@ -1622,7 +1623,8 @@ function renderDetail(){
   function sb(v){if(v==null)return"";v=Math.max(0,Math.min(100,v));return'<i class="sbar"><i class="'+(v>=75?"g":v>=50?"m":"b")+'" style="width:'+v.toFixed(0)+'%"></i></i>'}
   C.ov+=ampel(x);
   C.ov+='<div class="subs"><div><span>Fundamental · '+wp("f")+"</span><b>"+fmt(x.f,1)+"/10</b>"+sb(x.f*10)+"</div><div><span>Burggraben · "+wp("m")+"</span><b>"+fmt(x.m,1)+"/25</b>"+sb(x.m*4)+"</div><div><span>Chart · "+wp("t")+"</span><b>"+fmt(x.t,1)+"/10</b>"+sb(x.t*10)+"</div><div><span>Rendite · "+wp("r")+"</span><b>"+rTxt(x)+"</b>"+sb(x.rs)+"</div><div><span>Analysten"+(x.a==null?"":" · "+wp("a"))+"</span><b>"+(x.a==null?"–":fmt(x.a,0)+"/10")+"</b>"+sb(x.a==null?null:x.a*10)+"</div><div><span>Nachrichten"+(x.ns==null?"":" · "+wp("n"))+"</span><b>"+(x.ns==null?(x.nsx!=null?"zählt nicht":"–"):fmt(x.ns,1)+"/10")+"</b>"+sb(x.ns==null?null:x.ns*10)+"</div></div>";
-  C.ov+='<div class="kpis" style="margin-top:8px"><div><span>Kurs '+dat(x.d)+'</span><b>'+px(x.p)+" "+esc(x.cur)+"</b><small>"+(x.pxe!=null&&CURN[x.cur]!=="EUR"?"≈ "+eurPx(x.pxe):"")+'</small></div><div><span>Letzter Handelstag</span><b class="'+cls(x.p1d)+'">'+sgp(x.p1d,1)+'</b></div><div><span>1 Woche</span><b class="'+cls(x.p1w)+'">'+sgp(x.p1w,1)+'</b></div><div><span>Kurzfristige Lage</span><b style="font-size:14px">'+(x.kl?esc(x.kl[1]):"–")+"</b></div></div>";
+  var vq=vbOf(x.s);
+  C.ov+='<div class="kpis" style="margin-top:8px">'+(vq?'<div><span>Kurs in Deutschland, '+esc(vbTime(vq.t))+' Uhr</span><b>'+(vq.pe!=null?eurPx(vq.pe):px(vq.p)+" "+esc(x.cur))+'</b><small>≈ '+px(vq.p)+" "+esc(x.cur)+", US-Schluss "+px(x.p)+'</small></div><div><span>Seit US-Schluss</span><b class="'+cls(vq.c)+'">'+sgp(vq.c,1)+'</b><small>'+esc(vq.x)+', schneller Kurs</small></div>':'<div><span>Kurs '+dat(x.d)+'</span><b>'+px(x.p)+" "+esc(x.cur)+"</b><small>"+(x.pxe!=null&&CURN[x.cur]!=="EUR"?"≈ "+eurPx(x.pxe):"")+'</small></div><div><span>Letzter Handelstag</span><b class="'+cls(x.p1d)+'">'+sgp(x.p1d,1)+'</b></div>')+'<div><span>1 Woche</span><b class="'+cls(x.p1w)+'">'+sgp(x.p1w,1)+'</b></div><div><span>Kurzfristige Lage</span><b style="font-size:14px">'+(x.kl?esc(x.kl[1]):"–")+"</b></div></div>";
   var vb=vbOf(x.s);if(vb)C.ov+='<p class="vbline"><span class="vbtag">schneller Kurs</span> In Deutschland <b class="'+cls(vb.c)+'">'+sgp(vb.c,1)+"</b> seit dem US-Schluss, umgerechnet ≈ "+px(vb.p)+" "+esc(x.cur)+" ("+esc(vb.x)+", "+esc(vbTime(vb.t))+' Uhr). Noch kein US-Handel; Score und Kennzahlen rechnen mit dem letzten Schlusskurs.</p>';
   C.pro+=proBlock(x);
   C.ov+='<div class="sec"><h3>Einordnung</h3><p class="verdict">'+esc(x.txt||"")+'</p><div class="two">'+((x.pro||[]).length?'<div><h3 style="margin-bottom:4px">Was auffällt</h3><ul class="plain pro">'+x.pro.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul></div>":"")+((x.con||[]).length?'<div><h3 style="margin-bottom:4px">Worauf achten</h3><ul class="plain con">'+x.con.map(function(t){return"<li>"+esc(t)+"</li>"}).join("")+"</ul></div>":"")+"</div></div>";
@@ -2336,10 +2338,13 @@ document.addEventListener("click",function(e){var g=e.target.closest&&e.target.c
 
 /* ---------------------------------------------------------------- Schnelle Kurse und Tagesnachrichten (vorb.json, nur Anzeige, 23.11.2026) */
 function vbOk(){var v=S.vorb;return!!(v&&v.ts&&Date.now()-new Date(v.ts)<4*36e5)}
+function vbCells(x){var q=vbOf(x.s),t=' title="Schneller Kurs: in Deutschland gehandelt ('+esc(q.x)+", "+esc(vbTime(q.t))+' Uhr), Veränderung seit dem US-Schluss. Score rechnet mit dem Schlusskurs."';
+  return'<td class="r num vbc"'+t+'>'+(q.pe!=null?eurPx(q.pe):eurPx(x.pxe))+'<i class="vbde">DE</i></td><td class="r num vbc '+cls(q.c)+'"'+t+'>'+sgp(q.c,1)+'<i class="vbde">DE</i></td>'}
 function vbOf(s){return vbOk()&&S.vorb.us&&!S.vorb.us.open&&S.vorb.st&&S.vorb.st[s]||null}
 function vbTime(iso){var t=new Date(iso),n=new Date(),y=new Date(Date.now()-864e5);return(t.toDateString()===n.toDateString()?"":t.toDateString()===y.toDateString()?"gestern ":t.toLocaleDateString("de-DE",{weekday:"short"})+" ")+t.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}
 function vbUs(){var u=S.vorb&&S.vorb.us;if(!u||!vbOk())return"";if(u.open)return"US-Handel läuft, Kurse stündlich";if(!u.close)return"";var c=new Date(u.close);return"US-Kurse: Schluss "+c.toLocaleDateString("de-DE",{weekday:"long"})+", "+c.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})+" Uhr"}
-function vbLoad(){fetch("vorb.json?t="+Date.now()).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(v){S.vorb=v;var e=$("stand-us");if(e)e.textContent=vbUs();if(S.tab==="start")renderStart();if(S.sel)renderDetail()}).catch(function(){})}
+function vbLoad(){fetch("vorb.json?t="+Date.now()).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(v){var neu=!S.vorb||S.vorb.ts!==v.ts;S.vorb=v;var e=$("stand-us");if(e)e.textContent=vbUs();if(!neu)return;if(S.tab==="start")renderStart();try{renderAll()}catch(err){}if(S.sel)renderDetail()}).catch(function(){})}
+setInterval(function(){if(!document.hidden&&S.d)vbLoad()},5*60e3);
 function vbSection(nm,lk){
   var v=vbOk()?S.vorb:null,nw=v&&v.news&&v.news.length?v.news:null;
   if(!nw){var mn=(S.d&&S.d.mx&&S.d.mx.news)||[];nw=mn.filter(function(n){return n.u&&!/prediction markets|simply wall|insider monkey|motley fool|zacks|tipranks|benzinga|beincrypto|24\/7/i.test(n.p||"")}).slice(0,5).map(function(n){return{t:n.t,d:n.d,u:n.u,p:n.p,s:[]}})}
@@ -2353,7 +2358,7 @@ function vbSection(nm,lk){
     A='<div class="tnsh"><h3>Vor dem US-Börsenstart</h3></div><p class="tnsub">Veränderung seit dem US-Schluss'+(cl?" am "+esc(cl.toLocaleDateString("de-DE",{weekday:"long"}))+", "+esc(cl.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}))+" Uhr":"")+'</p><table class="tnt vbt"><tbody>'+
       (v.fut||[]).slice(0,2).map(function(f){return"<tr><td>"+esc(f[0])+'<small>Terminkontrakt</small></td><td class="r '+cls(f[1])+'">'+sgp(f[1],1)+"</td></tr>"}).join("")+
       rows.map(function(s){var q=v.st[s];return"<tr><td>"+nm(S.by[s])+'<small>'+esc(q.x)+", "+esc(vbTime(q.t))+' Uhr</small></td><td class="r '+cls(q.c)+'">'+sgp(q.c,1)+"</td></tr>"}).join("")+
-      '</tbody></table><p class="vbnote"><span class="vbtag">schnelle Kurse</span> Gehandelt in Deutschland, bis zu 15 Minuten verzögert und oft dünn gehandelt. Sie zeigen die Richtung vor 15:30 Uhr. Score und Rangliste rechnen weiter mit dem letzten Schlusskurs.</p>'}
+      '</tbody></table><p class="vbnote"><span class="vbtag">schnelle Kurse</span> Gehandelt in Deutschland, bis zu 15 Minuten verzögert und oft dünn gehandelt. Sie zeigen die Richtung vor 15:30 Uhr. In der Rangliste mit „DE“ markiert; der Score rechnet weiter mit dem letzten Schlusskurs.</p>'}
   return'<section class="tncols tnnews"><div class="tnmain"><div class="tnsh"><h3>Was heute bewegt</h3><p>Die wichtigsten Schlagzeilen der letzten 24 Stunden, im englischen Original.</p></div>'+L+"</div>"+(A?'<aside class="tnside">'+A+"</aside>":"")+"</section>"}
 
 })();
