@@ -447,6 +447,28 @@ def main():
     ok &= check("Laufende Fälle: Rendite, Branche, größter Rückgang",
                 oc and oc[0][3] == 21.0 and oc[0][7] == -5.0 and oc[0][6] is not None and abs(oc[0][4] - 2.0) < 0.05, oc)
 
+    # Schnelle Kurse (nur Anzeige): Veränderung seit US-Schluss über den deutschen Kurs, Euro herausgerechnet
+    import vorboerse as VB
+    from datetime import timedelta as _td
+    t0 = datetime(2026, 11, 20, 21, 0, tzinfo=timezone.utc)
+    home = [(t0 - _td(minutes=15), 99.0), (t0, 100.0)]
+    ger = [(t0 - _td(minutes=15), 85.0), (t0, 86.0), (t0 + _td(hours=58, minutes=30), 91.0)]   # Montag 8:30
+    fx = [(t0, 1.1628), (t0 + _td(hours=58), 1.1628 * 1.01)]                                    # Euro +1 %
+    mv = VB.calc_move(home, ger, fx)
+    ok &= check("Schnelle Kurse: Bezug US-Schluss, Euro herausgerechnet",
+                mv and abs(mv["c"] - (91.0 * 1.01 / 86.0 - 1)) < 1e-9 and mv["ref"] == 100.0, mv)
+    ok &= check("Schnelle Kurse: ohne neueren deutschen Kurs nichts", VB.calc_move(home, ger[:2], fx) is None)
+    ok &= check("Schnelle Kurse: falsches Kursniveau wird verworfen",
+                VB.calc_move(home, [(t0, 43.0), (t0 + _td(hours=58), 45.0)], fx) is None)
+    nw = [{"t": "Nvidia jumps after Trump post on chip exports", "d": "2026-11-23T07:00Z", "u": "https://x/1", "p": "Reuters"},
+          {"t": "3 Stocks to Buy Now Before They Soar", "d": "2026-11-23T07:10Z", "u": "https://x/2", "p": "Motley Fool"},
+          {"t": "Nvidia jumps after Trump post on chip exports, shares up", "d": "2026-11-23T07:05Z", "u": "https://x/3", "p": "CNBC"},
+          {"t": "Old story about Apple", "d": "2026-11-21T07:00Z", "u": "https://x/4", "p": "Reuters"}]
+    rk = VB.rank_news(nw, VB.short_names([{"s": "NVDA", "n": "NVIDIA Corporation"}, {"s": "AAPL", "n": "Apple Inc."}]),
+                      {"NVDA": 6.8}, datetime(2026, 11, 23, 8, 0, tzinfo=timezone.utc))
+    ok &= check("Schlagzeilen: wichtig zuerst, Werbung und Altes raus, Doppelte zusammengefasst",
+                len(rk) == 1 and rk[0]["s"] == ["NVDA"] and rk[0]["k"] == "Trump / Politik", rk)
+
     try:
         import json
         json.dumps([r, down, weak, none])

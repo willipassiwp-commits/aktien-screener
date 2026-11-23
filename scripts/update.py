@@ -931,6 +931,11 @@ def main():
             json.dump(daily, f, separators=(",", ":"), default=plain)
     q = {k: sum(1 for x in stocks if x.get("q") == k) for k in "ABC"}
     print("Geschrieben:", OUT_PATH, len(stocks), "Aktien | Datenqualität", q)
+    try:                                           # schnelle Kurse und Tagesnachrichten für die Titelseite, nur Anzeige
+        import vorboerse
+        vorboerse.run()
+    except Exception as e:  # noqa: BLE001
+        print("Schnelle Kurse übersprungen:", type(e).__name__, e, flush=True)
 
 
 if __name__ == "__main__":
