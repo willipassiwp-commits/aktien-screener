@@ -771,6 +771,25 @@ details.dfold[open]{padding-bottom:12px}
 #detail details.fold>summary::before{content:"";position:absolute;left:4px;top:16px;width:7px;height:7px;border-right:1.5px solid var(--fg);border-bottom:1.5px solid var(--fg);transform:rotate(-45deg)}
 #detail details.fold[open]>summary::before{transform:rotate(45deg);top:13px}
 #detail details.fold[open]{padding-bottom:10px}
+
+/* Einheitliche Ordnung der ganzen Seite (23.11.2026): keine Großbuchstaben-Etiketten, eine Schrift für Zahlen, Reiter nach Nutzung */
+:root,:root[data-theme]{--mono:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif}
+.num,td.num,.kv .num{font-variant-numeric:tabular-nums;letter-spacing:0}
+h3{text-transform:none;letter-spacing:0}
+.sec>h3,#detail h3{font-size:15px;text-transform:none;letter-spacing:0}
+.sec>h3::before{display:none}
+nav.tabs button{text-transform:none;letter-spacing:0;font-size:14px;font-weight:500;padding:10px 13px}
+nav.tabs button[aria-selected=true]{font-weight:600}
+nav.tabs button.tsec{font-size:13px;color:var(--muted)}
+nav.tabs button.tfirst{margin-left:auto}
+nav.tabs button .cnt{font-size:11.5px}
+table.grid th{text-transform:none;letter-spacing:0;font-size:12px;font-weight:500}
+.mstrip .it span,.zsub,.pch span,.af span,.subs span,.kpis span,.perf span,.sub4{text-transform:none;letter-spacing:0;font-size:12px}
+.crit tr.blk td,.crit tr.grp td{text-transform:none;letter-spacing:0;font-size:12.5px}
+.vd{text-transform:none;letter-spacing:0}
+.stand{font-size:12.5px}
+.dhead .big{font-weight:500;letter-spacing:-.02em}
+@media (max-width:760px){nav.tabs button.tfirst{margin-left:0}}
 </style>
 </head>
 <body>
@@ -826,13 +845,13 @@ details.dfold[open]{padding-bottom:12px}
   <nav class="tabs" role="tablist" id="tabs">
     <button role="tab" data-tab="start" aria-selected="false">Start</button>
     <button role="tab" data-tab="rangliste" aria-selected="true">Rangliste</button>
-    <button role="tab" data-tab="markt" aria-selected="false">Markt</button>
-    <button role="tab" data-tab="chancen" aria-selected="false">Chancen: Anlauf, Dips &amp; Turnaround<span class="cnt" id="cnt-hot">0</span></button>
+    <button role="tab" data-tab="chancen" aria-selected="false">Chancen<span class="cnt" id="cnt-hot">0</span></button>
     <button role="tab" data-tab="insider" aria-selected="false">Insider<span class="cnt" id="cnt-ins">0</span></button>
+    <button role="tab" data-tab="markt" aria-selected="false">Markt</button>
     <button role="tab" data-tab="depot" aria-selected="false">Mein Depot<span class="cnt" id="cnt-depot">0</span></button>
-    <button role="tab" data-tab="treffer" aria-selected="false">Trefferquote</button>
-    <button role="tab" data-tab="methodik" aria-selected="false">Methodik</button>
-  </nav>
+    <button role="tab" data-tab="treffer" class="tsec tfirst" aria-selected="false">Trefferquote</button>
+    <button role="tab" data-tab="methodik" class="tsec" aria-selected="false">Methodik</button>
+</nav>
 
   <div class="main with-detail" id="main">
     <div class="left">
@@ -1053,7 +1072,7 @@ details.dfold[open]{padding-bottom:12px}
           <p><b>Externe Chartanalysen</b> (nur Anzeige): Trading Central über Yahoo Finance (Ausblick kurz-, mittel- und langfristig, Unterstützung, Widerstand, jüngste Chartmuster; nur US-Aktien) und das technische Rating von TradingView (Tag, Woche, Monat; alle Regionen). Beide werden bei jedem Lauf aufgefrischt. Sind sie älter als drei Tage, werden sie nicht mehr angezeigt.</p>
           <p><b>Zusatzsignale</b> (nur Anzeige, ohne Einfluss auf den Score): Insidergeschäfte der letzten sechs Monate (nur Käufe und Verkäufe am Markt, Yahoo liefert sie fast nur für US-Aktien), Gewinn je Aktie gegenüber der Schätzung in den letzten vier Quartalen, Leerverkaufsquote. Branchenvergleich: Anteil der Sektorkollegen, die bei einer Kennzahl schlechter abschneiden (beim KGV: teurer sind); Banken und Versicherer nur untereinander. Marktumfeld: Anteil der Aktien über der 200- und 50-Tage-Linie und nahe am Hoch, Medianentwicklung je Sektor. „Neutral“ mit Unterzeile zeigt bei starken Aktien, warum keine andere Einordnung greift.</p>
           <p><b>Kurs in Euro</b>: Börsenkurs mal aktueller Wechselkurs. „Tag“ ist die Veränderung am letzten Handelstag, „Woche“ über fünf Handelstage. „Score seit Vortag“ und „Score 7 Tage“ im Steckbrief sind Veränderungen des Gesamtscores, keine Kursbewegungen.</p>
-          <p><b>Anlauf-Signale</b> (acht) und <b>Turnaround-Prüfungen</b> (sieben) stehen im Steckbrief und im Reiter „Chancen: Anlauf, Dips &amp; Turnaround“ einzeln mit ihren Werten.</p>
+          <p><b>Anlauf-Signale</b> (acht) und <b>Turnaround-Prüfungen</b> (sieben) stehen im Steckbrief und im Reiter „Chancen“ einzeln mit ihren Werten.</p>
         </div></details>
         <details class="meth"><summary>Renditeerwartung, Analystenbild, Einordnung, Risiko</summary><div class="body">
           <p><b>Renditeerwartung</b> nach der Multiple-Methode über fünf Jahre: Der Gewinn je Aktie wächst mit der angesetzten Rate, am Ende steht ein Ziel-KGV. Das ist der Median der KGVs zu den letzten Jahresabschlüssen, gedeckelt je Kategorie (Slow 18, Average 22, Fast 28, Zykliker 15, bei Finanzwerten die Hälfte) und nie höher als das heutige KGV. Dazu kommt die Dividendenrendite. Ab 12 % p. a. gibt es die volle Punktzahl. Die Szenario-Spanne ist ein Rechenbeispiel und kein Kursziel.</p>
