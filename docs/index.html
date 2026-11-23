@@ -1830,9 +1830,9 @@ function abSvg(x,o){var p=o.p,v=[p];[o.sup,o.sup2,o.res,o.res2].forEach(function
   g+='<line x1="'+X(p).toFixed(1)+'" x2="'+X(p).toFixed(1)+'" y1="34" y2="78" style="stroke:var(--fg)" stroke-width="2"/><text x="'+X(p).toFixed(1)+'" y="127" text-anchor="middle" class="abt"><tspan font-weight="600">Kurs</tspan>  '+px(p)+"</text>";
   g+='<text x="14" y="127" class="abt abm">'+px(lo)+'</text><text x="'+(W-14)+'" y="127" text-anchor="end" class="abt abm">'+px(hi)+"</text></svg>";
   return g}
-function loadProg(){if(S.progState)return;S.progState=1;fetch("prog.json?t="+Date.now()).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(c){S.prog=c;S.progState=2;if(S.sel)renderDetail()}).catch(function(){S.progState=3})}
+function loadProg(){if(S.progState)return;S.progState=1;fetch("prog.json?t="+Date.now()).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(c){S.prog=c;S.progState=2;if(S.sel)renderDetail()}).catch(function(){S.progState=3;setTimeout(function(){S.progState=0},120000)})}
 function abZone(x,z,kind){var P=S.prog&&S.prog[x.s],L=kind==="s"?x.zs:x.zr,i=(L||[]).indexOf(z),r=P&&P.z&&P.z[kind]&&i>=0?P.z[kind][i]:null;if(!r)return"";
-  if(!r[0])return" In den letzten 5 Jahren wurde diese Zone nicht getestet.";
+  if(!r[0])return" In den letzten 5 Jahren noch nie getestet, also noch nicht bewährt.";
   return" Bewährung in 5 Jahren: "+r[0]+"-mal getestet, "+r[1]+"-mal "+(kind==="s"?"gehalten":"abgeprallt")+(r[2]!=null?", danach im Mittel "+sgp(r[2]*100,0):"")+(r[3]?" (zuletzt "+r[3].slice(5)+"/"+r[3].slice(0,4)+")":"")+"."}
 function abCorr(x,P){var k=P&&P.k,v=P&&P.v;if(!k&&!v)return"";var p=x.p,cu=esc(x.cur),rows=[];
   ["20","60"].forEach(function(hz){var e=k&&k[hz]&&k[hz].e,q=e?e.q:null,src="ähnliche Lagen ("+(e?e.n:0)+")";if(!q&&v&&v[hz]){q=[v[hz][0],null,0,null,v[hz][1]];src="übliche Schwankung"}if(!q||q[0]==null||q[4]==null)return;rows.push([hz,q,src])});
