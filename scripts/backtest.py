@@ -297,6 +297,14 @@ def main():
         return 1
     print("Fälle:", len(P), "Aktien:", P["s"].nunique(), "Sekunden:", round(time.time() - t), flush=True)
     res = analyse(P)
+    try:                                           # Prognosemodell (Paket 5); bei Fehler bleibt die Rückrechnung gültig
+        rep, params = model_fit(P)
+        res["mdl"] = rep
+        if params:
+            with open(os.path.join(ROOT, "data", "prog_model.json"), "w") as f:
+                json.dump(params, f, separators=(",", ":"))
+    except Exception as e:  # noqa: BLE001
+        print("Prognosemodell übersprungen:", type(e).__name__, e, flush=True)
     with open(OUT, "w") as f:
         json.dump(res, f, separators=(",", ":"), ensure_ascii=False)
     for k, e in res["set"].items():
@@ -307,3 +315,141 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+# ------------------------------------------------------------------------------------------------ Prognosemodell (Paket 5)
+# Logistische Regression auf den je Woche über alle Aktien gerankten Merkmalen (Rang 0–1 und Rang², damit auch
+# U-förmige Zusammenhänge möglich sind). Ziel: schlägt die mittlere Aktie in 20 bzw. 60 Handelstagen.
+# Prüfung „walk-forward“: für jedes Prüfjahr nur mit Jahren lernen, die mindestens 90 Tage vorher enden.
+# Abnahme (sonst wird nichts angezeigt): Ø Trennschärfe (AUC) ≥ 0,53, in ≥ 70 % der Jahre > 0,50, oberstes Zehntel
+# in ≥ 70 % der Jahre besser als unterstes, mittlerer Kalibrierungsfehler < 3 Prozentpunkte, mindestens so gut wie reines Momentum.
+MF = ["mom12", "mom1", "d52h", "d50", "d200", "sl200", "rsi", "vol60", "volr", "ud"]
+MB = ["trend", "brk"]
+MNAME = {"mom12": "Kursentwicklung 12 Monate", "mom1": "Kursentwicklung letzter Monat", "d52h": "Abstand zum Jahreshoch",
+         "d50": "Abstand zur 50-Tage-Linie", "d200": "Abstand zur 200-Tage-Linie", "sl200": "Richtung der 200-Tage-Linie",
+         "rsi": "RSI 14 Tage", "vol60": "Schwankung", "volr": "Volumen zuletzt", "ud": "Kaufdruck",
+         "trend": "Aufwärtstrend", "brk": "Hoch der letzten 60 Tage"}
+
+
+def design(D):
+    """Merkmalsmatrix aus gerankten Merkmalen (Spalten r_<f> 0–1) und Binärmerkmalen."""
+    cols = []
+    for f in MF:
+        r = D["r_" + f].fillna(0.5).values
+        cols += [r - 0.5, (r - 0.5) ** 2 - 1 / 12]
+    for f in MB:
+        cols.append(D[f].fillna(0).values - 0.5)
+    return np.column_stack(cols)
+
+
+def add_ranks(P):
+    for f in MF:
+        P["r_" + f] = P.groupby("w")[f].rank(pct=True)
+    return P
+
+
+def _auc(y, p):
+    from sklearn.metrics import roc_auc_score
+    try:
+        return float(roc_auc_score(y, p))
+    except Exception:
+        return None
+
+
+def model_fit(P):
+    """Rückgabe (Bericht für bt.json, Modellparameter oder None)."""
+    from sklearn.isotonic import IsotonicRegression
+    from sklearn.linear_model import LogisticRegression
+    P = add_ranks(P.copy())
+    rep, params = {"hz": {}}, {"v": 1, "mf": MF, "mb": MB, "nam": MNAME, "hz": {}}
+    years = sorted(P["yr"].unique())
+    for hz in (20, 60):
+        D = P[np.isfinite(P["x%d" % hz])]
+        X, y, x = design(D), (D["x%d" % hz].values > 0).astype(int), D["x%d" % hz].values
+        w, yr = D["w"].values, D["yr"].values
+        oos_p, oos_y, oos_x, rows, base_auc = [], [], [], [], []
+        for Y in years:
+            if Y < years[0] + 5:
+                continue
+            te = yr == Y
+            tr = w < np.datetime64("%d-01-01" % Y) - np.timedelta64(90, "D")
+            if te.sum() < 2000 or tr.sum() < 20000:
+                continue
+            m = LogisticRegression(C=1.0, max_iter=300).fit(X[tr], y[tr])
+            p = m.predict_proba(X[te])[:, 1]
+            a = _auc(y[te], p)
+            b = _auc(y[te], D["r_mom12"].fillna(0.5).values[te])
+            q = pd.qcut(pd.Series(p).rank(method="first"), 10, labels=False).values
+            top, bot = x[te][q == 9], x[te][q == 0]
+            rows.append([int(Y), round(a, 3) if a else None, round(b, 3) if b else None,
+                         round(float((top > 0).mean()) * 100, 1), round(float(np.median(top)) * 100, 2),
+                         round(float((bot > 0).mean()) * 100, 1), round(float(np.median(bot)) * 100, 2), int(te.sum())])
+            oos_p.append(p); oos_y.append(y[te]); oos_x.append(x[te]); base_auc.append(b)
+        if len(rows) < 4:
+            continue
+        op, oy, ox = np.concatenate(oos_p), np.concatenate(oos_y), np.concatenate(oos_x)
+        bins = np.clip((op * 20).astype(int), 0, 19)          # 5-%-Stufen
+        cal = []
+        for b_ in np.unique(bins):
+            k = bins == b_
+            if k.sum() >= 500:
+                cal.append([round(float(op[k].mean()) * 100, 1), round(float(oy[k].mean()) * 100, 1), int(k.sum())])
+        ece = sum(abs(c[0] - c[1]) * c[2] for c in cal) / max(1, sum(c[2] for c in cal))
+        aucs = [r[1] for r in rows if r[1] is not None]
+        mauc, share = float(np.mean(aucs)), float(np.mean([a > 0.5 for a in aucs]))
+        tb = float(np.mean([r[3] > r[5] for r in rows]))
+        mbase = float(np.mean([b for b in base_auc if b is not None]))
+        ok = bool(mauc >= 0.53 and share >= 0.7 and tb >= 0.7 and ece < 3 and mauc >= mbase - 0.003)
+        # Mehrrendite je Wahrscheinlichkeitsstufe (außerhalb der Lernjahre) – für Simulation und Anzeige
+        iso = IsotonicRegression(out_of_bounds="clip", y_min=0.01, y_max=0.99).fit(op, oy)
+        cp = iso.predict(op)
+        qb = np.clip((cp * 20).astype(int), 0, 19)
+        ex = {}
+        for b_ in np.unique(qb):
+            k = qb == b_
+            if k.sum() >= 300:
+                ex[str(int(b_))] = [round(float(np.median(ox[k])) * 100, 2), round(float(np.percentile(ox[k], 25)) * 100, 2),
+                                    round(float(np.percentile(ox[k], 75)) * 100, 2), int(k.sum())]
+        rep["hz"][str(hz)] = {"yrs": rows, "auc": round(mauc, 3), "auc_mom": round(mbase, 3), "auc_share": round(share * 100),
+                              "topbot": round(tb * 100), "ece": round(ece, 2), "cal": cal, "ok": ok, "ex": ex}
+        # endgültiges Modell mit allen Daten
+        m = LogisticRegression(C=1.0, max_iter=300).fit(X, y)
+        params["hz"][str(hz)] = {"b0": float(m.intercept_[0]), "b": [float(v) for v in m.coef_[0]],
+                                 "iso": [[float(v) for v in iso.X_thresholds_], [float(v) for v in iso.y_thresholds_]],
+                                 "ok": ok, "ex": ex}
+        print("Modell %d Tage: AUC %.3f (Momentum %.3f), Jahre >0,5: %d %%, Spitze>Boden: %d %%, Kalibrierung %.2f Pp., ok=%s"
+              % (hz, mauc, mbase, share * 100, tb * 100, ece, ok), flush=True)
+    rep["ok"] = any(v["ok"] for v in rep["hz"].values())
+    return rep, (params if params["hz"] else None)
+
+
+def model_apply(params, rows):
+    """rows: {Kürzel: Merkmalszeile (dict)} für heute. Ränge über alle heutigen Aktien, dann Wahrscheinlichkeit
+    (kalibriert) und die Beiträge der Merkmale. Rückgabe {Kürzel: {hz: [p, Beiträge…]}}."""
+    if not params or not rows:
+        return {}
+    D = pd.DataFrame.from_dict(rows, orient="index")
+    for f in MF + MB:
+        if f not in D:
+            D[f] = np.nan
+    D["w"] = 0
+    D = add_ranks(D)
+    X = design(D)
+    names = []
+    for f in MF:
+        names += [f, f]
+    names += MB
+    out = {s: {} for s in D.index}
+    for hz, m in params["hz"].items():
+        b = np.array(m["b"])
+        z = m["b0"] + X @ b
+        raw = 1 / (1 + np.exp(-z))
+        p = np.interp(raw, m["iso"][0], m["iso"][1])
+        C = X * b
+        for i, s in enumerate(D.index):
+            con = {}
+            for j, f in enumerate(names):
+                con[f] = con.get(f, 0.0) + C[i, j]
+            top = sorted(con.items(), key=lambda t: -abs(t[1]))[:6]
+            out[s][hz] = [round(float(p[i]) * 100, 1), [[f, round(float(v), 3), round(float(D.loc[s, "r_" + f]) * 100) if f in MF and np.isfinite(D.loc[s, "r_" + f]) else None] for f, v in top]]
+    return out

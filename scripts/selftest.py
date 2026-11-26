@@ -534,6 +534,42 @@ def main():
     except Exception as e:  # noqa: BLE001
         ok &= check("Rückrechnung und Simulation", False, repr(e))
 
+    # Prognosemodell (Paket 5): Anwendung immer; Lernen nur, wenn scikit-learn installiert ist (monatlicher Ablauf)
+    try:
+        import backtest as BT
+        nb = 2 * len(BT.MF) + len(BT.MB)
+        par = {"hz": {"60": {"b0": 0.0, "b": [1.0] + [0.0] * (nb - 1), "iso": [[0.0, 1.0], [0.0, 1.0]], "ok": True, "ex": {}}}}
+        rows_ = {"A": {"mom12": 0.5}, "B": {"mom12": 0.0}, "C": {"mom12": -0.5}}
+        ap = BT.model_apply(par, rows_)
+        ok &= check("Prognosemodell: höhere Kursentwicklung → höhere Wahrscheinlichkeit (Gewicht positiv)",
+                    ap["A"]["60"][0] > ap["B"]["60"][0] > ap["C"]["60"][0], ap)
+        try:
+            import sklearn  # noqa: F401
+            have = True
+        except Exception:
+            have = False
+        if have:
+            rng = np.random.default_rng(3)
+            W = pd.date_range("2010-01-01", "2026-06-30", freq="W-FRI")
+            parts = []
+            for w_ in W:
+                d = {f: rng.normal(size=120) for f in BT.MF}
+                d.update({"trend": rng.integers(0, 2, 120).astype(float), "brk": rng.integers(0, 2, 120).astype(float), "w": w_})
+                parts.append(pd.DataFrame(d))
+            Pm = pd.concat(parts, ignore_index=True)
+            Pm["yr"] = Pm["w"].dt.year
+            rk = Pm.groupby("w")["mom12"].rank(pct=True)
+            Pm["x20"] = rng.normal(0, 0.08, len(Pm))
+            Pm["x60"] = rng.normal(0, 0.14, len(Pm))
+            r0, _ = BT.model_fit(Pm)
+            Pm["x60"] = Pm["x60"] + 0.06 * (rk - 0.5)
+            r1, p1 = BT.model_fit(Pm)
+            ok &= check("Prognosemodell: Zufall besteht die Prüfung nicht, echtes Signal schon",
+                        (not r0["hz"]["60"]["ok"]) and r1["hz"]["60"]["ok"] and p1 is not None,
+                        (r0["hz"]["60"]["auc"], r1["hz"]["60"]["auc"]))
+    except Exception as e:  # noqa: BLE001
+        ok &= check("Prognosemodell", False, repr(e))
+
     try:
         import json
         json.dumps([r, down, weak, none])

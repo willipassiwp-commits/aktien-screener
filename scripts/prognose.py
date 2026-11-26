@@ -206,7 +206,7 @@ def compute(df, zs=None, zr=None, sym=""):
 # die Rückrechnung für die heutige Lage einen gefunden hat (ok ≠ 0, in Lern- und Prüfzeitraum gleich gerichtet).
 NSIM, HSIM, BLOCK = 10000, 60, 5
 MC_DAYS = (5, 10, 20, 40, 60)
-_CTX = {"bt": None, "phase": None}
+_CTX = {"bt": None, "phase": None, "mdl": None, "rows": {}, "sim": {}}
 
 
 def set_context(MD=None, prog_path=None):
@@ -218,6 +218,13 @@ def set_context(MD=None, prog_path=None):
                 _CTX["bt"] = json.load(open(p))
     except Exception:
         _CTX["bt"] = None
+    try:                                           # Prognosemodell (Paket 5), gelernt im monatlichen Ablauf
+        if prog_path:
+            p = os.path.join(os.path.dirname(os.path.dirname(prog_path)), "data", "prog_model.json")
+            if os.path.exists(p):
+                _CTX["mdl"] = json.load(open(p))
+    except Exception:
+        _CTX["mdl"] = None
     try:
         if MD and "^GSPC" in MD:
             import backtest
@@ -332,6 +339,11 @@ def scenario(df, zs=None, zr=None, sym=""):
     except Exception:
         F = None
     st, dr, used = setup_drift(F)
+    try:                                           # für das Prognosemodell nach der Schleife (finalize)
+        if F is not None and len(F):
+            _CTX["rows"][sym] = {k: (None if not np.isfinite(v) else float(v)) for k, v in F.iloc[-1].items()}
+    except Exception:
+        pass
     bt = _CTX["bt"]
     base = 0.0
     if bt and bt.get("base"):
@@ -340,6 +352,7 @@ def scenario(df, zs=None, zr=None, sym=""):
     import zlib
     seed = zlib.crc32((sym + str(c.index[-1].date())).encode())
     m = simulate(c.values, up, dn, base + dr, seed=seed)
+    _CTX["sim"][sym] = (c.values, up, dn, seed, base)
     if not m:
         return None
     m["dr"], m["db"] = round(dr * HSIM * 100, 2), round(base * HSIM * 100, 2)   # Vorteil der Setups / üblicher Anstieg
@@ -348,3 +361,39 @@ def scenario(df, zs=None, zr=None, sym=""):
     m["ph"] = _CTX["phase"]
     m["n"] = NSIM
     return m
+
+
+
+def finalize(prog):
+    """Nach der Schleife im täglichen Lauf: Prognosemodell auf alle heutigen Aktien anwenden (Ränge über alle Aktien)
+    und, wenn das 60-Tage-Modell die Prüfung bestanden hat, die Simulation mit der Richtung des Modells neu rechnen.
+    Schreibt prog[s]["pm"] = {"20": [p, Gründe], "60": [...], "ok": {...}, "ex": [Mitte, 25 %, 75 %] }."""
+    M = _CTX.get("mdl")
+    if not M or not _CTX["rows"]:
+        return 0
+    import backtest
+    res = backtest.model_apply(M, _CTX["rows"])
+    n = 0
+    for s, r in res.items():
+        if s not in prog:
+            continue
+        pm = {hz: v for hz, v in r.items()}
+        pm["ok"] = {hz: bool(M["hz"][hz].get("ok")) for hz in M["hz"]}
+        m60 = M["hz"].get("60")
+        if m60 and "60" in r:
+            b_ = str(int(min(19, max(0, r["60"][0] / 5))))
+            ex = (m60.get("ex") or {}).get(b_)
+            if ex:
+                pm["ex"] = ex[:3]
+            if m60.get("ok") and ex and s in _CTX["sim"]:
+                c, up, dn, seed, base = _CTX["sim"][s]
+                d = float(np.clip(np.log1p(ex[0] / 100.0) / HSIM, -0.0015, 0.0015))
+                mc = simulate(c, up, dn, base + d, seed=seed)
+                if mc:
+                    old = prog[s].get("mc") or {}
+                    mc.update({"dr": round(d * HSIM * 100, 2), "db": round(base * HSIM * 100, 2), "st": old.get("st", []),
+                               "su": ["modell"], "ph": old.get("ph"), "n": NSIM})
+                    prog[s]["mc"] = mc
+        prog[s]["pm"] = pm
+        n += 1
+    return n

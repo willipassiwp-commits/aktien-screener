@@ -943,6 +943,11 @@ def main():
     if daily:
         with open(DAILY_PATH, "w") as f:
             json.dump(daily, f, separators=(",", ":"), default=plain)
+    try:                                           # Prognosemodell auf alle heutigen Aktien anwenden (nur Anzeige)
+        import prognose
+        print("Prognosemodell angewendet:", prognose.finalize(prog), "Aktien", flush=True)
+    except Exception as e:  # noqa: BLE001
+        print("Prognosemodell übersprungen:", type(e).__name__, e, flush=True)
     try:                                           # Prognose-Bausteine in eigene Datei; fehlende Aktien behalten den alten Stand
         try:
             old_prog = json.load(open(PROG_PATH))
