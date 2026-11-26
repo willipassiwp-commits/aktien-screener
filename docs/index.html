@@ -885,6 +885,150 @@ button.fzl:hover{text-decoration-color:var(--fg)}
 .pmb i{position:absolute;top:1px;width:10px;height:10px;margin-left:-5px;border-radius:50%;background:var(--mid);box-shadow:0 0 0 2px var(--bg)}.pmb i.good{background:var(--good)}.pmb i.bad{background:var(--bad)}
 .pmg{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;margin-top:8px}.pmg ul{margin:3px 0 0;padding-left:18px}.pmg small{color:var(--muted)}
 @media (max-width:560px){.pmg{grid-template-columns:1fr}}
+
+/* ===== Design 26.11.2026 „Druck“: gesetzt wie eine Wirtschaftszeitung (nur Darstellung) =====
+   Ein Blatt statt Kästen, Linien statt Rahmen, Tinte und Messing, gedämpfte Signalfarben nur auf Daten.
+   Einheitliches Kennzeichen für Urteile: kurzer senkrechter Strich statt Punkt. Rücksprung: diesen Block löschen. */
+:root{
+  --bg:#fbfaf6; --surface:#fbfaf6; --sunken:#f2efe7; --line:#e3ded2; --line2:#c9c2b3; --fg:#17191d; --muted:#5d5f63;
+  --accent:#1f3550; --accent-soft:#efe9dc; --brass:#9c7a3c; --brass-ink:#76592a; --sand:#f2ede1;
+  --good:#2e6b4f; --good-soft:#e5eee8; --mid:#946a17; --mid-soft:#f3ead7; --bad:#a63a2b; --bad-soft:#f4e3df;
+  --serif:"Source Serif 4",Georgia,serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#131416; --surface:#131416; --sunken:#1b1c1f; --line:#2a2b2e; --line2:#3c3d41; --fg:#e7e4dc; --muted:#9a978f;
+  --accent:#b9c7d8; --accent-soft:#22211d; --brass:#c4a466; --brass-ink:#d3b67e; --sand:#1a1916;
+  --good:#79b393; --good-soft:#18251e; --mid:#d0a654; --mid-soft:#2a2214; --bad:#dc8a7d; --bad-soft:#2e1c19; --serif:"Source Serif 4",Georgia,serif }}
+:root[data-theme="dark"]{
+  --bg:#131416; --surface:#131416; --sunken:#1b1c1f; --line:#2a2b2e; --line2:#3c3d41; --fg:#e7e4dc; --muted:#9a978f;
+  --accent:#b9c7d8; --accent-soft:#22211d; --brass:#c4a466; --brass-ink:#d3b67e; --sand:#1a1916;
+  --good:#79b393; --good-soft:#18251e; --mid:#d0a654; --mid-soft:#2a2214; --bad:#dc8a7d; --bad-soft:#2e1c19; --serif:"Source Serif 4",Georgia,serif }
+body{background:var(--bg)}
+::selection{background:color-mix(in srgb,var(--brass) 30%,transparent)}
+
+/* Kopf: Titel in Serifenschrift, Farbmodus als Text */
+.brand .mark{display:none}
+.brand h1{font-family:var(--serif);font-size:22px;font-weight:600;letter-spacing:-.01em}
+header.top{border-bottom:3px double var(--fg);padding-bottom:10px}
+.themebtn{border:0!important;border-radius:0;background:none!important;padding:2px 0;font-size:12.5px;color:var(--muted);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+.themebtn:hover{color:var(--fg);text-decoration-color:var(--fg)}
+.themebtn .ti{display:none}
+.themebtn #themelbl::before{content:"Darstellung: "}
+nav.tabs{border-bottom:1px solid var(--fg)}
+nav.tabs button .cnt{background:none!important;padding:0;margin-left:4px;border-radius:0;color:var(--muted);font-weight:400}
+.mstrip{border-bottom:1px solid var(--line)}
+.mstrip .mmore{color:var(--fg);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+
+/* Ein Blatt statt Kästen */
+.panel,#detail,.tn{background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+.panel.pad,section.panel{padding-left:0;padding-right:0}
+.controls.tool{padding:4px 0 10px}
+.tbar .ptitle{font-family:var(--serif);font-size:24px;font-weight:600;letter-spacing:-.01em}
+#tab-rangliste>.panel+.panel,#tab-rangliste .tablewrap{border-top:2px solid var(--fg)!important}
+@media (min-width:1200px){
+  .main.with-detail{gap:0 28px}
+  #detail{border-left:1px solid var(--line)!important;padding:4px 4px 16px 28px;background:var(--bg)!important}
+  #detail .dnav{background:var(--bg)}
+}
+.tn{padding-left:0;padding-right:0}
+.hero{background:none;border:0;border-bottom:1px solid var(--line);border-radius:0}
+.hk{background:none;border:0;border-left:1px solid var(--line);border-radius:0}
+
+/* Tabellen: Haarlinien, keine Füllungen */
+table.grid thead th{background:var(--bg)!important;border-bottom:1px solid var(--fg)}
+table.grid td{border-bottom-color:var(--line)}
+table.grid tbody tr:hover td,table.grid tbody tr[data-id]:hover,#grid tbody tr[data-id]:hover td:nth-child(-n+3){background:var(--sunken)}
+table.grid tbody tr.sel td,table.grid tbody tr.sel,#grid tbody tr.sel td:nth-child(-n+3){background:var(--accent-soft)!important}
+#grid tbody tr.sel td:nth-child(3){box-shadow:inset 2px 0 0 var(--brass)}
+.total .bar{height:3px;background:var(--line)}
+.b4 i{background:var(--good)} .b3 i{background:color-mix(in srgb,var(--good) 55%,var(--bg))} .b2 i{background:color-mix(in srgb,var(--mid) 60%,var(--bg))} .b1 i{background:var(--bad)}
+.spark polyline{stroke-width:1.2}
+
+/* Logos zurückhaltend: Graustufen, Ersatz als Monogramm in Serifenschrift */
+.logo{border-radius:0!important;background:none!important;border:1px solid var(--line);color:var(--muted);font-family:var(--serif);font-weight:600;font-size:11.5px}
+.logo img{border-radius:0;background:var(--bg);filter:grayscale(1) contrast(1.05);opacity:.8}
+:root[data-theme="dark"] .logo img{filter:grayscale(1) invert(.88) contrast(1.1)}
+
+/* Urteile: kurzer senkrechter Strich statt Punkt oder Quadrat */
+.pill::before,.ldot,.tnamp .ldot,.fzd,.gbv::before,.af b::before{display:inline-block;width:3px!important;height:.95em!important;border-radius:0!important;box-shadow:none!important;vertical-align:-.12em!important;margin-right:7px}
+.pill.neutral::before{background:var(--line2)}
+.lbig .ldot{width:4px!important;height:42px!important}
+.gbv.good,.af.good b{color:var(--good)}.gbv.bad,.af.bad b{color:var(--bad)}.gbv.mid,.af.mid b{color:var(--mid)}
+.vd{background:none!important;border:0!important;padding:0;font-size:11.5px;text-transform:none;letter-spacing:0}
+.tag{background:none!important;border:1px solid var(--line2);border-radius:0}
+
+/* Kacheln aufgelöst: Kennzahlen als Zeilen unter einer Haarlinie */
+.af,.subs div,.kpis div,.perf div,.pcx,.hk{background:none!important;border:0!important;border-top:1px solid var(--line)!important;border-radius:0!important;box-shadow:none}
+.pcx{border-left:2px solid var(--line)!important;padding:8px 0 8px 10px}
+.pcx.good{border-left-color:var(--good)!important}.pcx.mid{border-left-color:var(--mid)!important}.pcx.bad{border-left-color:var(--bad)!important}
+.ausw{background:none;border-left:2px solid var(--brass)}
+.verdict{border-left-color:var(--brass)}
+.notice{background:none;border-left:2px solid var(--mid)}
+
+/* Bedienelemente: Register statt Knöpfe */
+.chips button,.hzsel button,.rng button{background:none!important;border:0!important;border-bottom:2px solid transparent!important;border-radius:0!important;padding:3px 0!important;margin-right:12px;color:var(--muted);font-weight:400}
+.chips button:hover,.hzsel button:hover,.rng button:hover{color:var(--fg)}
+.chips button[aria-pressed=true],.hzsel button[aria-pressed="true"],.rng button[aria-pressed=true]{background:none!important;color:var(--fg)!important;font-weight:600;border-bottom-color:var(--brass)!important}
+.chips button[aria-pressed=true] .pc{color:var(--muted)}
+.pc{font-size:11.5px;padding-left:3px}
+.pgrp>span{color:var(--fg);font-weight:600;min-width:64px}
+.pmore,.hzt{color:var(--fg)!important;text-decoration-color:var(--line2)!important}
+button,input[type=search],input[type=text],input[type=number],select{border-radius:0}
+input[type=search],input[type=text],input[type=number],select{background:var(--bg);border:0;border-bottom:1px solid var(--line2)}
+input[type=search]:focus,input[type=text]:focus,select:focus{outline:none;border-bottom-color:var(--fg)}
+button.primary{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+a{color:var(--fg);text-decoration-color:var(--line2);text-underline-offset:3px}
+a:hover{text-decoration-color:var(--fg)}
+.gbq td.gbl .link{text-decoration-color:var(--line2)}
+
+/* Steckbrief-Reiter: alle sechs passen in die Breite */
+#detail .dnav{justify-content:space-between;top:-4px}
+#detail .dnav button{padding:10px 4px 8px;font-size:13px}
+#detail .dchh h2,.gbh,.fzv{letter-spacing:-.01em}
+
+/* Skalen: Linie mit Teilstrichen statt Farbverlauf */
+.fzb,.pmb,.gauge{background:
+  linear-gradient(var(--muted),var(--muted)) left center/1px 7px no-repeat,
+  linear-gradient(var(--muted),var(--muted)) center center/1px 11px no-repeat,
+  linear-gradient(var(--muted),var(--muted)) right center/1px 7px no-repeat,
+  linear-gradient(var(--line2),var(--line2)) center/100% 1px no-repeat!important;border-radius:0!important}
+.fzb::before,.pmb::before{display:none}
+.fzb i,.pmb i{width:9px;height:9px;margin-left:-4.5px;top:2.5px;box-shadow:0 0 0 2px var(--bg)}
+.pmb i{top:1.5px}
+.fgbar{border-radius:0!important;height:6px;background:linear-gradient(90deg,
+  var(--bad) 0 20%,color-mix(in srgb,var(--bad) 45%,var(--bg)) 20% 40%,var(--line2) 40% 60%,
+  color-mix(in srgb,var(--good) 45%,var(--bg)) 60% 80%,var(--good) 80% 100%)!important}
+.abbar,.abbar i,.mcbar,.sbar,.sbar i,.corrbar div{border-radius:0!important}
+.mcbar{height:8px}
+.abbar{height:4px}
+
+/* Das Feld heute: abgestufte, ruhige Farben */
+.tnfield .b2,.tnscale .b2{fill:color-mix(in srgb,var(--mid) 55%,var(--bg));background:color-mix(in srgb,var(--mid) 55%,var(--bg))}
+.tnfield .b3,.tnscale .b3{fill:color-mix(in srgb,var(--good) 55%,var(--bg));background:color-mix(in srgb,var(--good) 55%,var(--bg))}
+.tnscale i{width:3px;height:.95em;vertical-align:-.12em}
+
+/* Score-Kopf im Steckbrief: Satz und Feld-Streifen statt großer Zahl */
+.dhead{display:block!important}
+.dhs{margin:12px 0 2px;border-top:1px solid var(--fg);padding-top:10px}
+.dhs p{margin:0;font-family:var(--serif);font-size:16px;line-height:1.4}
+.dhs p b{font-size:26px;font-weight:600;letter-spacing:-.01em;margin-right:2px}
+.dhs .dhm{font-family:var(--text);font-size:12.5px;color:var(--muted);margin-top:3px}
+.dhstrip{display:block;width:100%;height:auto;margin:10px 0 0;overflow:visible}
+.dhf{font-family:var(--text)!important;font-size:11.5px!important;color:var(--muted);margin-top:2px!important}
+.dhstrip .t{stroke:var(--muted);stroke-width:1;opacity:.28;vector-effect:non-scaling-stroke}
+.dhstrip .th{stroke:var(--line2);stroke-width:1;stroke-dasharray:2 3;vector-effect:non-scaling-stroke}
+.dhstrip .ax{stroke:var(--fg);stroke-width:1;vector-effect:non-scaling-stroke}
+.dhstrip .me{stroke:var(--brass);stroke-width:2.5;vector-effect:non-scaling-stroke}
+.dhstrip text{font-size:11px;fill:var(--muted);font-family:var(--text)}
+.dhstrip text.me{fill:var(--fg);font-weight:600}
+@media (max-width:560px){.dhs p b{font-size:22px}}
+.dhead h2{font-family:var(--serif);font-size:23px;font-weight:600;letter-spacing:-.01em}
+.pill.neutral::before{display:none}
+.dhead p[style*="flex"]{gap:4px 14px!important}
+.pgrp>span{color:var(--muted)!important;font-weight:400!important;min-width:0!important;margin:0 6px 0 10px}
+.pgrp>span::after{content:":"}
+.dhstrip text.me{stroke:none}
+@media (max-width:560px){#detail .dnav{justify-content:flex-start;flex-wrap:wrap;column-gap:14px}#detail .dnav button{font-size:13px;padding:8px 0 6px}}
 </style>
 </head>
 <body>
@@ -1274,7 +1418,20 @@ function val(x,k){switch(k){case"n":return x.n.toLowerCase();case"w":return S.wa
 function logo(x){var t=(x.n||x.s).replace(/[^A-Za-zÄÖÜäöü0-9 ]/g,"").trim().split(/\s+/),ini=((t[0]||"")[0]||"")+((t[1]||"")[0]||"");var hsh=0;for(var i=0;i<(x.sec||"").length;i++)hsh=(hsh*31+x.sec.charCodeAt(i))%360;
   return'<span class="logo" style="background:hsl('+hsh+',45%,'+(isDark()?"32%":"88%")+')">'+esc(ini.toUpperCase())+(x.web?'<img src="https://icons.duckduckgo.com/ip3/'+esc(x.web)+'.ico" alt="" loading="lazy" onerror="this.remove()">':"")+"</span>"}
 function spark(x){var v=x.sp;if(!v||v.length<8)return'<span class="muted">–</span>';var W=72,H=22,n=v.length,p=v.map(function(y,i){return(i*(W-2)/(n-1)+1).toFixed(1)+","+(H-2-y/99*(H-4)).toFixed(1)}).join(" ");return'<svg class="spark '+(x.spc>=0?"up":"down")+'" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+" "+H+'" aria-label="Verlauf 6 Monate '+sgp((x.spc||0)*100,0)+'"><polyline points="'+p+'"/></svg>'}
-function coCell(x){return'<span class="cow">'+logo(x)+'<span class="co"><b>'+esc(x.n)+"</b><small>"+esc(x.s)+" · "+esc(land(x.c))+" · "+esc(sek(x.sec))+"</small></span></span>"}
+function dhScore(x,b){
+  var chg=(x.c30!=null?"Score 30 Tage "+sg(x.c30,1)+(x.c7!=null?", 7 Tage "+sg(x.c7,1):""):x.c7==null?(x.c1==null?"":"Score seit Vortag "+sg(x.c1,1)):"Score 7 Tage "+sg(x.c7,1));
+  var base='<div class="dhs"><p><b>'+fmt(x.total,0)+'</b> von 100 im Gesamtscore, '+esc(String(BAND[b]).toLowerCase())+'.</p><p class="dhm">Rang '+x.rank+(S.all?" von "+S.all.length:"")+", Qualität "+fmt(x.qual,0)+(x.sq?", im Sektor Rang "+x.sq[0]+" von "+x.sq[1]:"")+(chg?". "+chg:"")+'</p>';
+  try{var A=(S.all||[]).map(function(y){return y.total}).filter(function(v){return v!=null&&isFinite(v)});if(A.length<20||x.total==null)return base+"</div>";
+    var lo=Math.max(0,Math.floor((Math.min.apply(null,A)-2)/10)*10),W=440,L=2,R=2,X=function(v){return (L+(W-L-R)*(Math.max(lo,Math.min(100,v))-lo)/(100-lo)).toFixed(1)},g="";
+    A.forEach(function(v){g+='<line class="t" x1="'+X(v)+'" x2="'+X(v)+'" y1="16" y2="32"/>'});
+    [48,62,75].forEach(function(t){g+='<line class="th" x1="'+X(t)+'" x2="'+X(t)+'" y1="12" y2="36"/><text x="'+X(t)+'" y="47" text-anchor="middle">'+t+"</text>"});
+    g+='<text x="'+L+'" y="47">'+lo+'</text><text x="'+(W-R)+'" y="47" text-anchor="end">100</text>';
+    g+='<line class="ax" x1="'+L+'" x2="'+(W-R)+'" y1="32" y2="32"/><line class="me" x1="'+X(x.total)+'" x2="'+X(x.total)+'" y1="10" y2="36"/>';
+    var tx=+X(x.total),an=tx>W-50?"end":tx<50?"start":"middle";
+    g+='<text class="me" x="'+tx+'" y="7" text-anchor="'+an+'">'+esc(x.s)+" "+fmt(x.total,0)+"</text>";
+    return base+'<svg class="dhstrip" viewBox="0 0 '+W+' 50" role="img" aria-label="Gesamtscore '+fmt(x.total,0)+' im Feld aller '+A.length+' Unternehmen">'+g+'</svg><p class="dhf">Jeder Strich ein Unternehmen. Gestrichelt die Stufen solide ab 48, stark ab 62, sehr stark ab 75.</p></div>'}
+  catch(e){return base+"</div>"}}
+function coCell(x){return'<span class="cow">'+logo(x)+'<span class="co"><b>'+esc(x.n)+"</b><small>"+esc(x.s)+", "+esc(land(x.c))+", "+esc(sek(x.sec))+"</small></span></span>"}
 function totCell(t){var b=band(t);return'<span class="total b'+b+'"><span class="num">'+fmt(t,0)+'</span><span class="bar"><i style="width:'+t.toFixed(0)+'%"></i></span></span>'}
 
 function filtered(){
@@ -1453,7 +1610,7 @@ function renderMarket(){var m=S.d&&S.d.mx,st=$("mstrip");if(!st)return;
   if(nd)h+=it("Nasdaq 100",'<span class="'+cls(nd[2].d1)+'">'+pp(nd[2].d1)+'</span> <span class="muted" style="font-weight:400">Woche '+pp(nd[2].w1)+"</span>");
   if(vx)h+=it("VIX",fmt(vx[2].p,1));
   if(m.fg)h+=it("Angst/Gier",m.fg.v+' <span class="muted" style="font-weight:400">'+esc(m.fg.lb)+"</span>");
-  var u=m.upd||{};h+='<div class="mmore">Was ist passiert? <span aria-hidden="true">→</span></div>';
+  var u=m.upd||{};h+='<div class="mmore">Was ist passiert?</div>';
   st.innerHTML=h;st.hidden=false;
   // ---------- Reiter Markt
   var b='<div class="lbig"><i class="ldot '+L.c+'"></i><div><h2 style="margin:0">Marktampel: '+esc(L.lb)+'</h2><p style="margin:4px 0 0">'+esc(L.t)+'</p><p class="muted" style="margin:4px 0 0;font-size:12px">Stand '+dat(m.d)+(L.since?" · in dieser Stufe seit "+dat(L.since):"")+" · Die Ampel wechselt erst, wenn eine neue Stufe an zwei Tagen festgestellt wurde.</p></div></div>";
@@ -1950,7 +2107,7 @@ function renderDetail(){
   (function(){var raw=WK.map(function(k){return[k,w[k]/ws*100]}),sum=0;raw.forEach(function(e){WP[e[0]]=Math.floor(e[1]);sum+=WP[e[0]]});raw.sort(function(a,b){return(b[1]-Math.floor(b[1]))-(a[1]-Math.floor(a[1]))});for(var i=0;i<100-sum&&i<raw.length;i++)WP[raw[i][0]]++})();
   function wp(k){return(WP[k]==null?fmt(w[k]/ws*100,0):WP[k])+" %"}
   var chart=S.chartsState===2?chartSvg(S.charts[x.s],x):S.chartsState===3?'<p class="muted">Der Kursverlauf konnte nicht geladen werden.</p>':'<p class="muted">Kursverlauf wird geladen …</p>';
-  var h='<div class="dwrap"><div class="dhead"><div><h2>'+esc(x.n)+' <button class="star'+(S.watch[x.s]?" on":"")+'" data-star="'+esc(x.s)+'" aria-label="Watchlist" aria-pressed="'+(S.watch[x.s]?"true":"false")+'">★</button></h2><p class="muted">'+esc(x.s)+" · "+esc(land(x.c))+" · "+esc(sek(x.sec))+(x.ind?" · "+esc(x.ind):"")+'</p><p style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"><span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+'</span><span class="pill neutral">'+x.cat+'</span><span class="pill neutral">'+x.strat+"</span>"+(x.fin?'<span class="pill neutral">'+FINL[x.fin]+"</span>":"")+'</p></div><div><div class="big">'+fmt(x.total,0)+'<small> /100</small></div><div class="chg muted">'+BAND[b]+" · Rang "+x.rank+'</div><div class="chg muted">Qualität '+fmt(x.qual,0)+(x.sq?" · Sektor "+x.sq[0]+"/"+x.sq[1]:"")+'</div><div class="chg '+cls(x.c7)+'">'+(x.c30!=null?"Score 30 Tage "+sg(x.c30,1)+(x.c7!=null?" · 7 Tage "+sg(x.c7,1):""):x.c7==null?(x.c1==null?"":"Score seit Vortag "+sg(x.c1,1)):"Score 7 Tage "+sg(x.c7,1))+"</div></div></div>";
+  var h='<div class="dwrap"><div class="dhead"><div><h2>'+esc(x.n)+' <button class="star'+(S.watch[x.s]?" on":"")+'" data-star="'+esc(x.s)+'" aria-label="Watchlist" aria-pressed="'+(S.watch[x.s]?"true":"false")+'">★</button></h2><p class="muted">'+esc(x.s)+", "+esc(land(x.c))+", "+esc(sek(x.sec))+(x.ind?", "+esc(x.ind):"")+'</p><p style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"><span class="pill '+(SUC[x.su]||"neutral")+'">'+x.su+'</span><span class="pill neutral">'+x.cat+'</span><span class="pill neutral">'+x.strat+"</span>"+(x.fin?'<span class="pill neutral">'+FINL[x.fin]+"</span>":"")+'</p></div>'+dhScore(x,b)+"</div>";
   var C={ov:"",pro:"",fu:"",an:"",dq:"",kv:"",ca:"",ph:"",ck:"",k:"",i:"",nw:""};
   function sb(v){if(v==null)return"";v=Math.max(0,Math.min(100,v));return'<i class="sbar"><i class="'+(v>=75?"g":v>=50?"m":"b")+'" style="width:'+v.toFixed(0)+'%"></i></i>'}
   var ABX=abBlock(x);C.ov+=gesamtBild(x,!!ABX)+ABX;var OVT=ampel(x);
@@ -2601,12 +2758,13 @@ fetch("data.json?t="+Date.now()).then(function(r){if(!r.ok)throw new Error(r.sta
 });
 document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("[data-dtab]");if(!b)return;S.dtab=b.getAttribute("data-dtab");
   [].forEach.call(document.querySelectorAll("#detail .dch"),function(c){c.hidden=c.id!==S.dtab});[].forEach.call(document.querySelectorAll("#detail [data-dtab]"),function(t){t.setAttribute("aria-selected",t===b?"true":"false")});
-  var d=$("detail"),nav=d.querySelector(".dnav");if(nav&&nav.getBoundingClientRect().top<d.getBoundingClientRect().top)d.scrollTop+=nav.getBoundingClientRect().top-d.getBoundingClientRect().top;});
+  var d=$("detail"),nav=d.querySelector(".dnav");if(nav&&nav.getBoundingClientRect().top<d.getBoundingClientRect().top)d.scrollTop+=nav.getBoundingClientRect().top-d.getBoundingClientRect().top;
+  try{var sc=document.getElementById(S.dtab);if(sc&&nav){var off=sc.getBoundingClientRect().top-nav.getBoundingClientRect().bottom-8;if(off<0){if(d.scrollHeight>d.clientHeight+2)d.scrollTop+=off;else window.scrollBy(0,off)}}}catch(_){}});
 document.addEventListener("toggle",function(e){var t=e.target;if(t&&t.matches&&t.matches("details[data-fold]")){S.dopen=S.dopen||{};S.dopen[t.getAttribute("data-fold")]=t.open}},true);
 /* ---------------------------------------------------------------- Titelseite „Tagesnotiz“ (Reiter „Start“, nur Anzeige, 23.11.2026) */
 function tnList(a){return a.length<2?a.join(""):a.slice(0,-1).join(", ")+" und "+a[a.length-1]}
 function tnRole(r){r=r||"";if(/10%/.test(r))return"Großaktionär";if(/chief executive|ceo/i.test(r))return"Vorstandschef";if(/chief financial|cfo/i.test(r))return"Finanzvorstand";if(/officer|president/i.test(r))return"Vorstand";if(/director/i.test(r))return"Board-Mitglied";return r}
-function tnShort(n){return n.replace(/,? (Inc|Corp|Corporation|Ltd|Limited|AG|SE|S\.A|N\.V|plc|Co|Company|Holdings?|Incorporated|Group)\.?$/i,"").replace(/,? (Inc|Corp|Corporation|Ltd|Limited|Co|Company|Holdings?)\.?$/i,"").replace(/^The /,"")}
+function tnShort(n){return n.replace(/,? (Inc|Corp|Corporation|Ltd|Limited|AG|SE|S\.A|N\.V|plc|Co|Company|Holdings?|Incorporated|Group)\.?$/i,"").replace(/,? (Inc|Corp|Corporation|Ltd|Limited|Co|Company|Holdings?)\.?$/i,"").replace(/^The /,"").replace(/ (and|&)$/i,"")}
 function tnPct(v){return v==null?"–":sgp(v*100,1).replace("+","+ ").replace("−","− ")}
 function renderStart(){var box=$("st-body");if(!box)return;
   if(!S.all||!S.all.length){box.innerHTML='<p class="muted">Daten werden geladen …</p>';return}
