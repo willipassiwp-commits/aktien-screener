@@ -194,6 +194,13 @@ def panel(prices, phase=None, meta=None):
         k = "f%d" % n
         P["x%d" % n] = P[k] - P.groupby(["w", "rg"])[k].transform("median")
     P["secm"] = P.groupby(["w", "sec"])["mom6"].transform("median")   # Branchen-Momentum (6 Monate)
+    # zweites Ziel (Prognosemodell, 26.11.): gegen die mittlere Aktie derselben Branche UND Region; bei weniger als
+    # 8 Aktien in der Gruppe gegen die Region
+    gn = P.groupby(["w", "rg", "sec"])["f60"].transform("size")
+    for n in HZ:
+        k = "f%d" % n
+        ms = P.groupby(["w", "rg", "sec"])[k].transform("median")
+        P["xs%d" % n] = np.where(gn >= 8, P[k] - ms, P["x%d" % n])
     if phase is not None:
         ph = phase.resample("W-FRI").last()
         P["ph"] = P["w"].map(ph).fillna("korrektur")
@@ -294,6 +301,70 @@ def download(symbols):
     return prices
 
 
+EARN_CACHE = os.path.join(ROOT, "_btcache", "earn.pkl")
+
+
+def download_earn(symbols, budget=1800):
+    """Frühere Quartalszahlen je Aktie (Yahoo): [(Tag der Veröffentlichung, Überraschung in %)], ältestes zuerst.
+    Überraschung = (Ergebnis − Schätzung) / |Schätzung| × 100, begrenzt auf ±100 (wie update.surprises)."""
+    import yfinance as yf
+    out, t0 = {}, time.time()
+    for i, s in enumerate(symbols):
+        if time.time() - t0 > budget:
+            print("Quartalszahlen: Zeitbudget erreicht bei", i, "von", len(symbols), flush=True)
+            break
+        try:
+            df = yf.Ticker(s).get_earnings_dates(limit=60)
+            rows = []
+            if df is not None and len(df):
+                for idx, r in df.iterrows():
+                    est, act = r.get("EPS Estimate"), r.get("Reported EPS")
+                    try:
+                        est, act = float(est), float(act)
+                    except (TypeError, ValueError):
+                        continue
+                    if not (np.isfinite(est) and np.isfinite(act)) or est == 0:
+                        continue
+                    d = pd.Timestamp(idx)
+                    d = d.tz_convert(None) if d.tzinfo is not None else d
+                    rows.append((d.normalize(), float(np.clip((act - est) / abs(est) * 100, -100, 100))))
+            if rows:
+                out[s] = sorted(set(rows))
+        except Exception:  # noqa: BLE001
+            pass
+        if i % 50 == 49:
+            print("Quartalszahlen:", i + 1, "/", len(symbols), "mit Daten:", len(out), flush=True)
+        time.sleep(0.3)
+    return out
+
+
+def add_earn(P, earn):
+    """Merkmale sup (letzte Überraschung, nur wenn höchstens 120 Tage alt) und sup4 (Mittel der letzten vier innerhalb
+    von 400 Tagen). Nur Veröffentlichungen VOR dem Freitag der Woche zählen (keine Vorwegnahme)."""
+    P["sup"], P["sup4"] = np.nan, np.nan
+    if not earn:
+        return P
+    for s, idx in P.groupby("s").groups.items():
+        ev = earn.get(s)
+        if not ev:
+            continue
+        d = np.array([e[0] for e in ev], dtype="datetime64[ns]")
+        v = np.array([e[1] for e in ev], dtype=float)
+        w = P.loc[idx, "w"].values.astype("datetime64[ns]")
+        k = np.searchsorted(d, w, side="left") - 1          # letzte Veröffentlichung strikt vor w
+        sup, sup4 = np.full(len(w), np.nan), np.full(len(w), np.nan)
+        for j in np.where(k >= 0)[0]:
+            age = (w[j] - d[k[j]]) / np.timedelta64(1, "D")
+            if age <= 120:
+                sup[j] = v[k[j]]
+            lo = max(0, k[j] - 3)
+            m = (w[j] - d[lo:k[j] + 1]) / np.timedelta64(1, "D") <= 400
+            if m.any():
+                sup4[j] = float(np.mean(v[lo:k[j] + 1][m]))
+        P.loc[idx, "sup"], P.loc[idx, "sup4"] = sup, sup4
+    return P
+
+
 def main():
     U = json.load(open(os.path.join(ROOT, "data", "universe.json")))["stocks"]
     uni = [x["symbol"] for x in U]
@@ -319,6 +390,20 @@ def main():
     if P is None or len(P) < 10000:
         print("Rückrechnung: zu wenige Fälle, nichts geschrieben", flush=True)
         return 1
+    try:                                           # Quartalsüberraschungen (seit 26.11.), Zwischenspeicher ≤ 30 Tage
+        earn = None
+        if os.path.exists(EARN_CACHE):
+            ck = pickle.load(open(EARN_CACHE, "rb"))
+            if time.time() - ck.get("ts", 0) < 30 * 86400 and ck.get("e"):
+                earn = ck["e"]
+        if not earn:
+            earn = download_earn([s for s in uni if s in prices])
+            os.makedirs(os.path.dirname(EARN_CACHE), exist_ok=True)
+            pickle.dump({"ts": time.time(), "e": earn}, open(EARN_CACHE, "wb"))
+        P = add_earn(P, earn)
+        print("Quartalszahlen: Aktien mit Daten", len(earn), "Fälle mit Überraschung", int(P["sup"].notna().sum()), flush=True)
+    except Exception as e:  # noqa: BLE001
+        print("Quartalszahlen übersprungen:", type(e).__name__, e, flush=True)
     print("Fälle:", len(P), "Aktien:", P["s"].nunique(), "Sekunden:", round(time.time() - t), flush=True)
     res = analyse(P)
     try:                                           # Prognosemodell (Paket 5); bei Fehler bleibt die Rückrechnung gültig
@@ -356,6 +441,8 @@ MF = ["mom12", "mom1", "d52h", "d50", "d200", "sl200", "rsi", "vol60", "volr", "
 MB = ["trend", "brk"]
 MF2 = MF + ["mom3", "mom6", "rev1w", "d52l", "maxr", "secm"]
 MHZ = (20, 60, 120)
+MF3 = MF2 + ["sup", "sup4"]          # + Quartalsüberraschungen (26.11., Ausbau 2)
+DD_LIM = 0.15                        # Rückschlag-Risiko: zwischendurch mehr als 15 % unter dem heutigen Kurs
 AUSWAHL_BIS = 2020
 PHN = {"auf": 0.0, "korrektur": 1.0, "stress": 2.0}
 MNAME = {"mom12": "Kursentwicklung 12 Monate", "mom1": "Kursentwicklung letzter Monat", "d52h": "Abstand zum Jahreshoch",
@@ -363,7 +450,8 @@ MNAME = {"mom12": "Kursentwicklung 12 Monate", "mom1": "Kursentwicklung letzter 
          "rsi": "RSI 14 Tage", "vol60": "Schwankung", "volr": "Volumen zuletzt", "ud": "Kaufdruck",
          "trend": "Aufwärtstrend", "brk": "Hoch der letzten 60 Tage", "mom3": "Kursentwicklung 3 Monate",
          "mom6": "Kursentwicklung 6 Monate", "rev1w": "Kursentwicklung letzte Woche", "d52l": "Abstand zum Jahrestief",
-         "maxr": "größter Tagesgewinn im Monat", "secm": "Stärke der eigenen Branche", "phn": "Marktphase"}
+         "maxr": "größter Tagesgewinn im Monat", "secm": "Stärke der eigenen Branche", "phn": "Marktphase",
+         "sup": "letzte Quartalszahlen gegen die Schätzung", "sup4": "Quartalszahlen der letzten vier Quartale gegen die Schätzung"}
 
 
 def _gkeys(D):
@@ -458,10 +546,24 @@ def _gbm_score(M, X):
     return out
 
 
-def _evaluate(D, X, y, x, kind, years):
-    """Walk-forward: je Prüfjahr nur mit Daten lernen, die ≥ 90 Tage vor Jahresbeginn enden."""
+def _yrow(Y, sc, y, x, base):
+    """Eine Zeile Prüfergebnis: [Jahr, AUC, AUC Vergleich, Quote oberstes Zehntel, Mitte x, Quote unterstes, Mitte x, n]."""
+    a = _auc(y, sc)
+    b = _auc(y, base)
+    q = pd.qcut(pd.Series(sc).rank(method="first"), 10, labels=False).values
+    t, u = q == 9, q == 0
+    return [int(Y), round(a, 3) if a else None, round(b, 3) if b else None,
+            round(float(y[t].mean()) * 100, 1), round(float(np.median(x[t])) * 100, 2),
+            round(float(y[u].mean()) * 100, 1), round(float(np.median(x[u])) * 100, 2), int(len(y))]
+
+
+def _evaluate(D, X, y, x, kind, years, base=None):
+    """Walk-forward: je Prüfjahr nur mit Daten lernen, die ≥ 90 Tage vor Jahresbeginn enden.
+    Rückgabe Zeilen je Jahr und je Jahr (Jahr, Rangfolge u, y, x, Phase, Index)."""
     w, yr = D["w"].values, D["yr"].values
     keys = [D[k].values for k in _gkeys(D)]
+    base = D["r_mom12"].fillna(0.5).values if base is None else base
+    phn = D["phn"].values if "phn" in D else np.ones(len(D))
     rows, out = [], []
     for Y in years:
         if Y < years[0] + 5:
@@ -473,14 +575,24 @@ def _evaluate(D, X, y, x, kind, years):
         m = _fit(kind, X[tr], y[tr])
         sc = _score(m, X[te])
         u = _pct(sc, [k[te] for k in keys])
-        a = _auc(y[te], sc)
-        b = _auc(y[te], D["r_mom12"].fillna(0.5).values[te])
-        q = pd.qcut(pd.Series(sc).rank(method="first"), 10, labels=False).values
-        top, bot = x[te][q == 9], x[te][q == 0]
-        rows.append([int(Y), round(a, 3) if a else None, round(b, 3) if b else None,
-                     round(float((top > 0).mean()) * 100, 1), round(float(np.median(top)) * 100, 2),
-                     round(float((bot > 0).mean()) * 100, 1), round(float(np.median(bot)) * 100, 2), int(te.sum())])
-        out.append((Y, u, y[te], x[te]))
+        rows.append(_yrow(Y, sc, y[te], x[te], base[te]))
+        out.append((Y, u, y[te], x[te], phn[te], np.where(te)[0]))
+    return rows, out
+
+
+def _mix(D, o1, o2, y, x, base):
+    """Mittel der beiden Modelle: Rangfolgen mitteln, erneut ranken (gleich wie heute in model_apply)."""
+    keys = [D[k].values for k in _gkeys(D)]
+    d2 = {o[0]: o for o in o2}
+    rows, out = [], []
+    for o in o1:
+        if o[0] not in d2:
+            continue
+        ix = o[5]
+        sc = (o[1] + d2[o[0]][1]) / 2
+        u = _pct(sc, [k[ix] for k in keys])
+        rows.append(_yrow(o[0], sc, y[ix], x[ix], base[ix]))
+        out.append((o[0], u, y[ix], x[ix], o[4], ix))
     return rows, out
 
 
@@ -493,91 +605,172 @@ def _summ(rows):
             "tb": float(np.mean([r[3] > r[5] for r in rows]))}
 
 
-def model_fit(P):
-    """Rückgabe (Bericht für bt.json, Modellparameter oder None)."""
+def _iso_fit(u, y, ph=None):
+    """Kalibrierung über die Rangfolge; mit ph je Marktphase getrennt (Rückschlag-Risiko hängt stark vom Markt ab)."""
     from sklearn.isotonic import IsotonicRegression
+    mk = lambda uu, yy: IsotonicRegression(out_of_bounds="clip", y_min=0.005, y_max=0.995).fit(uu, yy)  # noqa: E731
+    if ph is None:
+        m = mk(u, y)
+        return {"all": [[float(v) for v in m.X_thresholds_], [float(v) for v in m.y_thresholds_]]}
+    res = {}
+    for k in np.unique(ph):
+        kk = ph == k
+        if kk.sum() >= 2000:
+            m = mk(u[kk], y[kk])
+            res[str(int(k))] = [[float(v) for v in m.X_thresholds_], [float(v) for v in m.y_thresholds_]]
+    m = mk(u, y)
+    res["all"] = [[float(v) for v in m.X_thresholds_], [float(v) for v in m.y_thresholds_]]
+    return res
+
+
+def _iso_apply(iso, u, ph=None):
+    if not isinstance(iso, dict):                  # altes Format [[x], [y]]
+        return np.interp(u, iso[0], iso[1])
+    out = np.interp(u, iso["all"][0], iso["all"][1])
+    if ph is not None:
+        for k, v in iso.items():
+            if k != "all":
+                kk = np.asarray(ph) == float(k)
+                out[kk] = np.interp(np.asarray(u)[kk], v[0], v[1])
+    return out
+
+
+def _fit_export(kind, X, y):
+    m = _fit(kind, X, y)
+    if kind == "gbm":
+        g = _export_gbm(m, X)
+        return None if g is None else {"kind": "gbm", **g}
+    return {"kind": "lin", "b0": float(m.intercept_[0]), "b": [float(v) for v in m.coef_[0]]}
+
+
+def _one(D, X_by, y, x, base, years, label, by_phase=False):
+    """Alle vorher festgelegten Varianten (lin, gbm, mix) prüfen, nach den Jahren ≤ AUSWAHL_BIS wählen, abnehmen."""
+    res = {}
+    for kind in ("lin", "gbm"):
+        try:
+            rows, oos = _evaluate(D, X_by[kind], y, x, kind, years, base)
+            if len(rows) >= 4:
+                res[kind] = (rows, oos)
+        except Exception as e:  # noqa: BLE001
+            print("Modell", kind, label, "fehlgeschlagen:", type(e).__name__, e, flush=True)
+    if "lin" in res and "gbm" in res:
+        res["mix"] = _mix(D, res["lin"][1], res["gbm"][1], y, x, base)
+    if not res:
+        return None
+    val = {kd: _summ([r for r in v[0] if r[0] <= AUSWAHL_BIS]) for kd, v in res.items()}
+    kind = max(res, key=lambda kd: (val[kd] or {"auc": 0})["auc"])
+    rows, oos = res[kind]
+    S, H = _summ(rows), _summ([r for r in rows if r[0] > AUSWAHL_BIS])
+    sel = [o for o in oos if o[0] <= AUSWAHL_BIS] or oos[:1]
+    later = [o for o in oos if o[0] > AUSWAHL_BIS]
+    cat = lambda L, i: np.concatenate([o[i] for o in L])  # noqa: E731
+    iso0 = _iso_fit(cat(sel, 1), cat(sel, 2), cat(sel, 4) if by_phase else None)
+    cal = []
+    if later:
+        ph_ = _iso_apply(iso0, cat(later, 1), cat(later, 4) if by_phase else None)
+        yh = cat(later, 2)
+        bins = np.clip((ph_ * 20).astype(int), 0, 19)
+        for b_ in np.unique(bins):
+            kk = bins == b_
+            if kk.sum() >= 500:
+                cal.append([round(float(ph_[kk].mean()) * 100, 1), round(float(yh[kk].mean()) * 100, 1), int(kk.sum())])
+    ece = sum(abs(c[0] - c[1]) * c[2] for c in cal) / max(1, sum(c[2] for c in cal)) if cal else 99.0
+    ok = bool(S["auc"] >= 0.53 and S["share"] >= 0.7 and S["tb"] >= 0.7 and ece < 3 and S["auc"] >= S["mom"] - 0.003
+              and H is not None and H["auc"] >= 0.525 and H["auc"] >= H["mom"] - 0.003)
+    iso = _iso_fit(cat(oos, 1), cat(oos, 2), cat(oos, 4) if by_phase else None)
+    pa = _iso_apply(iso, cat(oos, 1), cat(oos, 4) if by_phase else None)
+    xa = cat(oos, 3)
+    qb = np.clip((pa * 20).astype(int), 0, 19)
+    ex = {}
+    for b_ in np.unique(qb):
+        kk = qb == b_
+        if kk.sum() >= 300:
+            ex[str(int(b_))] = [round(float(np.median(xa[kk])) * 100, 2), round(float(np.percentile(xa[kk], 25)) * 100, 2),
+                                round(float(np.percentile(xa[kk], 75)) * 100, 2), int(kk.sum())]
+    r = {"yrs": rows, "auc": round(S["auc"], 3), "auc_mom": round(S["mom"], 3), "auc_share": round(S["share"] * 100),
+         "topbot": round(S["tb"] * 100), "ece": round(ece, 2), "cal": cal, "ok": ok, "ex": ex, "kind": kind,
+         "val": {kd: round(v["auc"], 3) for kd, v in val.items() if v},
+         "hold": [round(H["auc"], 3), round(H["mom"], 3)] if H else None}
+    print("Modell %s (%s, Auswahl %s): AUC %.3f (Vergleich %.3f), Jahre >0,5: %d %%, Spitze>Boden: %d %%, ab %d: %s, "
+          "Kalibrierung %.2f Pp., ok=%s" % (label, kind, r["val"], S["auc"], S["mom"], S["share"] * 100, S["tb"] * 100,
+                                           AUSWAHL_BIS + 1, r["hold"], ece, ok), flush=True)
+    # Endmodell(e) auf allen Daten
+    if kind == "mix":
+        m1, m2 = _fit_export("lin", X_by["lin"], y), _fit_export("gbm", X_by["gbm"], y)
+        par = None if (m1 is None or m2 is None) else {"kind": "mix", "m1": m1, "m2": m2}
+    else:
+        par = _fit_export(kind, X_by[kind], y)
+    if par is None:
+        r["ok"] = False
+        return r, None
+    par.update({"cal": "rang_ph" if by_phase else "rang", "iso": iso, "ok": r["ok"], "ex": ex})
+    return r, par
+
+
+def model_fit(P):
+    """Rückgabe (Bericht für bt.json, Modellparameter oder None).
+    Stand 26.11. (Ausbau 2), vorher festgelegt: Merkmale MF3 (mit Quartalsüberraschungen sup/sup4); je Zeitraum zwei
+    Ziele (Region, Branche+Region) × drei Modelle (lin, gbm, Mittel) – gewählt nur nach den Jahren ≤ AUSWAHL_BIS;
+    zusätzlich das Rückschlag-Risiko dd60 (zwischendurch mehr als 15 % unter dem heutigen Kurs in 60 Tagen),
+    Vergleich: reine Schwankung, Kalibrierung je Marktphase."""
     P = P.copy()
-    for f in MF2 + MB:
+    for f in MF3 + MB:
         if f not in P:
             P[f] = np.nan
     if "phn" not in P:
         P["phn"] = P["ph"].map(PHN).fillna(1.0) if "ph" in P else 1.0
-    P = add_ranks(P, MF2)
-    rep = {"hz": {}, "v": 2, "sel": AUSWAHL_BIS, "ziel": "region" if "rg" in P else "alle"}
-    params = {"v": 2, "mf": MF2, "mb": MB, "nam": MNAME, "hz": {}}
+    P = add_ranks(P, MF3)
+    rep = {"hz": {}, "v": 3, "sel": AUSWAHL_BIS, "ziel": "region" if "rg" in P else "alle"}
+    params = {"v": 3, "mf": MF3, "mb": MB, "nam": MNAME, "hz": {}}
     years = sorted(P["yr"].unique())
     for hz in MHZ:
-        k = "x%d" % hz
-        if k not in P:
-            continue
-        D = P[np.isfinite(P[k])]
-        if len(D) < 30000:
-            continue
-        y, x = (D[k].values > 0).astype(int), D[k].values
-        res = {}
-        for kind in ("lin", "gbm"):
-            try:
-                X, _ = design(D, MF2, MB, kind)
-                rows, oos = _evaluate(D, X, y, x, kind, years)
-                if len(rows) >= 4:
-                    res[kind] = (rows, oos)
-            except Exception as e:  # noqa: BLE001
-                print("Modell", kind, hz, "fehlgeschlagen:", type(e).__name__, e, flush=True)
-        if not res:
-            continue
-        val = {kd: _summ([r for r in v[0] if r[0] <= AUSWAHL_BIS]) for kd, v in res.items()}
-        kind = max(res, key=lambda kd: (val[kd] or {"auc": 0})["auc"])
-        rows, oos = res[kind]
-        S, H = _summ(rows), _summ([r for r in rows if r[0] > AUSWAHL_BIS])
-        # Kalibrierung: an Jahren bis AUSWAHL_BIS lernen, an späteren messen
-        ue = np.concatenate([o[1] for o in oos if o[0] <= AUSWAHL_BIS] or [np.array([0.5])])
-        ye = np.concatenate([o[2] for o in oos if o[0] <= AUSWAHL_BIS] or [np.array([0])])
-        iso0 = IsotonicRegression(out_of_bounds="clip", y_min=0.01, y_max=0.99).fit(ue, ye)
-        cal = []
-        if H:
-            uh = np.concatenate([o[1] for o in oos if o[0] > AUSWAHL_BIS])
-            yh = np.concatenate([o[2] for o in oos if o[0] > AUSWAHL_BIS])
-            ph_ = iso0.predict(uh)
-            bins = np.clip((ph_ * 20).astype(int), 0, 19)
-            for b_ in np.unique(bins):
-                kk = bins == b_
-                if kk.sum() >= 500:
-                    cal.append([round(float(ph_[kk].mean()) * 100, 1), round(float(yh[kk].mean()) * 100, 1), int(kk.sum())])
-        ece = sum(abs(c[0] - c[1]) * c[2] for c in cal) / max(1, sum(c[2] for c in cal)) if cal else 99.0
-        ok = bool(S["auc"] >= 0.53 and S["share"] >= 0.7 and S["tb"] >= 0.7 and ece < 3 and S["auc"] >= S["mom"] - 0.003
-                  and H is not None and H["auc"] >= 0.525 and H["auc"] >= H["mom"] - 0.003)
-        # Endgültige Kalibrierung und Mehrrendite je Stufe über alle Prüfjahre
-        ua, ya, xa = (np.concatenate([o[i] for o in oos]) for i in (1, 2, 3))
-        iso = IsotonicRegression(out_of_bounds="clip", y_min=0.01, y_max=0.99).fit(ua, ya)
-        qb = np.clip((iso.predict(ua) * 20).astype(int), 0, 19)
-        ex = {}
-        for b_ in np.unique(qb):
-            kk = qb == b_
-            if kk.sum() >= 300:
-                ex[str(int(b_))] = [round(float(np.median(xa[kk])) * 100, 2), round(float(np.percentile(xa[kk], 25)) * 100, 2),
-                                    round(float(np.percentile(xa[kk], 75)) * 100, 2), int(kk.sum())]
-        rep["hz"][str(hz)] = {"yrs": rows, "auc": round(S["auc"], 3), "auc_mom": round(S["mom"], 3), "auc_share": round(S["share"] * 100),
-                              "topbot": round(S["tb"] * 100), "ece": round(ece, 2), "cal": cal, "ok": ok, "ex": ex, "kind": kind,
-                              "val": {kd: round(v["auc"], 3) for kd, v in val.items() if v},
-                              "hold": [round(H["auc"], 3), round(H["mom"], 3)] if H else None}
-        X, names = design(D, MF2, MB, kind)
-        m = _fit(kind, X, y)
-        if kind == "gbm":
-            g = _export_gbm(m, X)
-            if g is None:
-                rep["hz"][str(hz)]["ok"] = ok = False
+        best = None
+        for zk, zn in (("x%d" % hz, "region"), ("xs%d" % hz, "branche")):
+            if zk not in P:
                 continue
-            par = {"kind": "gbm", **g}
-        else:
-            par = {"kind": "lin", "b0": float(m.intercept_[0]), "b": [float(v) for v in m.coef_[0]]}
-        par.update({"names": names, "cal": "rang", "iso": [[float(v) for v in iso.X_thresholds_], [float(v) for v in iso.y_thresholds_]],
-                    "ok": ok, "ex": ex})
-        params["hz"][str(hz)] = par
-        print("Modell %d Tage (%s, Auswahl %s): AUC %.3f (Momentum %.3f), Jahre >0,5: %d %%, Spitze>Boden: %d %%, "
-              "ab %d: AUC %s, Kalibrierung %.2f Pp., ok=%s" % (hz, kind, {kd: round(v["auc"], 3) for kd, v in val.items() if v}, S["auc"], S["mom"], S["share"] * 100,
-                                                               S["tb"] * 100, AUSWAHL_BIS + 1, H and round(H["auc"], 3), ece, ok), flush=True)
+            D = P[np.isfinite(P[zk])]
+            if len(D) < 30000:
+                continue
+            y, x = (D[zk].values > 0).astype(int), D[zk].values
+            X_by = {kd: design(D, MF3, MB, kd)[0] for kd in ("lin", "gbm")}
+            got = _one(D, X_by, y, x, D["r_mom12"].fillna(0.5).values, years, "%d Tage, Ziel %s" % (hz, zn))
+            if got is None:
+                continue
+            r, par = got
+            r["ziel"] = zn
+            vbest = max(r["val"].values()) if r["val"] else 0
+            if best is None or vbest > best[0]:
+                best = (vbest, r, par)
+        if best:
+            rep["hz"][str(hz)] = best[1]
+            if best[2]:
+                best[2]["names"] = {kd: design(P.head(1), MF3, MB, kd)[1] for kd in ("lin", "gbm")}
+                best[2]["ziel"] = best[1]["ziel"]
+                params["hz"][str(hz)] = best[2]
+    # Rückschlag-Risiko
+    try:
+        D = P[np.isfinite(P["mae"])] if "mae" in P else None
+        if D is not None and len(D) >= 30000:
+            y, x = (D["mae"].values < -DD_LIM).astype(int), D["mae"].values
+            X_by = {kd: design(D, MF3, MB, kd)[0] for kd in ("lin", "gbm")}
+            got = _one(D, X_by, y, x, D["r_vol60"].fillna(0.5).values, years, "Rückschlag 60 Tage", by_phase=True)
+            if got:
+                r, par = got
+                r["ziel"], r["lim"], r["rate"] = "rueckschlag", DD_LIM, round(float(y.mean()) * 100, 1)
+                r["rate_ph"] = {str(int(k)): round(float(y[D["phn"].values == k].mean()) * 100, 1) for k in np.unique(D["phn"].values)}
+                rep["hz"]["dd60"] = r
+                if par:
+                    par["names"] = {kd: design(P.head(1), MF3, MB, kd)[1] for kd in ("lin", "gbm")}
+                    par["ziel"], par["lim"] = "rueckschlag", DD_LIM
+                    params["hz"]["dd60"] = par
+    except Exception as e:  # noqa: BLE001
+        print("Rückschlag-Risiko übersprungen:", type(e).__name__, e, flush=True)
     rep["ok"] = any(v["ok"] for v in rep["hz"].values())
     return rep, (params if params["hz"] else None)
+
+
+def _sc_one(m, X):
+    return _gbm_score(m, X) if m.get("kind") == "gbm" else m["b0"] + X @ np.array(m["b"])
 
 
 def model_apply(params, rows, phase=None):
@@ -587,7 +780,7 @@ def model_apply(params, rows, phase=None):
         return {}
     mf, mb = params.get("mf") or MF, params.get("mb") or MB
     D = pd.DataFrame.from_dict(rows, orient="index")
-    for f in set(mf + MF2 + mb + ["mom6"]):
+    for f in set(mf + MF3 + mb + ["mom6"]):
         if f not in D:
             D[f] = np.nan
         D[f] = pd.to_numeric(D[f], errors="coerce")
@@ -597,33 +790,48 @@ def model_apply(params, rows, phase=None):
     if "rg" in D:
         D["rg"] = D["rg"].fillna("alle")
     D["phn"] = PHN.get(phase or "", 1.0)
-    D = add_ranks(D, list(dict.fromkeys(mf + MF2)))
+    D = add_ranks(D, list(dict.fromkeys(mf + MF3)))
     out = {s: {} for s in D.index}
     keys = [D[k].values for k in _gkeys(D)]
+    Xd = {kd: design(D, mf, mb, kd) for kd in ("lin", "gbm")}
     for hz, m in params["hz"].items():
         kind = m.get("kind", "lin")
-        X, names = design(D, mf, mb, kind)
-        if kind == "gbm":
-            sc = _gbm_score(m, X)
-            f_sc = lambda Z: _gbm_score(m, Z)  # noqa: E731
+        if kind == "mix":
+            X1, X2 = Xd["lin"][0], Xd["gbm"][0]
+            names = Xd["lin"][1]
+
+            def f_sc(Z1, Z2, m=m):
+                return (_pct(_sc_one(m["m1"], Z1), keys) + _pct(_sc_one(m["m2"], Z2), keys)) / 2
+            sc = f_sc(X1, X2)
         else:
-            b = np.array(m["b"])
-            sc = m["b0"] + X @ b
-            f_sc = lambda Z, b=b, b0=m["b0"]: b0 + Z @ b  # noqa: E731
-        if m.get("cal") == "rang":
-            p = np.interp(_pct(sc, keys), m["iso"][0], m["iso"][1])
+            X1, names = Xd["gbm" if kind == "gbm" else "lin"]
+            X2 = X1
+
+            def f_sc(Z1, Z2, m=m):
+                return _sc_one(m, Z1)
+            sc = f_sc(X1, X2)
+        u = _pct(sc, keys)
+        if m.get("cal") in ("rang", "rang_ph"):
+            p = _iso_apply(m["iso"], u, D["phn"].values if m.get("cal") == "rang_ph" else None)
         else:                                       # altes Modell (v1)
             p = np.interp(1 / (1 + np.exp(-sc)), m["iso"][0], m["iso"][1])
         # Beitrag je Merkmal: Wert dieses Merkmals auf neutral setzen und Unterschied messen
         con = {}
-        for f in dict.fromkeys(names):
+        n1, n2 = Xd["lin"][1], Xd["gbm"][1]
+        for f in dict.fromkeys(n1 + n2):
             if f == "phn":
                 continue
-            Z = X.copy()
-            for j, nm in enumerate(names):
-                if nm == f:
-                    Z[:, j] = 0.0 if not (kind == "lin" and j > 0 and names[j - 1] == f) else -1 / 12
-            con[f] = sc - f_sc(Z)
+
+            def neut(X, nm):
+                Z = X.copy()
+                for j, n_ in enumerate(nm):
+                    if n_ == f:
+                        Z[:, j] = -1 / 12 if (j > 0 and nm[j - 1] == f and X is Xd["lin"][0]) else 0.0
+                return Z
+            if kind == "mix":
+                con[f] = sc - f_sc(neut(X1, n1), neut(X2, n2))
+            else:
+                con[f] = sc - f_sc(neut(X1, n2 if kind == "gbm" else n1), None)
         for i, s in enumerate(D.index):
             top = sorted(((f, v[i]) for f, v in con.items()), key=lambda t: -abs(t[1]))[:6]
             out[s][hz] = [round(float(p[i]) * 100, 1),

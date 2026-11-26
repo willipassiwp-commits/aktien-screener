@@ -547,6 +547,28 @@ def main():
         ap = BT.model_apply(par, rows_)
         ok &= check("Prognosemodell: höhere Kursentwicklung → höhere Wahrscheinlichkeit (Gewicht positiv)",
                     ap["A"]["60"][0] > ap["B"]["60"][0] > ap["C"]["60"][0], ap)
+        # Quartalsüberraschungen: nur Veröffentlichungen VOR dem Freitag zählen, höchstens 120 Tage alt
+        Pe = pd.DataFrame({"s": ["A"] * 4, "w": pd.to_datetime(["2024-01-05", "2024-01-12", "2024-05-10", "2024-06-07"])})
+        ev = {"A": [(pd.Timestamp("2023-10-20"), 5.0), (pd.Timestamp("2024-01-12"), -20.0)]}
+        Pe = BT.add_earn(Pe, ev)
+        ok &= check("Quartalszahlen: keine Vorwegnahme, Alter höchstens 120 Tage, Schnitt der letzten vier",
+                    Pe["sup"].tolist()[:3] == [5.0, 5.0, -20.0] and np.isnan(Pe["sup"].iloc[3]) and Pe["sup4"].iloc[2] == -7.5, Pe.to_dict("list"))
+        ef = PG.earn_feats([["2024-03-31", 2.0, 2.2, 10.0], ["2023-12-31", 1.0, 0.9, -10.0]], today="2024-06-01")
+        ef2 = PG.earn_feats([["2023-12-31", 1.0, 0.9, -10.0]], today="2024-08-01")
+        ok &= check("Quartalszahlen heute: gleiche Rechnung (Abweichung, Alter, Schnitt)",
+                    abs(ef["sup"] - 10.0) < 1e-9 and abs(ef["sup4"]) < 1e-9 and "sup" not in ef2 and abs(ef2["sup4"] + 10) < 1e-9, (ef, ef2))
+        # gemitteltes Modell (lin + Baum) und Rückschlag-Kalibrierung je Marktphase
+        nml = BT.design(BT.add_ranks(pd.DataFrame({"w": [0]}), BT.MF3), BT.MF3, BT.MB, "lin")[1]
+        nmg = BT.design(BT.add_ranks(pd.DataFrame({"w": [0]}), BT.MF3), BT.MF3, BT.MB, "gbm")[1]
+        bl = [0.0] * len(nml); bl[0] = 1.0
+        tg2 = {"trees": [[[0, 0, 0], [0.0, 0.0, 0.0], [1, 0, 0], [2, 0, 0], [0, 1, 1], [0.0, -1.0, 1.0]]], "b0": 0.0}
+        pmx = {"mf": BT.MF3, "mb": BT.MB, "hz": {"60": {"kind": "mix", "m1": {"kind": "lin", "b0": 0.0, "b": bl}, "m2": dict(kind="gbm", **tg2),
+               "cal": "rang", "iso": {"all": [[0.0, 1.0], [0.0, 1.0]]}, "ok": True, "ex": {}},
+               "dd60": {"kind": "lin", "b0": 0.0, "b": bl, "cal": "rang_ph", "iso": {"all": [[0.0, 1.0], [0.0, 1.0]], "2": [[0.0, 1.0], [0.5, 0.9]]}, "ok": True, "ex": {}}}}
+        rw = {k: {"mom12": v, "rg": "Europa"} for k, v in (("A", 0.6), ("B", 0.1), ("C", -0.3))}
+        amx = BT.model_apply(pmx, rw, "stress")
+        ok &= check("Prognosemodell: Mittel aus zwei Modellen und Kalibrierung je Marktphase",
+                    amx["A"]["60"][0] > amx["B"]["60"][0] > amx["C"]["60"][0] and amx["C"]["dd60"][0] >= 50 and amx["A"]["60"][1][0][0] == "mom12", amx)
         # Baum-Modell ohne scikit-learn: ein Baum „mom12-Rang > 0 → +1“, Rangfolge je Region
         tg = {"trees": [[[0, 0, 0], [0.0, 0.0, 0.0], [1, 0, 0], [2, 0, 0], [0, 1, 1], [0.0, -1.0, 1.0]]], "b0": 0.0}
         nm = list(BT.MF2) + list(BT.MB) + ["phn"]
@@ -588,6 +610,7 @@ def main():
                         (not r0["hz"]["60"]["ok"]) and r1["hz"]["60"]["ok"] and p1 is not None,
                         (r0["hz"]["60"]["auc"], r1["hz"]["60"]["auc"]))
     except Exception as e:  # noqa: BLE001
+        ok &= check("Prognosemodell", False, repr(e))
         ok &= check("Prognosemodell", False, repr(e))
 
     try:

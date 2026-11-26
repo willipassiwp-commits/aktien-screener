@@ -206,7 +206,7 @@ def compute(df, zs=None, zr=None, sym=""):
 # die Rückrechnung für die heutige Lage einen gefunden hat (ok ≠ 0, in Lern- und Prüfzeitraum gleich gerichtet).
 NSIM, HSIM, BLOCK = 10000, 60, 5
 MC_DAYS = (5, 10, 20, 40, 60)
-_CTX = {"bt": None, "phase": None, "mdl": None, "rows": {}, "sim": {}, "meta": {}}
+_CTX = {"bt": None, "phase": None, "mdl": None, "rows": {}, "sim": {}, "meta": {}, "surp": {}}
 
 
 def set_context(MD=None, prog_path=None):
@@ -232,6 +232,13 @@ def set_context(MD=None, prog_path=None):
                 _CTX["meta"] = {x["symbol"]: (x.get("region"), x.get("sector")) for x in json.load(open(p))["stocks"]}
     except Exception:
         _CTX["meta"] = {}
+    try:                                           # Quartalsüberraschungen je Aktie (Prognosemodell, Ausbau 2)
+        if prog_path:
+            p = os.path.join(os.path.dirname(os.path.dirname(prog_path)), "data", "fundamentals.json")
+            if os.path.exists(p):
+                _CTX["surp"] = {k: v.get("surp") for k, v in json.load(open(p)).items() if isinstance(v, dict) and v.get("surp")}
+    except Exception:
+        _CTX["surp"] = {}
     try:
         if MD and "^GSPC" in MD:
             import backtest
@@ -349,6 +356,9 @@ def scenario(df, zs=None, zr=None, sym=""):
     try:                                           # für das Prognosemodell nach der Schleife (finalize)
         if F is not None and len(F):
             _CTX["rows"][sym] = {k: (None if not np.isfinite(v) else float(v)) for k, v in F.iloc[-1].items()}
+            sp_ = earn_feats(_CTX["surp"].get(sym))
+            if sp_:
+                _CTX["rows"][sym].update(sp_)
             mt = _CTX["meta"].get(sym)
             if mt:
                 _CTX["rows"][sym]["rg"], _CTX["rows"][sym]["sec"] = mt[0] or "alle", mt[1] or "?"
@@ -372,6 +382,30 @@ def scenario(df, zs=None, zr=None, sym=""):
     m["n"] = NSIM
     return m
 
+
+
+def earn_feats(surp, today=None):
+    """sup/sup4 wie in der Rückrechnung (backtest.add_earn). surp: [[Quartalsende, Schätzung, Ergebnis, Abweichung %], …],
+    neuestes zuerst. Die Veröffentlichung kommt meist 3–6 Wochen nach Quartalsende: letzte Überraschung zählt bis
+    160 Tage nach Quartalsende (≈ 120 Tage nach Veröffentlichung), der Schnitt aus Quartalen bis 440 Tage."""
+    try:
+        today = pd.Timestamp(today or pd.Timestamp.utcnow().tz_localize(None)).normalize()
+        v = []
+        for d, est, act, sp in surp or []:
+            if est in (None, 0) or act is None:
+                continue
+            age = (today - pd.Timestamp(d)).days
+            v.append((age, float(np.clip((act - est) / abs(est) * 100, -100, 100))))
+        v.sort()
+        out = {}
+        if v and 0 <= v[0][0] <= 160:
+            out["sup"] = v[0][1]
+        w4 = [x for a, x in v[:4] if a <= 440]
+        if w4:
+            out["sup4"] = float(np.mean(w4))
+        return out
+    except Exception:
+        return {}
 
 
 def finalize(prog):
