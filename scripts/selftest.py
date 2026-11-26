@@ -569,6 +569,38 @@ def main():
         amx = BT.model_apply(pmx, rw, "stress")
         ok &= check("Prognosemodell: Mittel aus zwei Modellen und Kalibrierung je Marktphase",
                     amx["A"]["60"][0] > amx["B"]["60"][0] > amx["C"]["60"][0] and amx["C"]["dd60"][0] >= 50 and amx["A"]["60"][1][0][0] == "mom12", amx)
+        # Paket 7: Momentaufnahme, Messung nach 20/60/120 Tagen, nur eine Aufnahme je Monat
+        import tempfile
+        import prog_track as PT
+        td_ = tempfile.mkdtemp()
+        os.makedirs(os.path.join(td_, "data")); os.makedirs(os.path.join(td_, "docs"))
+        PT.load(td_)
+        ix = pd.bdate_range("2025-06-02", periods=400)
+        d0 = str(ix[100].date())
+        prg, rws, sims, dfs = {}, {}, {}, {}
+        for k in range(60):
+            sgn = 1 if k % 2 else -1
+            cc = np.r_[np.full(101, 100.0), 100 * (1 + sgn * 0.002) ** np.arange(1, 300)]
+            dfs["S%d" % k] = pd.DataFrame({"Close": cc, "High": cc, "Low": cc * 0.99}, index=ix)
+            prg["S%d" % k] = {"pm": {"20": [60.0 if sgn > 0 else 40.0, []], "60": [60.0 if sgn > 0 else 40.0, []], "120": [55.0, []],
+                                     "dd60": [10.0 if sgn > 0 else 30.0, []]}, "mc": {"pu": 50.0, "pd": 30.0, "p60": 55.0}}
+            rws["S%d" % k] = {"rg": "Europa" if k < 30 else "Asien"}
+            sims["S%d" % k] = (cc[:101], 110.0, 90.0, 0, 0.0)
+        PT.run(prg, {"rows": rws, "sim": sims, "mdl": {"hz": {"60": {"ok": False}}}}, today=d0)
+        PT.run(prg, {"rows": rws, "sim": sims}, today=str(ix[105].date()))
+        JS_ = __import__("json")
+        st1 = JS_.load(open(os.path.join(td_, "data", "prog_track.json")))
+        PT.load(td_)
+        for k, df_ in dfs.items():
+            PT.observe(k, df_)
+        PT.run({}, {}, today=str(ix[-1].date()))
+        st2 = JS_.load(open(os.path.join(td_, "data", "prog_track.json")))
+        sm2 = JS_.load(open(os.path.join(td_, "docs", "progtrack.json")))
+        ok &= check("Paket 7: eine Aufnahme je Monat, Messung nach 20/60/120 Tagen, Trennschärfe aus echten Verläufen",
+                    len(st1["snap"]) == 1 and len(st2["snap"]) == 0 and len(st2["out"]["60"]) == 60 and sm2["hz"]["60"]["auc"] == 1.0
+                    and sm2["dd60"]["n"] == 60 and sm2["sim"]["n"] == 60 and abs(st2["out"]["20"][1][4] - (1.002 ** 20 - 1)) < 1e-3,
+                    (len(st1["snap"]), len(st2["snap"]), sm2.get("hz", {}).get("60"), sm2.get("dd60")))
+        ok &= check("Paket 7: Trennschärfe ohne scikit-learn", abs(PT.auc([0, 0, 1, 1], [0.1, 0.4, 0.35, 0.8]) - 0.75) < 1e-9)
         # Baum-Modell ohne scikit-learn: ein Baum „mom12-Rang > 0 → +1“, Rangfolge je Region
         tg = {"trees": [[[0, 0, 0], [0.0, 0.0, 0.0], [1, 0, 0], [2, 0, 0], [0, 1, 1], [0.0, -1.0, 1.0]]], "b0": 0.0}
         nm = list(BT.MF2) + list(BT.MB) + ["phn"]

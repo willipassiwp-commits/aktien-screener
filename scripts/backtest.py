@@ -415,7 +415,7 @@ def main():
     except Exception as e:  # noqa: BLE001
         print("Prognosemodell übersprungen:", type(e).__name__, e, flush=True)
     try:                                           # Prüfung der Simulation (26.11.)
-        sc = sim_check(prices)
+        sc = sim_check(prices, base60=(res.get("base") or {}).get("60", [None])[0])
         if sc:
             res["sim"] = sc
     except Exception as e:  # noqa: BLE001
@@ -841,24 +841,12 @@ def model_apply(params, rows, phase=None):
 
 
 # ------------------------------------------------------------------------------------------------ Prüfung der Simulation
-def sim_check(prices, n_cases=3000, n_paths=2000, seed=7):
-    """Stimmt die Simulation (prognose.simulate) mit dem überein, was früher wirklich passiert ist?
-    Für zufällige frühere Tage ab 2015: Ziel = Hoch der letzten 60 Tage, Stopp = Tief der letzten 60 Tage (mindestens
-    3 % Abstand, höchstens 30 %), Richtung = übliche mittlere Aktie. Simuliert wird nur mit Kursen bis zu diesem Tag;
-    verglichen wird mit dem echten Verlauf der Schlusskurse in den 60 Tagen danach."""
-    import prognose as PG
+def _sim_cases(prices, n_cases, seed):
+    """Zufällige frühere Tage ab 2015 mit Kursen bis zu diesem Tag und dem echten Verlauf danach."""
     rng = np.random.default_rng(seed)
     syms = [s for s, d in prices.items() if len(d) > 1100]
-    if not syms:
-        return None
-    allf = []
-    for s in syms[:200]:
-        c = pd.to_numeric(prices[s]["Close"], errors="coerce").dropna().values
-        allf.append(np.log(c[60:] / c[:-60]))
-    base = float(np.median(np.concatenate(allf))) / 60 if allf else 0.0
-    rec = []
-    tries = 0
-    while len(rec) < n_cases and tries < n_cases * 4:
+    cases, tries = [], 0
+    while syms and len(cases) < n_cases and tries < n_cases * 4:
         tries += 1
         s = syms[rng.integers(len(syms))]
         df = prices[s]
@@ -871,32 +859,35 @@ def sim_check(prices, n_cases=3000, n_paths=2000, seed=7):
         if not len(ok_i):
             continue
         i = int(ok_i[rng.integers(len(ok_i))])
-        hist = c[:i + 1]
-        if not np.isfinite(hist[-260:]).all():
+        hist, fut = c[:i + 1], c[i + 1:i + 61]
+        if not np.isfinite(hist[-260:]).all() or not np.isfinite(fut).all():
             continue
         p0 = hist[-1]
         up = float(np.clip(np.nanmax(hist[-60:]), p0 * 1.03, p0 * 1.30))
         dn = float(np.clip(np.nanmin(hist[-60:]), p0 * 0.70, p0 * 0.97))
-        mc = PG.simulate(hist, up, dn, base, seed=int(rng.integers(1 << 30)), n=n_paths)
-        if not mc or "pu" not in mc:
-            continue
-        fut = c[i + 1:i + 61]
-        if not np.isfinite(fut).all():
-            continue
-        hu = np.where(fut >= up)[0]
-        hd = np.where(fut <= dn)[0]
+        hu, hd = np.where(fut >= up)[0], np.where(fut <= dn)[0]
         tu, td = (hu[0] if len(hu) else 99), (hd[0] if len(hd) else 99)
         act = "u" if tu < td else "d" if td < tu else "n"
-        rec.append((mc["pu"] / 100, mc["pd"] / 100, mc["p60"] / 100, act, float(fut[-1] > p0)))
-    if len(rec) < 500:
+        cases.append((int(idx[i].year), hist, up, dn, act, float(fut[-1] > p0), int(rng.integers(1 << 30))))
+    return cases
+
+
+def _sim_eval(cases, drift, n_paths):
+    import prognose as PG
+    rec = []
+    for yr, hist, up, dn, act, a60, sd in cases:
+        mc = PG.simulate(hist, up, dn, drift, seed=sd, n=n_paths)
+        if mc and "pu" in mc:
+            rec.append((mc["pu"] / 100, mc["pd"] / 100, mc["p60"] / 100, act, a60))
+    if len(rec) < 100:
         return None
     A = np.array([[r[0], r[1], r[2], r[3] == "u", r[3] == "d", r[4]] for r in rec], dtype=float)
 
     def cal(pred, act):
-        b = np.clip((pred * 10).astype(int), 0, 9)
+        bb = np.clip((pred * 10).astype(int), 0, 9)
         rows = []
         for k in range(10):
-            m = b == k
+            m = bb == k
             if m.sum() >= 40:
                 rows.append([round(float(pred[m].mean()) * 100, 1), round(float(act[m].mean()) * 100, 1), int(m.sum())])
         e = sum(abs(r[0] - r[1]) * r[2] for r in rows) / max(1, sum(r[2] for r in rows))
@@ -904,17 +895,64 @@ def sim_check(prices, n_cases=3000, n_paths=2000, seed=7):
     cu, eu = cal(A[:, 0], A[:, 3])
     cd, ed = cal(A[:, 1], A[:, 4])
     c6, e6 = cal(A[:, 2], A[:, 5])
-    pn = 1 - A[:, 0] - A[:, 1]
-    an = 1 - A[:, 3] - A[:, 4]
+    pn, an = 1 - A[:, 0] - A[:, 1], 1 - A[:, 3] - A[:, 4]
     br = float(np.mean((A[:, 0] - A[:, 3]) ** 2 + (A[:, 1] - A[:, 4]) ** 2 + (pn - an) ** 2))
     mu, md_ = A[:, 3].mean(), A[:, 4].mean()
     br0 = float(np.mean((mu - A[:, 3]) ** 2 + (md_ - A[:, 4]) ** 2 + ((1 - mu - md_) - an) ** 2))
-    res = {"n": len(rec), "u": cu, "eu": eu, "d": cd, "ed": ed, "p60": c6, "e60": e6,
-           "pu": [round(float(A[:, 0].mean()) * 100, 1), round(float(mu) * 100, 1)],
-           "pd": [round(float(A[:, 1].mean()) * 100, 1), round(float(md_) * 100, 1)],
-           "br": round(br, 4), "br0": round(br0, 4), "ok": bool(eu < 5 and ed < 5 and e6 < 5)}
-    print("Prüfung Simulation:", res["n"], "Fälle, Ziel zuerst vorhergesagt/eingetreten", res["pu"], "Stopp", res["pd"],
-          "Abweichung", eu, ed, e6, "Brier", res["br"], "ohne Simulation", res["br0"], "ok", res["ok"], flush=True)
+    return {"n": len(rec), "u": cu, "eu": eu, "d": cd, "ed": ed, "p60": c6, "e60": e6,
+            "pu": [round(float(A[:, 0].mean()) * 100, 1), round(float(mu) * 100, 1)],
+            "pd": [round(float(A[:, 1].mean()) * 100, 1), round(float(md_) * 100, 1)],
+            "q60": [round(float(A[:, 2].mean()) * 100, 1), round(float(A[:, 5].mean()) * 100, 1)],
+            "br": round(br, 4), "br0": round(br0, 4), "ok": bool(eu < 5 and ed < 5 and e6 < 5)}
+
+
+def sim_check(prices, n_cases=3000, n_paths=2000, seed=7, base60=None):
+    """Stimmt die Simulation (prognose.simulate) mit dem überein, was früher wirklich passiert ist?
+    Ziel = Hoch, Stopp = Tief der 60 Tage davor (3–30 % Abstand), Richtung = übliche mittlere Aktie (wie im täglichen
+    Lauf: base60 aus der Rückrechnung). Simuliert wird nur mit Kursen bis zum jeweiligen Tag.
+    Seit 26.11. (Ausbau 3): Korrektur der Grundrichtung (`adj`, je Tag), gelernt NUR an Fällen bis AUSWAHL_BIS
+    (Raster, kleinste Abweichung der mittleren Quoten), geprüft an den Fällen danach. Verwendet wird sie im täglichen
+    Lauf nur, wenn sie dort die Abweichung verkleinert (`use`)."""
+    if base60 is not None:
+        base = float(np.log1p(base60 / 100.0)) / 60
+    else:
+        allf = []
+        for s in [s for s, d in prices.items() if len(d) > 1100][:200]:
+            c = pd.to_numeric(prices[s]["Close"], errors="coerce").dropna().values
+            allf.append(np.log(c[60:] / c[:-60]))
+        base = float(np.median(np.concatenate(allf))) / 60 if allf else 0.0
+    cases = _sim_cases(prices, n_cases, seed)
+    if len(cases) < 500:
+        return None
+    lern = [c for c in cases if c[0] <= AUSWAHL_BIS]
+    pruef = [c for c in cases if c[0] > AUSWAHL_BIS]
+    if len(lern) < 300 or len(pruef) < 300:
+        res = _sim_eval(cases, base, n_paths)
+        if res:
+            res.update({"adj": 0.0, "use": False})
+        return res
+    best = (9e9, 0.0)
+    for adj in np.arange(-0.0015, 0.00051, 0.00025):
+        r = _sim_eval(lern, base + adj, max(500, n_paths // 2))
+        if r:
+            err = abs(r["pu"][0] - r["pu"][1]) + abs(r["pd"][0] - r["pd"][1]) + abs(r["q60"][0] - r["q60"][1])
+            if err < best[0]:
+                best = (err, float(adj))
+    adj = best[1]
+    vor = _sim_eval(pruef, base, n_paths)
+    nach = _sim_eval(pruef, base + adj, n_paths)
+    if not vor or not nach:
+        return vor or nach
+    e_v = max(vor["eu"], vor["ed"], vor["e60"])
+    e_n = max(nach["eu"], nach["ed"], nach["e60"])
+    use = bool(e_n < e_v)
+    res = dict(nach if use else vor)
+    res.update({"adj": round(adj, 6) if use else 0.0, "adj_lern": round(adj, 6), "use": use, "split": AUSWAHL_BIS,
+                "vorher": {k: vor[k] for k in ("n", "pu", "pd", "q60", "eu", "ed", "e60", "br", "br0", "ok")},
+                "nachher": {k: nach[k] for k in ("n", "pu", "pd", "q60", "eu", "ed", "e60", "br", "br0", "ok")}})
+    print("Prüfung Simulation: Korrektur %.4f je Tag (%.1f %% über 60 Tage), gelernt bis %d. Prüfjahre danach: ohne "
+          "Korrektur Abweichung %.1f (ok %s), mit Korrektur %.1f (ok %s), verwendet: %s"
+          % (adj, adj * 60 * 100, AUSWAHL_BIS, e_v, vor["ok"], e_n, nach["ok"], use), flush=True)
     return res
 
 

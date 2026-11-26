@@ -232,6 +232,12 @@ def set_context(MD=None, prog_path=None):
                 _CTX["meta"] = {x["symbol"]: (x.get("region"), x.get("sector")) for x in json.load(open(p))["stocks"]}
     except Exception:
         _CTX["meta"] = {}
+    try:                                           # Paket 7: Messung der Vorhersagen
+        if prog_path:
+            import prog_track
+            prog_track.load(os.path.dirname(os.path.dirname(prog_path)))
+    except Exception:
+        pass
     try:                                           # Quartalsüberraschungen je Aktie (Prognosemodell, Ausbau 2)
         if prog_path:
             p = os.path.join(os.path.dirname(os.path.dirname(prog_path)), "data", "fundamentals.json")
@@ -353,6 +359,11 @@ def scenario(df, zs=None, zr=None, sym=""):
     except Exception:
         F = None
     st, dr, used = setup_drift(F)
+    try:                                           # Paket 7: Kurse für fällige Messungen merken
+        import prog_track
+        prog_track.observe(sym, df)
+    except Exception:
+        pass
     try:                                           # für das Prognosemodell nach der Schleife (finalize)
         if F is not None and len(F):
             _CTX["rows"][sym] = {k: (None if not np.isfinite(v) else float(v)) for k, v in F.iloc[-1].items()}
@@ -368,6 +379,9 @@ def scenario(df, zs=None, zr=None, sym=""):
     base = 0.0
     if bt and bt.get("base"):
         base = float(np.log1p(bt["base"]["60"][0] / 100.0)) / HSIM     # mittlere Aktie an beliebigen Tagen
+        sm_ = bt.get("sim") or {}
+        if sm_.get("use") and isinstance(sm_.get("adj"), (int, float)):      # geprüfte Korrektur (seit 26.11., Ausbau 3)
+            base += float(np.clip(sm_["adj"], -0.003, 0.003))
     up, dn = targets(float(c.iloc[-1]), zs, zr)
     import zlib
     seed = zlib.crc32((sym + str(c.index[-1].date())).encode())
@@ -440,4 +454,9 @@ def finalize(prog):
                     prog[s]["mc"] = mc
         prog[s]["pm"] = pm
         n += 1
+    try:                                           # Paket 7: Vorhersagen mitschreiben und fällige messen (nur Anzeige)
+        import prog_track
+        prog_track.run(prog, _CTX)
+    except Exception as e:  # noqa: BLE001
+        print("Messung der Prognosen übersprungen:", type(e).__name__, e, flush=True)
     return n
