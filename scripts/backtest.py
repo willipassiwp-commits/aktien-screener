@@ -313,9 +313,6 @@ def main():
     return 0
 
 
-if __name__ == "__main__":
-    sys.exit(main())
-
 
 # ------------------------------------------------------------------------------------------------ Prognosemodell (Paket 5)
 # Logistische Regression auf den je Woche über alle Aktien gerankten Merkmalen (Rang 0–1 und Rang², damit auch
@@ -453,3 +450,7 @@ def model_apply(params, rows):
             top = sorted(con.items(), key=lambda t: -abs(t[1]))[:6]
             out[s][hz] = [round(float(p[i]) * 100, 1), [[f, round(float(v), 3), round(float(D.loc[s, "r_" + f]) * 100) if f in MF and np.isfinite(D.loc[s, "r_" + f]) else None] for f, v in top]]
     return out
+
+
+if __name__ == "__main__":
+    sys.exit(main())
