@@ -870,6 +870,14 @@ button.fzl:hover{text-decoration-color:var(--fg)}
 .abn{font-size:12.5px;color:var(--muted);margin:8px 0 0;line-height:1.45}
 @media (max-width:560px){.abt{font-size:19px}.abh td b{display:block}.abh td{font-size:12px}}
 .abh tr.abbase th,.abh tr.abbase td{color:var(--muted)}.abh tr.abbase .abbar i{background:var(--muted);opacity:.6}
+/* Simulation (26.11.2026) */
+.mc{margin-top:10px}
+.mcbar{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:6px 0 8px;background:var(--line)}
+.mcbar i{display:block;height:100%}.mcbar i.good{background:var(--good)}.mcbar i.bad{background:var(--bad)}.mcbar i.neutral{background:color-mix(in srgb,var(--muted) 45%,transparent)}
+.fzd.neutral{background:color-mix(in srgb,var(--muted) 45%,transparent)}
+.mct{border-collapse:collapse;width:100%;font-size:13px}.mct td{padding:3px 10px 3px 0;vertical-align:top}.mct td:nth-child(2){white-space:nowrap}.mct td:nth-child(3){color:var(--muted)}
+.mcw b{color:var(--fg)}
+.abh th small{display:block;color:var(--muted);font-weight:400}
 </style>
 </head>
 <body>
@@ -1877,6 +1885,41 @@ function abBlock(x){try{if(!S.prog&&!S.progState)loadProg();var K=kfull(x),kx=K.
     h+='<p class="fzg">Was früher in ähnlicher Lage dieser Aktie passierte</p><table class="abh"><thead><tr><th></th><th>nach 5 Tagen</th><th>nach 20 Tagen</th><th>nach 60 Tagen</th></tr></thead><tbody>'+rows.map(function(r){var q=r[1];return"<tr"+(q.base?' class="abbase"':"")+"><th>"+r[0]+"</th>"+["5","20","60"].map(function(k){var v=q[k];if(!v)return"<td>–</td>";return'<td><span class="abbar"><i style="width:'+v[1]+'%" class="'+(q.base?"":v[1]>=58?"good":v[1]<=42?"bad":"mid")+'"></i></span><b>'+v[1]+' %</b> im Plus<small>Mitte '+sgp(v[0]*100,1)+"</small></td>"}).join("")+"</tr>"}).join("")+"</tbody></table>";
     if(A.mae)h+='<p class="abn">Auf dem Weg dorthin fiel der Kurs zwischendurch im Mittel noch '+fmt(-A.mae[0]*100,0)+" %, im schlechtesten Fall "+fmt(-A.mae[1]*100,0)+" %."+(B["60"]?" „Alle Tage“ zeigt, was ein zufälliger Zeitpunkt in den letzten 10 Jahren gebracht hätte: Nur der Unterschied dazu sagt etwas über die heutige Lage.":" Aktien steigen über die Jahre, daher liegen auch zufällige Zeitpunkte oft über 50 % im Plus.")+"</p>"}
   return h+'<p class="gbf">Ausblick aus Chartmarken und der eigenen Kursgeschichte, keine Kursprognose mit Gewissheit und keine Kauf- oder Verkaufsempfehlung.</p></div>'}catch(e){return""}}
+/* Simulation und Rückrechnung (26.11.2026, Prognose-Paket 3): 10.000 Kursverläufe je Aktie, Setups über alle Aktien. Nur Anzeige. */
+function loadBt(){if(S.btState)return;S.btState=1;fetch("bt.json?t="+Date.now()).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(c){S.bt=c;S.btState=2;if(S.sel)renderDetail()}).catch(function(){S.btState=3})}
+function mcFan(x,m){var p=x.p,cu=esc(x.cur),D=[0].concat(m.d),Q=[[0,0,0,0,0]].concat(m.q),lo=0,hi=0;
+  Q.forEach(function(q){lo=Math.min(lo,q[0]);hi=Math.max(hi,q[4])});if(m.up)hi=Math.max(hi,m.up/p-1);if(m.dn)lo=Math.min(lo,m.dn/p-1);lo-=0.01;hi+=0.01;
+  var W=600,H=190,L=8,R=66,T=10,B=26,X=function(d){return L+d/60*(W-L-R)},Y=function(r){return T+(hi-r)/(hi-lo)*(H-T-B)};
+  function poly(a,b){return D.map(function(d,i){return X(d).toFixed(1)+","+Y(Q[i][a]).toFixed(1)}).join(" ")+" "+D.slice().reverse().map(function(d,j){var i=D.length-1-j;return X(d).toFixed(1)+","+Y(Q[i][b]).toFixed(1)}).join(" ")}
+  var g='<svg class="abs" viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Fächer der simulierten Kursverläufe für 60 Handelstage">';
+  g+='<polygon points="'+poly(0,4)+'" style="fill:var(--muted);opacity:.16"/><polygon points="'+poly(1,3)+'" style="fill:var(--muted);opacity:.34"/>';
+  g+='<polyline points="'+D.map(function(d,i){return X(d).toFixed(1)+","+Y(Q[i][2]).toFixed(1)}).join(" ")+'" fill="none" style="stroke:var(--fg)" stroke-width="2"/>';
+  g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(0).toFixed(1)+'" y2="'+Y(0).toFixed(1)+'" style="stroke:var(--fg);opacity:.35" stroke-dasharray="2 3"/>';
+  function lvl(v,c,t){var y=Y(v/p-1).toFixed(1);return'<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'" style="stroke:var(--'+c+')" stroke-width="1.5" stroke-dasharray="5 4"/><text x="'+(W-R+6)+'" y="'+(+y+4)+'" class="abt" style="fill:var(--'+c+')">'+t+"</text>"}
+  if(m.up)g+=lvl(m.up,"good",sgp((m.up/p-1)*100,0));if(m.dn)g+=lvl(m.dn,"bad",sgp((m.dn/p-1)*100,0));
+  var e=Q[Q.length-1],ye=Y(e[2]),far=function(v){return!v||Math.abs(Y(v/p-1)-ye)>16};if(far(m.up)&&far(m.dn))g+='<text x="'+(W-R+6)+'" y="'+(Y(e[2])+4).toFixed(1)+'" class="abt abm">'+sgp(e[2]*100,0)+"</text>";
+  [0,20,40,60].forEach(function(d){g+='<text x="'+X(d).toFixed(1)+'" y="'+(H-6)+'" text-anchor="'+(d===0?"start":d===60?"end":"middle")+'" class="abt abm">'+(d===0?"heute":d+" T.")+"</text>"});
+  return g+"</svg>"}
+function mcBlock(x){try{if(!S.prog&&!S.progState)loadProg();if(!S.bt&&!S.btState)loadBt();var P=S.prog&&S.prog[x.s],m=P&&P.mc;if(!m)return"";
+  var bt=S.bt,cu=esc(x.cur),p=x.p,nm=function(k){return bt&&bt.nam&&bt.nam[k]?bt.nam[k][0]:k},h='<div class="ab mc"><p class="gbk">Simulation: '+fmt(m.n,0)+" mögliche Kursverläufe für die nächsten 60 Handelstage</p>";
+  var head,vc="mid",has=m.pu!=null;
+  if(has){var mx=Math.max(m.pu,m.pd,m.pn);
+    if(mx<45)head="Kein Ausgang ist klar wahrscheinlicher";
+    else if(mx===m.pu){head="Am wahrscheinlichsten: zuerst der Widerstand bei "+px(m.up)+" "+cu+" ("+sgp((m.up/p-1)*100,0)+")";vc="good"}
+    else if(mx===m.pd){head="Am wahrscheinlichsten: zuerst unter die Unterstützung bei "+px(m.dn)+" "+cu+" ("+sgp((m.dn/p-1)*100,0)+")";vc="bad"}
+    else head="Am wahrscheinlichsten: der Kurs bleibt zwischen "+px(m.dn)+" und "+px(m.up)+" "+cu}
+  else{head="Nach 60 Tagen in "+fmt(m.p60,0)+" % der Verläufe über dem heutigen Kurs";vc=m.p60>=55?"good":m.p60<=45?"bad":"mid"}
+  h+='<p class="fzv"><i class="fzd '+vc+'"></i>'+esc(head)+"</p>";
+  if(has){h+='<div class="mcbar"><i class="good" style="width:'+m.pu+'%"></i><i class="neutral" style="width:'+m.pn+'%"></i><i class="bad" style="width:'+m.pd+'%"></i></div>';
+    h+='<table class="mct"><tbody><tr><td><i class="fzd good"></i>zuerst Widerstand '+px(m.up)+" "+cu+"</td><td><b>"+fmt(m.pu,0)+" %</b></td><td>"+(m.tu?"im Mittel nach "+m.tu+" Tagen":"")+'</td></tr><tr><td><i class="fzd neutral"></i>keins von beiden in 60 Tagen</td><td><b>'+fmt(m.pn,0)+' %</b></td><td></td></tr><tr><td><i class="fzd bad"></i>zuerst unter Unterstützung '+px(m.dn)+" "+cu+"</td><td><b>"+fmt(m.pd,0)+" %</b></td><td>"+(m.td?"im Mittel nach "+m.td+" Tagen":"")+"</td></tr></tbody></table>"}
+  var q=m.q,i20=m.d.indexOf(20),i60=m.d.indexOf(60);
+  h+='<p class="fzg">Wo die Verläufe liegen</p>'+mcFan(x,m)+'<p class="abn">Heller Bereich: 90 von 100 Verläufen, dunkler Bereich: die mittlere Hälfte, Linie: der mittlere Verlauf. Nach 20 Tagen liegt die mittlere Hälfte zwischen '+px(p*(1+q[i20][1]))+" und "+px(p*(1+q[i20][3]))+" "+cu+", nach 60 Tagen zwischen "+px(p*(1+q[i60][1]))+" und "+px(p*(1+q[i60][3]))+" "+cu+". Gerechnet mit der heutigen Schwankung von "+fmt(m.s,0)+" % aufs Jahr.</p>";
+  var why;if(m.su&&m.su.length){var e=bt&&bt.set&&bt.set[m.su[0]],te=e&&e["60"].te;why="<b>Woher die Richtung kommt:</b> Die heutige Lage („"+m.su.map(nm).join("“, „")+"“) lief in der Rückrechnung über alle Aktien "+(te?"im Prüfzeitraum ab "+bt.split+" in "+fmt(te[1],0)+" % der "+fmt(te[0],0)+" Fälle besser als die mittlere Aktie":"anders als der Durchschnitt")+". Das ist eingerechnet als "+sgp(m.dr,1)+" über 60 Tage."}
+  else why="<b>Keine Richtung eingerechnet:</b> "+(bt?"Für die heutige Lage hat die Rückrechnung keinen bewährten Vorteil gefunden.":"Die Rückrechnung liegt noch nicht vor.")+" Unterschiede zwischen den Ausgängen kommen nur vom Abstand der Marken und von der Schwankung"+(has&&m.up&&m.dn?" (Widerstand "+sgp((m.up/p-1)*100,0)+", Unterstützung "+sgp((m.dn/p-1)*100,0)+")":"")+"."+(m.db?" Eingerechnet ist nur der übliche Anstieg einer mittleren Aktie ("+sgp(m.db,1)+" in 60 Tagen).":"");
+  h+='<p class="abn mcw">'+why+"</p>";
+  if(m.st&&m.st.length&&bt&&bt.set){var rows=m.st.map(function(k){var e=bt.set[k];if(!e)return"";var a=e["60"].tr,b=e["60"].te;return"<tr><th>"+esc(nm(k))+"<small>"+esc(bt.nam[k][1])+"</small></th><td>"+(a?fmt(a[1],0)+" %<small>"+sgp(a[2],1)+", "+fmt(a[0],0)+" Fälle</small>":"–")+"</td><td>"+(b?fmt(b[1],0)+" %<small>"+sgp(b[2],1)+", "+fmt(b[0],0)+" Fälle</small>":"–")+'</td><td>'+(e.ok>0?'<span class="good">bewährt, positiv</span>':e.ok<0?'<span class="bad">bewährt, negativ</span>':"nicht bewährt")+"</td></tr>"}).join("");
+    h+=dFold("mcst","Die heutige Lage in der Rückrechnung",m.st.length+(m.st.length===1?" Setup trifft":" Setups treffen")+" heute zu",'<table class="abh"><thead><tr><th>Setup</th><th>besser als die mittlere Aktie nach 60 Tagen, '+bt.von+"–"+(bt.split-1)+"</th><th>ab "+bt.split+"</th><th></th></tr></thead><tbody>"+rows+'</tbody></table><p class="abn">Über '+fmt(bt.n,0)+" Wochenfälle aller Aktien seit "+bt.von+". „Bewährt“ heißt: im Lern- und im Prüfzeitraum mit mindestens 300 Fällen gleich gerichtet und mindestens 3 Prozentpunkte von 50 % entfernt. Nur bewährte Setups geben der Simulation eine Richtung.</p>")}
+  return h+'<p class="gbf">Simulation aus den früheren Tagesbewegungen dieser Aktie, angepasst an die heutige Schwankung. Sie zeigt, was plausibel ist, nicht was sicher eintritt. Keine Kauf- oder Verkaufsempfehlung.</p></div>'}catch(e){return""}}
 function renderDetail(){
   var x=S.by[S.sel];if(!x)return;
   var b=band(x.total),w=S.w,pf=x.pf||[],tr=x.tr||[0,0,0],an=x.an||{},ev=x.ev||{},cur=CURN[x.cur]||x.cur,unit=x.cur==="GBp"?" (Kurse in Pence)":"";
@@ -1951,7 +1994,7 @@ function renderDetail(){
     ["dch-in","Insider, Großinvestoren und Termine","Käufe und Verkäufe, Fondsbestände, Quartalszahlen",C.i,"Insider"],
     ["dch-nw","Nachrichten","Schlagzeilen der letzten 30 Tage",C.nw,"Nachrichten"]].filter(function(c){return c[3]});
   if(!CH.some(function(c){return c[0]===S.dtab}))S.dtab=CH[0][0];
-  var SUM={"dch-fu":fzSafe(fzF,x)||dSumFu(x),"dch-ch":fzSafe(fzC,x)||dSumCh(x),"dch-kf":fzSafe(fzK,x),"dch-in":fzSafe(fzI,x)||dSumIn(x)};
+  var SUM={"dch-fu":fzSafe(fzF,x)||dSumFu(x),"dch-ch":fzSafe(fzC,x)||dSumCh(x),"dch-kf":fzSafe(fzK,x)+mcBlock(x),"dch-in":fzSafe(fzI,x)||dSumIn(x)};
   h+='<nav class="dnav" role="tablist" aria-label="Bereiche des Steckbriefs">'+CH.map(function(c){return'<button type="button" role="tab" data-dtab="'+c[0]+'" aria-selected="'+(c[0]===S.dtab)+'">'+c[4]+"</button>"}).join("")+"</nav>";
   h+=CH.map(function(c){return'<section class="dch" id="'+c[0]+'"'+(c[0]===S.dtab?"":" hidden")+'><div class="dchh"><h2>'+c[1]+'</h2><p>'+c[2]+"</p></div>"+(SUM[c[0]]||"")+c[3]+"</section>"}).join("")+"</div>";
   $("detail").innerHTML='<button class="link backlist" data-back="1">← Zurück zur Liste</button>'+h;
