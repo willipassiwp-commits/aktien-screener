@@ -530,6 +530,10 @@ def main():
         mc2 = PG.simulate(w, up=w[-1] * 1.08, dn=w[-1] / 1.08, drift=0.002, seed=1)
         ok &= check("Simulation: positive Richtung erhöht die Wahrscheinlichkeit für das Ziel", mc2["pu"] > mc["pu"] + 5, mc2)
         ok &= check("Simulation: gleicher Startwert ergibt gleiches Ergebnis", PG.simulate(w, seed=1)["q"] == PG.simulate(w, seed=1)["q"])
+        sc_ = BT.sim_check(pr, n_cases=600, n_paths=600, seed=3)
+        ok &= check("Prüfung der Simulation: bei Zufallskursen stimmen Vorhersage und Ergebnis im Mittel überein",
+                    sc_ is not None and abs(sc_["pu"][0] - sc_["pu"][1]) < 4 and abs(sc_["pd"][0] - sc_["pd"][1]) < 4
+                    and max(sc_["eu"], sc_["ed"], sc_["e60"]) < 9 and sc_["br"] < sc_["br0"], sc_ and (sc_["pu"], sc_["pd"], sc_["eu"], sc_["ed"], sc_["e60"]))
         ok &= check("Simulation: Ziel/Stopp wie im Ausblick", PG.targets(100, [[90, 95, ["a"], -5]], [[101, 104, ["b"], 1], [110, 112, ["c"], 10]]) == (110.0, 89.1))
     except Exception as e:  # noqa: BLE001
         ok &= check("Rückrechnung und Simulation", False, repr(e))
@@ -543,6 +547,15 @@ def main():
         ap = BT.model_apply(par, rows_)
         ok &= check("Prognosemodell: höhere Kursentwicklung → höhere Wahrscheinlichkeit (Gewicht positiv)",
                     ap["A"]["60"][0] > ap["B"]["60"][0] > ap["C"]["60"][0], ap)
+        # Baum-Modell ohne scikit-learn: ein Baum „mom12-Rang > 0 → +1“, Rangfolge je Region
+        tg = {"trees": [[[0, 0, 0], [0.0, 0.0, 0.0], [1, 0, 0], [2, 0, 0], [0, 1, 1], [0.0, -1.0, 1.0]]], "b0": 0.0}
+        nm = list(BT.MF2) + list(BT.MB) + ["phn"]
+        parg = {"mf": BT.MF2, "mb": BT.MB, "hz": {"60": dict(kind="gbm", names=nm, cal="rang", iso=[[0.0, 1.0], [0.0, 1.0]], ok=True, ex={}, **tg)}}
+        rws = {"A": {"mom12": 0.5, "rg": "Europa"}, "B": {"mom12": -0.2, "rg": "Europa"}, "C": {"mom12": 0.9, "rg": "Asien"}, "D": {"mom12": 0.1, "rg": "Asien"}}
+        apg = BT.model_apply(parg, rws, "auf")
+        ok &= check("Prognosemodell (Baum): Rangfolge je Region, Gründe vorhanden",
+                    apg["A"]["60"][0] > apg["B"]["60"][0] and apg["C"]["60"][0] > apg["D"]["60"][0]
+                    and apg["A"]["60"][0] == apg["C"]["60"][0] and apg["A"]["60"][1][0][0] == "mom12", apg)
         try:
             import sklearn  # noqa: F401
             have = True
@@ -564,6 +577,13 @@ def main():
             r0, _ = BT.model_fit(Pm)
             Pm["x60"] = Pm["x60"] + 0.06 * (rk - 0.5)
             r1, p1 = BT.model_fit(Pm)
+            Xg = rng.normal(size=(5000, 4))
+            mg = BT._gbm().fit(Xg, (Xg[:, 0] + rng.normal(size=5000) > 0).astype(int))
+            ok &= check("Prognosemodell: Gradient Boosting lässt sich ohne scikit-learn nachrechnen", BT._export_gbm(mg, Xg) is not None)
+            Pm["rg"] = np.where(np.arange(len(Pm)) % 2 == 0, "Nordamerika", "Europa")
+            apn = BT.model_apply(p1, {"A": {"mom12": 0.6, "rg": "Europa"}, "B": {"mom12": -0.3, "rg": "Europa"}}, "auf")
+            ok &= check("Prognosemodell: gelerntes Modell lässt sich heute anwenden (höheres Momentum → höher)",
+                        apn["A"]["60"][0] > apn["B"]["60"][0], apn)
             ok &= check("Prognosemodell: Zufall besteht die Prüfung nicht, echtes Signal schon",
                         (not r0["hz"]["60"]["ok"]) and r1["hz"]["60"]["ok"] and p1 is not None,
                         (r0["hz"]["60"]["auc"], r1["hz"]["60"]["auc"]))

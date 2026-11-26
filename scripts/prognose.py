@@ -206,7 +206,7 @@ def compute(df, zs=None, zr=None, sym=""):
 # die Rückrechnung für die heutige Lage einen gefunden hat (ok ≠ 0, in Lern- und Prüfzeitraum gleich gerichtet).
 NSIM, HSIM, BLOCK = 10000, 60, 5
 MC_DAYS = (5, 10, 20, 40, 60)
-_CTX = {"bt": None, "phase": None, "mdl": None, "rows": {}, "sim": {}}
+_CTX = {"bt": None, "phase": None, "mdl": None, "rows": {}, "sim": {}, "meta": {}}
 
 
 def set_context(MD=None, prog_path=None):
@@ -225,6 +225,13 @@ def set_context(MD=None, prog_path=None):
                 _CTX["mdl"] = json.load(open(p))
     except Exception:
         _CTX["mdl"] = None
+    try:                                           # Region und Branche je Aktie (Prognosemodell, seit 26.11.)
+        if prog_path:
+            p = os.path.join(os.path.dirname(os.path.dirname(prog_path)), "data", "universe.json")
+            if os.path.exists(p):
+                _CTX["meta"] = {x["symbol"]: (x.get("region"), x.get("sector")) for x in json.load(open(p))["stocks"]}
+    except Exception:
+        _CTX["meta"] = {}
     try:
         if MD and "^GSPC" in MD:
             import backtest
@@ -342,6 +349,9 @@ def scenario(df, zs=None, zr=None, sym=""):
     try:                                           # für das Prognosemodell nach der Schleife (finalize)
         if F is not None and len(F):
             _CTX["rows"][sym] = {k: (None if not np.isfinite(v) else float(v)) for k, v in F.iloc[-1].items()}
+            mt = _CTX["meta"].get(sym)
+            if mt:
+                _CTX["rows"][sym]["rg"], _CTX["rows"][sym]["sec"] = mt[0] or "alle", mt[1] or "?"
     except Exception:
         pass
     bt = _CTX["bt"]
@@ -372,7 +382,7 @@ def finalize(prog):
     if not M or not _CTX["rows"]:
         return 0
     import backtest
-    res = backtest.model_apply(M, _CTX["rows"])
+    res = backtest.model_apply(M, _CTX["rows"], _CTX.get("phase"))
     n = 0
     for s, r in res.items():
         if s not in prog:

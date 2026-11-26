@@ -27,7 +27,7 @@ OUT = os.path.join(ROOT, "docs", "bt.json")
 CACHE = os.path.join(ROOT, "_btcache", "prices.pkl")
 START = "2009-01-01"
 SPLIT = 2019              # Lernzeitraum bis 2018, Prüfzeitraum ab 2019
-HZ = (5, 20, 60)
+HZ = (5, 20, 60, 120)     # 120 seit 26.11. (Prognosemodell)
 
 # Setups: Name, Erklärung in einfachen Worten
 SETUPS = {
@@ -93,6 +93,12 @@ def features(df):
     F["ud"] = (up / dn).where(dn > 0)
     F["trend"] = ((c > s200) & (s50 > s200)).astype(float)
     F["brk"] = (c >= h.rolling(60).max().shift(1)).astype(float)
+    # seit 26.11.2026 (Prognosemodell, Ausbau): weitere bekannte Merkmale, nur zusätzliche Spalten
+    F["mom3"] = c / c.shift(63) - 1
+    F["mom6"] = c.shift(21) / c.shift(126) - 1
+    F["rev1w"] = c / c.shift(5) - 1
+    F["d52l"] = c / l.rolling(252).min() - 1
+    F["maxr"] = lr.rolling(21).max()
     F.loc[s200.isna(), "trend"] = np.nan
     return F
 
@@ -158,7 +164,7 @@ def _fwd(c, l):
     return pd.DataFrame(o)
 
 
-def panel(prices, phase=None):
+def panel(prices, phase=None, meta=None):
     """Wöchentliche Fälle über alle Aktien: Merkmale, Setups, Folgerenditen, Mehrrendite gegen Ø derselben Woche."""
     rows = []
     for s, df in prices.items():
@@ -171,6 +177,9 @@ def panel(prices, phase=None):
             W = X.resample("W-FRI").last()
             W = W[W["mom12"].notna() & W["d200"].notna()]
             W["s"] = s
+            mt = (meta or {}).get(s) or {}
+            W["rg"] = mt.get("region") or "alle"
+            W["sec"] = mt.get("sector") or "?"
             rows.append(W)
         except Exception as e:  # noqa: BLE001
             print("Rückrechnung: Merkmale fehlgeschlagen", s, type(e).__name__, flush=True)
@@ -179,9 +188,12 @@ def panel(prices, phase=None):
     P = pd.concat(rows)
     P.index.name = "w"
     P = P.reset_index()
+    # Mehrrendite gegen die mittlere Aktie derselben Woche UND derselben Region (seit 26.11.: Region, damit nicht
+    # Japan-gegen-USA-Bewegungen als Rauschen im Ziel landen)
     for n in HZ:
         k = "f%d" % n
-        P["x%d" % n] = P[k] - P.groupby("w")[k].transform("median")
+        P["x%d" % n] = P[k] - P.groupby(["w", "rg"])[k].transform("median")
+    P["secm"] = P.groupby(["w", "sec"])["mom6"].transform("median")   # Branchen-Momentum (6 Monate)
     if phase is not None:
         ph = phase.resample("W-FRI").last()
         P["ph"] = P["w"].map(ph).fillna("korrektur")
@@ -199,7 +211,7 @@ def _stat(x):
 
 
 def analyse(P):
-    out = {"v": 1, "ts": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "split": SPLIT,
+    out = {"v": 2, "dedup": 28, "ziel": "region", "ts": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "split": SPLIT,
            "von": int(P["yr"].min()), "bis": int(P["yr"].max()), "n": int(len(P)), "nam": SETUPS, "decn": DECF}
     out["base"] = {str(n): [round(float(np.nanmedian(P["f%d" % n])) * 100, 2), round(float((P["f%d" % n] > 0).mean()) * 100, 1)]
                    for n in HZ}
@@ -209,6 +221,16 @@ def analyse(P):
         hit = set(setups_of(r._asdict()))
         for k in SETUPS:
             flags[k].append(k in hit)
+    # entdoppeln (26.11.): je Aktie und Setup höchstens ein Fall in 4 Wochen, sonst zählt dieselbe Lage mehrfach
+    sv, wv = P["s"].values, P["w"].values.astype("datetime64[D]").astype(np.int64)
+    for k in SETUPS:
+        m, last = flags[k], {}
+        for i in range(len(m)):
+            if m[i]:
+                if sv[i] in last and wv[i] - last[sv[i]] < 28:
+                    m[i] = False
+                else:
+                    last[sv[i]] = wv[i]
     tr = P["yr"] < SPLIT
     st = {}
     for k in SETUPS:
@@ -273,7 +295,9 @@ def download(symbols):
 
 
 def main():
-    uni = [x["symbol"] for x in json.load(open(os.path.join(ROOT, "data", "universe.json")))["stocks"]]
+    U = json.load(open(os.path.join(ROOT, "data", "universe.json")))["stocks"]
+    uni = [x["symbol"] for x in U]
+    meta = {x["symbol"]: {"region": x.get("region"), "sector": x.get("sector")} for x in U}
     prices = None
     if os.path.exists(CACHE):                      # nur wiederverwenden, wenn höchstens 5 Tage alt (erneuter Versuch)
         try:
@@ -291,7 +315,7 @@ def main():
     phase = market_phase(sp, vx) if sp is not None else None
     prices = {s: d for s, d in prices.items() if s in set(uni)}
     t = time.time()
-    P = panel(prices, phase)
+    P = panel(prices, phase, meta)
     if P is None or len(P) < 10000:
         print("Rückrechnung: zu wenige Fälle, nichts geschrieben", flush=True)
         return 1
@@ -305,6 +329,12 @@ def main():
                 json.dump(params, f, separators=(",", ":"))
     except Exception as e:  # noqa: BLE001
         print("Prognosemodell übersprungen:", type(e).__name__, e, flush=True)
+    try:                                           # Prüfung der Simulation (26.11.)
+        sc = sim_check(prices)
+        if sc:
+            res["sim"] = sc
+    except Exception as e:  # noqa: BLE001
+        print("Prüfung der Simulation übersprungen:", type(e).__name__, e, flush=True)
     with open(OUT, "w") as f:
         json.dump(res, f, separators=(",", ":"), ensure_ascii=False)
     for k, e in res["set"].items():
@@ -315,34 +345,53 @@ def main():
 
 
 # ------------------------------------------------------------------------------------------------ Prognosemodell (Paket 5)
-# Logistische Regression auf den je Woche über alle Aktien gerankten Merkmalen (Rang 0–1 und Rang², damit auch
-# U-förmige Zusammenhänge möglich sind). Ziel: schlägt die mittlere Aktie in 20 bzw. 60 Handelstagen.
-# Prüfung „walk-forward“: für jedes Prüfjahr nur mit Jahren lernen, die mindestens 90 Tage vorher enden.
-# Abnahme (sonst wird nichts angezeigt): Ø Trennschärfe (AUC) ≥ 0,53, in ≥ 70 % der Jahre > 0,50, oberstes Zehntel
-# in ≥ 70 % der Jahre besser als unterstes, mittlerer Kalibrierungsfehler < 3 Prozentpunkte, mindestens so gut wie reines Momentum.
-MF = ["mom12", "mom1", "d52h", "d50", "d200", "sl200", "rsi", "vol60", "volr", "ud"]
+# Ausbau 26.11.2026: Ziel = schlägt die mittlere Aktie derselben Region; Merkmale je Woche und Region gerankt; mehr
+# Merkmale (3/6 Monate, letzte Woche, Abstand zum Tief, größter Tagesgewinn, Branchen-Momentum); Zeiträume 20/60/120
+# Tage; zwei vorher festgelegte Modelle (A: logistische Regression mit Rang und Rang², B: Gradient Boosting mit
+# Marktphase, erkennt Zusammenhänge zwischen Merkmalen). Welches Modell gilt, entscheiden NUR die Prüfjahre bis
+# AUSWAHL_BIS; die Abnahme-Regeln sind unverändert (alle Prüfjahre) plus: auch in den Jahren danach Ø AUC ≥ 0,525 und
+# mindestens so gut wie Momentum (−0,003). Kalibrierung über die Rangfolge innerhalb der Woche (gleich bei Prüfung und heute), gelernt
+# nur an Jahren bis AUSWAHL_BIS, Kalibrierungsfehler gemessen an den Jahren danach.
+MF = ["mom12", "mom1", "d52h", "d50", "d200", "sl200", "rsi", "vol60", "volr", "ud"]   # alter Satz (altes Modell)
 MB = ["trend", "brk"]
+MF2 = MF + ["mom3", "mom6", "rev1w", "d52l", "maxr", "secm"]
+MHZ = (20, 60, 120)
+AUSWAHL_BIS = 2020
+PHN = {"auf": 0.0, "korrektur": 1.0, "stress": 2.0}
 MNAME = {"mom12": "Kursentwicklung 12 Monate", "mom1": "Kursentwicklung letzter Monat", "d52h": "Abstand zum Jahreshoch",
          "d50": "Abstand zur 50-Tage-Linie", "d200": "Abstand zur 200-Tage-Linie", "sl200": "Richtung der 200-Tage-Linie",
          "rsi": "RSI 14 Tage", "vol60": "Schwankung", "volr": "Volumen zuletzt", "ud": "Kaufdruck",
-         "trend": "Aufwärtstrend", "brk": "Hoch der letzten 60 Tage"}
+         "trend": "Aufwärtstrend", "brk": "Hoch der letzten 60 Tage", "mom3": "Kursentwicklung 3 Monate",
+         "mom6": "Kursentwicklung 6 Monate", "rev1w": "Kursentwicklung letzte Woche", "d52l": "Abstand zum Jahrestief",
+         "maxr": "größter Tagesgewinn im Monat", "secm": "Stärke der eigenen Branche", "phn": "Marktphase"}
 
 
-def design(D):
-    """Merkmalsmatrix aus gerankten Merkmalen (Spalten r_<f> 0–1) und Binärmerkmalen."""
-    cols = []
-    for f in MF:
-        r = D["r_" + f].fillna(0.5).values
-        cols += [r - 0.5, (r - 0.5) ** 2 - 1 / 12]
-    for f in MB:
-        cols.append(D[f].fillna(0).values - 0.5)
-    return np.column_stack(cols)
+def _gkeys(D):
+    return ["w", "rg"] if "rg" in D else ["w"]
 
 
-def add_ranks(P):
-    for f in MF:
-        P["r_" + f] = P.groupby("w")[f].rank(pct=True)
+def add_ranks(P, mf=None):
+    for f in (mf or MF2):
+        if f not in P:
+            P[f] = np.nan
+        P["r_" + f] = P.groupby(_gkeys(P))[f].rank(pct=True)
     return P
+
+
+def design(D, mf=None, mb=None, kind="lin"):
+    """Merkmalsmatrix und Namen je Spalte. lin: Rang−0,5 und (Rang−0,5)²; gbm: Rang−0,5 und Marktphase."""
+    mf, mb = mf or MF, mb or MB
+    cols, names = [], []
+    for f in mf:
+        r = D["r_" + f].fillna(0.5).values
+        cols.append(r - 0.5); names.append(f)
+        if kind == "lin":
+            cols.append((r - 0.5) ** 2 - 1 / 12); names.append(f)
+    for f in mb:
+        cols.append((D[f] if f in D else pd.Series(0.5, index=D.index)).fillna(0.5).values - 0.5); names.append(f)
+    if kind == "gbm":
+        cols.append((D["phn"] if "phn" in D else pd.Series(1.0, index=D.index)).fillna(1.0).values); names.append("phn")
+    return np.column_stack(cols).astype(float), names
 
 
 def _auc(y, p):
@@ -353,103 +402,312 @@ def _auc(y, p):
         return None
 
 
+def _gbm():
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    return HistGradientBoostingClassifier(max_iter=150, learning_rate=0.05, max_depth=3, min_samples_leaf=1500,
+                                          l2_regularization=1.0, early_stopping=False, random_state=0)
+
+
+def _fit(kind, X, y):
+    if kind == "gbm":
+        return _gbm().fit(X, y)
+    from sklearn.linear_model import LogisticRegression
+    return LogisticRegression(C=1.0, max_iter=400).fit(X, y)
+
+
+def _score(m, X):
+    return m.decision_function(X)
+
+
+def _pct(score, keys):
+    """Rangfolge 0–1 innerhalb der Gruppe (Woche, Region)."""
+    return pd.Series(score).groupby([pd.Series(k) for k in keys]).rank(pct=True).values if keys else pd.Series(score).rank(pct=True).values
+
+
+def _export_gbm(m, X):
+    """Bäume als Listen (ohne scikit-learn anwendbar). Prüft die Nachrechnung; bei Abweichung None."""
+    try:
+        trees = []
+        for it in m._predictors:
+            nd = it[0].nodes
+            trees.append([nd["feature_idx"].astype(int).tolist(), [float(v) for v in nd["num_threshold"]],
+                          nd["left"].astype(int).tolist(), nd["right"].astype(int).tolist(),
+                          nd["is_leaf"].astype(int).tolist(), [float(v) for v in nd["value"]]])
+        base = float(np.ravel(m._baseline_prediction)[0])
+        k = min(2000, len(X))
+        ok = np.allclose(_gbm_score({"trees": trees, "b0": base}, X[:k]), m.decision_function(X[:k]), atol=1e-6)
+        return {"trees": trees, "b0": base} if ok else None
+    except Exception as e:  # noqa: BLE001
+        print("Gradient Boosting nicht exportierbar:", type(e).__name__, e, flush=True)
+        return None
+
+
+def _gbm_score(M, X):
+    out = np.full(len(X), M["b0"], dtype=float)
+    for f, t, l, r, leaf, v in M["trees"]:
+        f, t, l, r, leaf, v = np.array(f), np.array(t), np.array(l), np.array(r), np.array(leaf, bool), np.array(v)
+        idx = np.zeros(len(X), dtype=int)
+        for _ in range(64):
+            act = ~leaf[idx]
+            if not act.any():
+                break
+            ii = np.where(act)[0]
+            go_l = X[ii, f[idx[ii]]] <= t[idx[ii]]
+            idx[ii] = np.where(go_l, l[idx[ii]], r[idx[ii]])
+        out += v[idx]
+    return out
+
+
+def _evaluate(D, X, y, x, kind, years):
+    """Walk-forward: je Prüfjahr nur mit Daten lernen, die ≥ 90 Tage vor Jahresbeginn enden."""
+    w, yr = D["w"].values, D["yr"].values
+    keys = [D[k].values for k in _gkeys(D)]
+    rows, out = [], []
+    for Y in years:
+        if Y < years[0] + 5:
+            continue
+        te = yr == Y
+        tr = w < np.datetime64("%d-01-01" % Y) - np.timedelta64(90, "D")
+        if te.sum() < 2000 or tr.sum() < 20000:
+            continue
+        m = _fit(kind, X[tr], y[tr])
+        sc = _score(m, X[te])
+        u = _pct(sc, [k[te] for k in keys])
+        a = _auc(y[te], sc)
+        b = _auc(y[te], D["r_mom12"].fillna(0.5).values[te])
+        q = pd.qcut(pd.Series(sc).rank(method="first"), 10, labels=False).values
+        top, bot = x[te][q == 9], x[te][q == 0]
+        rows.append([int(Y), round(a, 3) if a else None, round(b, 3) if b else None,
+                     round(float((top > 0).mean()) * 100, 1), round(float(np.median(top)) * 100, 2),
+                     round(float((bot > 0).mean()) * 100, 1), round(float(np.median(bot)) * 100, 2), int(te.sum())])
+        out.append((Y, u, y[te], x[te]))
+    return rows, out
+
+
+def _summ(rows):
+    a = [r[1] for r in rows if r[1] is not None]
+    b = [r[2] for r in rows if r[2] is not None]
+    if not a:
+        return None
+    return {"auc": float(np.mean(a)), "mom": float(np.mean(b)) if b else 0.5, "share": float(np.mean([v > 0.5 for v in a])),
+            "tb": float(np.mean([r[3] > r[5] for r in rows]))}
+
+
 def model_fit(P):
     """Rückgabe (Bericht für bt.json, Modellparameter oder None)."""
     from sklearn.isotonic import IsotonicRegression
-    from sklearn.linear_model import LogisticRegression
-    P = add_ranks(P.copy())
-    rep, params = {"hz": {}}, {"v": 1, "mf": MF, "mb": MB, "nam": MNAME, "hz": {}}
+    P = P.copy()
+    for f in MF2 + MB:
+        if f not in P:
+            P[f] = np.nan
+    if "phn" not in P:
+        P["phn"] = P["ph"].map(PHN).fillna(1.0) if "ph" in P else 1.0
+    P = add_ranks(P, MF2)
+    rep = {"hz": {}, "v": 2, "sel": AUSWAHL_BIS, "ziel": "region" if "rg" in P else "alle"}
+    params = {"v": 2, "mf": MF2, "mb": MB, "nam": MNAME, "hz": {}}
     years = sorted(P["yr"].unique())
-    for hz in (20, 60):
-        D = P[np.isfinite(P["x%d" % hz])]
-        X, y, x = design(D), (D["x%d" % hz].values > 0).astype(int), D["x%d" % hz].values
-        w, yr = D["w"].values, D["yr"].values
-        oos_p, oos_y, oos_x, rows, base_auc = [], [], [], [], []
-        for Y in years:
-            if Y < years[0] + 5:
-                continue
-            te = yr == Y
-            tr = w < np.datetime64("%d-01-01" % Y) - np.timedelta64(90, "D")
-            if te.sum() < 2000 or tr.sum() < 20000:
-                continue
-            m = LogisticRegression(C=1.0, max_iter=300).fit(X[tr], y[tr])
-            p = m.predict_proba(X[te])[:, 1]
-            a = _auc(y[te], p)
-            b = _auc(y[te], D["r_mom12"].fillna(0.5).values[te])
-            q = pd.qcut(pd.Series(p).rank(method="first"), 10, labels=False).values
-            top, bot = x[te][q == 9], x[te][q == 0]
-            rows.append([int(Y), round(a, 3) if a else None, round(b, 3) if b else None,
-                         round(float((top > 0).mean()) * 100, 1), round(float(np.median(top)) * 100, 2),
-                         round(float((bot > 0).mean()) * 100, 1), round(float(np.median(bot)) * 100, 2), int(te.sum())])
-            oos_p.append(p); oos_y.append(y[te]); oos_x.append(x[te]); base_auc.append(b)
-        if len(rows) < 4:
+    for hz in MHZ:
+        k = "x%d" % hz
+        if k not in P:
             continue
-        op, oy, ox = np.concatenate(oos_p), np.concatenate(oos_y), np.concatenate(oos_x)
-        bins = np.clip((op * 20).astype(int), 0, 19)          # 5-%-Stufen
+        D = P[np.isfinite(P[k])]
+        if len(D) < 30000:
+            continue
+        y, x = (D[k].values > 0).astype(int), D[k].values
+        res = {}
+        for kind in ("lin", "gbm"):
+            try:
+                X, _ = design(D, MF2, MB, kind)
+                rows, oos = _evaluate(D, X, y, x, kind, years)
+                if len(rows) >= 4:
+                    res[kind] = (rows, oos)
+            except Exception as e:  # noqa: BLE001
+                print("Modell", kind, hz, "fehlgeschlagen:", type(e).__name__, e, flush=True)
+        if not res:
+            continue
+        val = {kd: _summ([r for r in v[0] if r[0] <= AUSWAHL_BIS]) for kd, v in res.items()}
+        kind = max(res, key=lambda kd: (val[kd] or {"auc": 0})["auc"])
+        rows, oos = res[kind]
+        S, H = _summ(rows), _summ([r for r in rows if r[0] > AUSWAHL_BIS])
+        # Kalibrierung: an Jahren bis AUSWAHL_BIS lernen, an späteren messen
+        ue = np.concatenate([o[1] for o in oos if o[0] <= AUSWAHL_BIS] or [np.array([0.5])])
+        ye = np.concatenate([o[2] for o in oos if o[0] <= AUSWAHL_BIS] or [np.array([0])])
+        iso0 = IsotonicRegression(out_of_bounds="clip", y_min=0.01, y_max=0.99).fit(ue, ye)
         cal = []
-        for b_ in np.unique(bins):
-            k = bins == b_
-            if k.sum() >= 500:
-                cal.append([round(float(op[k].mean()) * 100, 1), round(float(oy[k].mean()) * 100, 1), int(k.sum())])
-        ece = sum(abs(c[0] - c[1]) * c[2] for c in cal) / max(1, sum(c[2] for c in cal))
-        aucs = [r[1] for r in rows if r[1] is not None]
-        mauc, share = float(np.mean(aucs)), float(np.mean([a > 0.5 for a in aucs]))
-        tb = float(np.mean([r[3] > r[5] for r in rows]))
-        mbase = float(np.mean([b for b in base_auc if b is not None]))
-        ok = bool(mauc >= 0.53 and share >= 0.7 and tb >= 0.7 and ece < 3 and mauc >= mbase - 0.003)
-        # Mehrrendite je Wahrscheinlichkeitsstufe (außerhalb der Lernjahre) – für Simulation und Anzeige
-        iso = IsotonicRegression(out_of_bounds="clip", y_min=0.01, y_max=0.99).fit(op, oy)
-        cp = iso.predict(op)
-        qb = np.clip((cp * 20).astype(int), 0, 19)
+        if H:
+            uh = np.concatenate([o[1] for o in oos if o[0] > AUSWAHL_BIS])
+            yh = np.concatenate([o[2] for o in oos if o[0] > AUSWAHL_BIS])
+            ph_ = iso0.predict(uh)
+            bins = np.clip((ph_ * 20).astype(int), 0, 19)
+            for b_ in np.unique(bins):
+                kk = bins == b_
+                if kk.sum() >= 500:
+                    cal.append([round(float(ph_[kk].mean()) * 100, 1), round(float(yh[kk].mean()) * 100, 1), int(kk.sum())])
+        ece = sum(abs(c[0] - c[1]) * c[2] for c in cal) / max(1, sum(c[2] for c in cal)) if cal else 99.0
+        ok = bool(S["auc"] >= 0.53 and S["share"] >= 0.7 and S["tb"] >= 0.7 and ece < 3 and S["auc"] >= S["mom"] - 0.003
+                  and H is not None and H["auc"] >= 0.525 and H["auc"] >= H["mom"] - 0.003)
+        # Endgültige Kalibrierung und Mehrrendite je Stufe über alle Prüfjahre
+        ua, ya, xa = (np.concatenate([o[i] for o in oos]) for i in (1, 2, 3))
+        iso = IsotonicRegression(out_of_bounds="clip", y_min=0.01, y_max=0.99).fit(ua, ya)
+        qb = np.clip((iso.predict(ua) * 20).astype(int), 0, 19)
         ex = {}
         for b_ in np.unique(qb):
-            k = qb == b_
-            if k.sum() >= 300:
-                ex[str(int(b_))] = [round(float(np.median(ox[k])) * 100, 2), round(float(np.percentile(ox[k], 25)) * 100, 2),
-                                    round(float(np.percentile(ox[k], 75)) * 100, 2), int(k.sum())]
-        rep["hz"][str(hz)] = {"yrs": rows, "auc": round(mauc, 3), "auc_mom": round(mbase, 3), "auc_share": round(share * 100),
-                              "topbot": round(tb * 100), "ece": round(ece, 2), "cal": cal, "ok": ok, "ex": ex}
-        # endgültiges Modell mit allen Daten
-        m = LogisticRegression(C=1.0, max_iter=300).fit(X, y)
-        params["hz"][str(hz)] = {"b0": float(m.intercept_[0]), "b": [float(v) for v in m.coef_[0]],
-                                 "iso": [[float(v) for v in iso.X_thresholds_], [float(v) for v in iso.y_thresholds_]],
-                                 "ok": ok, "ex": ex}
-        print("Modell %d Tage: AUC %.3f (Momentum %.3f), Jahre >0,5: %d %%, Spitze>Boden: %d %%, Kalibrierung %.2f Pp., ok=%s"
-              % (hz, mauc, mbase, share * 100, tb * 100, ece, ok), flush=True)
+            kk = qb == b_
+            if kk.sum() >= 300:
+                ex[str(int(b_))] = [round(float(np.median(xa[kk])) * 100, 2), round(float(np.percentile(xa[kk], 25)) * 100, 2),
+                                    round(float(np.percentile(xa[kk], 75)) * 100, 2), int(kk.sum())]
+        rep["hz"][str(hz)] = {"yrs": rows, "auc": round(S["auc"], 3), "auc_mom": round(S["mom"], 3), "auc_share": round(S["share"] * 100),
+                              "topbot": round(S["tb"] * 100), "ece": round(ece, 2), "cal": cal, "ok": ok, "ex": ex, "kind": kind,
+                              "val": {kd: round(v["auc"], 3) for kd, v in val.items() if v},
+                              "hold": [round(H["auc"], 3), round(H["mom"], 3)] if H else None}
+        X, names = design(D, MF2, MB, kind)
+        m = _fit(kind, X, y)
+        if kind == "gbm":
+            g = _export_gbm(m, X)
+            if g is None:
+                rep["hz"][str(hz)]["ok"] = ok = False
+                continue
+            par = {"kind": "gbm", **g}
+        else:
+            par = {"kind": "lin", "b0": float(m.intercept_[0]), "b": [float(v) for v in m.coef_[0]]}
+        par.update({"names": names, "cal": "rang", "iso": [[float(v) for v in iso.X_thresholds_], [float(v) for v in iso.y_thresholds_]],
+                    "ok": ok, "ex": ex})
+        params["hz"][str(hz)] = par
+        print("Modell %d Tage (%s, Auswahl %s): AUC %.3f (Momentum %.3f), Jahre >0,5: %d %%, Spitze>Boden: %d %%, "
+              "ab %d: AUC %s, Kalibrierung %.2f Pp., ok=%s" % (hz, kind, {kd: round(v["auc"], 3) for kd, v in val.items() if v}, S["auc"], S["mom"], S["share"] * 100,
+                                                               S["tb"] * 100, AUSWAHL_BIS + 1, H and round(H["auc"], 3), ece, ok), flush=True)
     rep["ok"] = any(v["ok"] for v in rep["hz"].values())
     return rep, (params if params["hz"] else None)
 
 
-def model_apply(params, rows):
-    """rows: {Kürzel: Merkmalszeile (dict)} für heute. Ränge über alle heutigen Aktien, dann Wahrscheinlichkeit
-    (kalibriert) und die Beiträge der Merkmale. Rückgabe {Kürzel: {hz: [p, Beiträge…]}}."""
+def model_apply(params, rows, phase=None):
+    """rows: {Kürzel: Merkmalszeile (dict, optional rg/sec)} für heute. Rangfolge über alle heutigen Aktien (je Region),
+    Wahrscheinlichkeit (kalibriert) und die Beiträge der Merkmale. Rückgabe {Kürzel: {hz: [p, Gründe…]}}."""
     if not params or not rows:
         return {}
+    mf, mb = params.get("mf") or MF, params.get("mb") or MB
     D = pd.DataFrame.from_dict(rows, orient="index")
-    for f in MF + MB:
+    for f in set(mf + MF2 + mb + ["mom6"]):
         if f not in D:
             D[f] = np.nan
+        D[f] = pd.to_numeric(D[f], errors="coerce")
+    if "sec" in D and D["secm"].isna().all():
+        D["secm"] = D.groupby("sec")["mom6"].transform("median")
     D["w"] = 0
-    D = add_ranks(D)
-    X = design(D)
-    names = []
-    for f in MF:
-        names += [f, f]
-    names += MB
+    if "rg" in D:
+        D["rg"] = D["rg"].fillna("alle")
+    D["phn"] = PHN.get(phase or "", 1.0)
+    D = add_ranks(D, list(dict.fromkeys(mf + MF2)))
     out = {s: {} for s in D.index}
+    keys = [D[k].values for k in _gkeys(D)]
     for hz, m in params["hz"].items():
-        b = np.array(m["b"])
-        z = m["b0"] + X @ b
-        raw = 1 / (1 + np.exp(-z))
-        p = np.interp(raw, m["iso"][0], m["iso"][1])
-        C = X * b
+        kind = m.get("kind", "lin")
+        X, names = design(D, mf, mb, kind)
+        if kind == "gbm":
+            sc = _gbm_score(m, X)
+            f_sc = lambda Z: _gbm_score(m, Z)  # noqa: E731
+        else:
+            b = np.array(m["b"])
+            sc = m["b0"] + X @ b
+            f_sc = lambda Z, b=b, b0=m["b0"]: b0 + Z @ b  # noqa: E731
+        if m.get("cal") == "rang":
+            p = np.interp(_pct(sc, keys), m["iso"][0], m["iso"][1])
+        else:                                       # altes Modell (v1)
+            p = np.interp(1 / (1 + np.exp(-sc)), m["iso"][0], m["iso"][1])
+        # Beitrag je Merkmal: Wert dieses Merkmals auf neutral setzen und Unterschied messen
+        con = {}
+        for f in dict.fromkeys(names):
+            if f == "phn":
+                continue
+            Z = X.copy()
+            for j, nm in enumerate(names):
+                if nm == f:
+                    Z[:, j] = 0.0 if not (kind == "lin" and j > 0 and names[j - 1] == f) else -1 / 12
+            con[f] = sc - f_sc(Z)
         for i, s in enumerate(D.index):
-            con = {}
-            for j, f in enumerate(names):
-                con[f] = con.get(f, 0.0) + C[i, j]
-            top = sorted(con.items(), key=lambda t: -abs(t[1]))[:6]
-            out[s][hz] = [round(float(p[i]) * 100, 1), [[f, round(float(v), 3), round(float(D.loc[s, "r_" + f]) * 100) if f in MF and np.isfinite(D.loc[s, "r_" + f]) else None] for f, v in top]]
+            top = sorted(((f, v[i]) for f, v in con.items()), key=lambda t: -abs(t[1]))[:6]
+            out[s][hz] = [round(float(p[i]) * 100, 1),
+                          [[f, round(float(v), 3), round(float(D.loc[s, "r_" + f]) * 100) if ("r_" + f) in D and np.isfinite(D.loc[s, "r_" + f]) else None]
+                           for f, v in top]]
     return out
+
+
+# ------------------------------------------------------------------------------------------------ Prüfung der Simulation
+def sim_check(prices, n_cases=3000, n_paths=2000, seed=7):
+    """Stimmt die Simulation (prognose.simulate) mit dem überein, was früher wirklich passiert ist?
+    Für zufällige frühere Tage ab 2015: Ziel = Hoch der letzten 60 Tage, Stopp = Tief der letzten 60 Tage (mindestens
+    3 % Abstand, höchstens 30 %), Richtung = übliche mittlere Aktie. Simuliert wird nur mit Kursen bis zu diesem Tag;
+    verglichen wird mit dem echten Verlauf der Schlusskurse in den 60 Tagen danach."""
+    import prognose as PG
+    rng = np.random.default_rng(seed)
+    syms = [s for s, d in prices.items() if len(d) > 1100]
+    if not syms:
+        return None
+    allf = []
+    for s in syms[:200]:
+        c = pd.to_numeric(prices[s]["Close"], errors="coerce").dropna().values
+        allf.append(np.log(c[60:] / c[:-60]))
+    base = float(np.median(np.concatenate(allf))) / 60 if allf else 0.0
+    rec = []
+    tries = 0
+    while len(rec) < n_cases and tries < n_cases * 4:
+        tries += 1
+        s = syms[rng.integers(len(syms))]
+        df = prices[s]
+        idx = df.index
+        if getattr(idx, "tz", None) is not None:
+            idx = idx.tz_localize(None)
+        c = pd.to_numeric(df["Close"], errors="coerce").values.astype(float)
+        ok_i = np.where(idx >= pd.Timestamp("2015-01-01"))[0]
+        ok_i = ok_i[(ok_i >= 800) & (ok_i < len(c) - 61)]
+        if not len(ok_i):
+            continue
+        i = int(ok_i[rng.integers(len(ok_i))])
+        hist = c[:i + 1]
+        if not np.isfinite(hist[-260:]).all():
+            continue
+        p0 = hist[-1]
+        up = float(np.clip(np.nanmax(hist[-60:]), p0 * 1.03, p0 * 1.30))
+        dn = float(np.clip(np.nanmin(hist[-60:]), p0 * 0.70, p0 * 0.97))
+        mc = PG.simulate(hist, up, dn, base, seed=int(rng.integers(1 << 30)), n=n_paths)
+        if not mc or "pu" not in mc:
+            continue
+        fut = c[i + 1:i + 61]
+        if not np.isfinite(fut).all():
+            continue
+        hu = np.where(fut >= up)[0]
+        hd = np.where(fut <= dn)[0]
+        tu, td = (hu[0] if len(hu) else 99), (hd[0] if len(hd) else 99)
+        act = "u" if tu < td else "d" if td < tu else "n"
+        rec.append((mc["pu"] / 100, mc["pd"] / 100, mc["p60"] / 100, act, float(fut[-1] > p0)))
+    if len(rec) < 500:
+        return None
+    A = np.array([[r[0], r[1], r[2], r[3] == "u", r[3] == "d", r[4]] for r in rec], dtype=float)
+
+    def cal(pred, act):
+        b = np.clip((pred * 10).astype(int), 0, 9)
+        rows = []
+        for k in range(10):
+            m = b == k
+            if m.sum() >= 40:
+                rows.append([round(float(pred[m].mean()) * 100, 1), round(float(act[m].mean()) * 100, 1), int(m.sum())])
+        e = sum(abs(r[0] - r[1]) * r[2] for r in rows) / max(1, sum(r[2] for r in rows))
+        return rows, round(e, 1)
+    cu, eu = cal(A[:, 0], A[:, 3])
+    cd, ed = cal(A[:, 1], A[:, 4])
+    c6, e6 = cal(A[:, 2], A[:, 5])
+    pn = 1 - A[:, 0] - A[:, 1]
+    an = 1 - A[:, 3] - A[:, 4]
+    br = float(np.mean((A[:, 0] - A[:, 3]) ** 2 + (A[:, 1] - A[:, 4]) ** 2 + (pn - an) ** 2))
+    mu, md_ = A[:, 3].mean(), A[:, 4].mean()
+    br0 = float(np.mean((mu - A[:, 3]) ** 2 + (md_ - A[:, 4]) ** 2 + ((1 - mu - md_) - an) ** 2))
+    res = {"n": len(rec), "u": cu, "eu": eu, "d": cd, "ed": ed, "p60": c6, "e60": e6,
+           "pu": [round(float(A[:, 0].mean()) * 100, 1), round(float(mu) * 100, 1)],
+           "pd": [round(float(A[:, 1].mean()) * 100, 1), round(float(md_) * 100, 1)],
+           "br": round(br, 4), "br0": round(br0, 4), "ok": bool(eu < 5 and ed < 5 and e6 < 5)}
+    print("Prüfung Simulation:", res["n"], "Fälle, Ziel zuerst vorhergesagt/eingetreten", res["pu"], "Stopp", res["pd"],
+          "Abweichung", eu, ed, e6, "Brier", res["br"], "ohne Simulation", res["br0"], "ok", res["ok"], flush=True)
+    return res
 
 
 if __name__ == "__main__":
