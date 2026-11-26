@@ -713,6 +713,11 @@ def main():
     prog = {}
     MD = market.fetch()                            # Indizes, VIX, Sektor-ETFs (für Marktampel und Beta je Aktie)
     print("Marktdaten:", len(MD), "Reihen", flush=True)
+    try:                                           # Prognose: Rückrechnungsergebnis und heutige Marktphase für die Simulation
+        import prognose
+        prognose.set_context(MD, PROG_PATH)
+    except Exception as e:  # noqa: BLE001
+        print("Prognose-Kontext übersprungen:", type(e).__name__, flush=True)
 
     def mclose(sym):
         d = MD.get(sym)
@@ -797,7 +802,7 @@ def main():
             print("Erweiterte Kurzfristanalyse fehlgeschlagen:", s, type(e).__name__, flush=True)
         try:                                       # Prognose-Bausteine (bewährte Zonen, Korridor), nur Anzeige
             import prognose
-            pg_ = prognose.compute(df, rec.get("zs"), rec.get("zr"))
+            pg_ = prognose.compute(df, rec.get("zs"), rec.get("zr"), s)
             if pg_:
                 prog[s] = pg_
         except Exception as e:  # noqa: BLE001

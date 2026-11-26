@@ -10,7 +10,9 @@
 
 Alle Renditen als Anteile (0,05 = +5 %), auf 3 signifikante Stellen gerundet. Jede Funktion gibt bei Problemen None zurück.
 """
+import json
 import math
+import os
 
 import numpy as np
 import pandas as pd
@@ -161,7 +163,7 @@ def vol_band(c, days=60):
             for hz in HZ}
 
 
-def compute(df, zs=None, zr=None):
+def compute(df, zs=None, zr=None, sym=""):
     """Alles für eine Aktie. zs/zr wie in data.json: [[Unterkante, Oberkante, [Bezeichnungen], Abstand %], …]."""
     try:
         p = _prep(df)
@@ -185,6 +187,160 @@ def compute(df, zs=None, zr=None):
         vb = vol_band(c)
         if vb:
             out["v"] = vb
+        try:
+            mc = scenario(df, zs, zr, sym)
+            if mc:
+                out["mc"] = mc
+        except Exception:
+            pass
         return out or None
     except Exception:
         return None
+
+
+# ------------------------------------------------------------------------------------------------ Simulation (26.11.2026)
+# 10.000 mögliche Kursverläufe je Aktie für 60 Handelstage. Bausteine sind die echten Tagesbewegungen der Aktie aus den
+# letzten 3 Jahren, jeweils durch die damalige Schwankung geteilt und mit der heutigen Schwankung multipliziert
+# (gefilterte historische Simulation), gezogen in Blöcken zu 5 Tagen, damit Serien von Plus- und Minustagen erhalten
+# bleiben. Richtung: neutral (mittlere Aktie aller Tage aus der Rückrechnung), plus der Vorteil bewährter Setups, wenn
+# die Rückrechnung für die heutige Lage einen gefunden hat (ok ≠ 0, in Lern- und Prüfzeitraum gleich gerichtet).
+NSIM, HSIM, BLOCK = 10000, 60, 5
+MC_DAYS = (5, 10, 20, 40, 60)
+_CTX = {"bt": None, "phase": None}
+
+
+def set_context(MD=None, prog_path=None):
+    """Einmal je Lauf: Rückrechnungsergebnis (docs/bt.json) laden und heutige Marktphase aus den Marktdaten bestimmen."""
+    try:
+        if prog_path:
+            p = os.path.join(os.path.dirname(prog_path), "bt.json")
+            if os.path.exists(p):
+                _CTX["bt"] = json.load(open(p))
+    except Exception:
+        _CTX["bt"] = None
+    try:
+        if MD and "^GSPC" in MD:
+            import backtest
+            ph = backtest.market_phase(MD["^GSPC"], MD.get("^VIX"))
+            _CTX["phase"] = str(ph.iloc[-1])
+    except Exception:
+        _CTX["phase"] = None
+
+
+def targets(p, zs, zr):
+    """Ziel (nächster Widerstand, Unterkante) und Stopp (1 % unter der Unterkante der nächsten Unterstützung),
+    wie im Ausblick der Seite (abLv)."""
+    sup = [z for z in (zs or []) if z[0] < p]
+    res = [z for z in (zr or []) if z[1] > p]
+    if res and res[0][0] <= p * 1.015 and len(res) > 1:
+        res = res[1:]
+    up = float(res[0][0]) if res else None
+    dn = float(sup[0][0]) * 0.99 if sup else None
+    return up, dn
+
+
+def setup_drift(F):
+    """Setups der heutigen Lage und daraus die tägliche Mehrrendite (Prüfzeitraum, 60 Tage) bewährter Setups."""
+    bt = _CTX["bt"]
+    if F is None or len(F) == 0:
+        return [], 0.0, None
+    try:
+        import backtest
+        row = F.iloc[-1].to_dict()
+        st = backtest.setups_of(row)
+    except Exception:
+        return [], 0.0, None
+    if not bt or "set" not in bt:
+        return st, 0.0, None
+    ph, ds, used = _CTX["phase"], [], []
+    for k in st:
+        e = bt["set"].get(k)
+        if not e or not e.get("ok"):
+            continue
+        q = (e["60"].get("ph") or {}).get(ph) if ph else None
+        te = e["60"].get("te")
+        v = q[2] if q and q[0] >= 200 and np.sign(q[2]) == np.sign(te[2]) else te[2]
+        ds.append(v / 100.0)
+        used.append(k)
+    if not ds:
+        return st, 0.0, None
+    d = float(np.mean(ds)) / HSIM
+    return st, float(np.clip(d, -0.0015, 0.0015)), used
+
+
+def simulate(c, up=None, dn=None, drift=0.0, seed=0, n=NSIM, h=HSIM):
+    """Rückgabe dict: q = Quantile 5/25/50/75/95 der Kursveränderung an den Tagen MC_DAYS; pu/pd/pn = Anteil der
+    Verläufe, die zuerst das Ziel, zuerst den Stopp bzw. keins von beiden in h Tagen erreichen; tu/td = Median-Tage bis
+    dahin; p20/p60 = Anteil über dem heutigen Kurs."""
+    c = np.asarray(c, dtype=float)
+    c = c[np.isfinite(c) & (c > 0)][-757:]
+    if len(c) < 300:
+        return None
+    lr = np.diff(np.log(c))
+    lam = 0.94
+    var = np.empty(len(lr))
+    var[0] = np.var(lr[:20]) if len(lr) > 20 else lr[0] ** 2
+    for i in range(1, len(lr)):
+        var[i] = lam * var[i - 1] + (1 - lam) * lr[i - 1] ** 2
+    sig = np.sqrt(np.maximum(var, 1e-10))
+    z = lr / sig
+    z = (z - z.mean()) / (z.std() or 1.0)
+    s_now = float(np.sqrt(lam * var[-1] + (1 - lam) * lr[-1] ** 2))
+    s_year = float(np.std(lr[-252:]))
+    s_now = float(np.clip(s_now, 0.5 * s_year, 2.0 * s_year))
+    rng = np.random.default_rng(seed)
+    nb = -(-h // BLOCK)
+    starts = rng.integers(0, len(z) - BLOCK, size=(n, nb))
+    Z = z[starts[:, :, None] + np.arange(BLOCK)[None, None, :]].reshape(n, nb * BLOCK)[:, :h]
+    # Medianpfad ohne Schwankungsabschlag: drift ist die gewünschte mittlere Tagesrendite (log)
+    R = np.cumsum(drift + s_now * Z, axis=1)
+    out = {"q": [], "d": list(MC_DAYS), "s": round(float(s_now * np.sqrt(252) * 100), 1), "dr": round(drift * HSIM * 100, 2)}
+    for d in MC_DAYS:
+        r = np.exp(R[:, d - 1]) - 1
+        out["q"].append([_sig(float(np.percentile(r, q))) for q in (5, 25, 50, 75, 95)])
+    out["p20"] = round(float((R[:, 19] > 0).mean()) * 100, 1)
+    out["p60"] = round(float((R[:, h - 1] > 0).mean()) * 100, 1)
+    p0 = c[-1]
+    if up and dn and dn < p0 < up:
+        lu, ld = np.log(up / p0), np.log(dn / p0)
+        hu, hd = R >= lu, R <= ld
+        tu = np.where(hu.any(1), hu.argmax(1), h + 1)
+        td = np.where(hd.any(1), hd.argmax(1), h + 1)
+        fu, fd = tu < td, td < tu
+        out["pu"] = round(float(fu.mean()) * 100, 1)
+        out["pd"] = round(float(fd.mean()) * 100, 1)
+        out["pn"] = round(100 - out["pu"] - out["pd"], 1)
+        out["tu"] = int(np.median(tu[fu]) + 1) if fu.any() else None
+        out["td"] = int(np.median(td[fd]) + 1) if fd.any() else None
+        out["up"], out["dn"] = _sig(up, 5), _sig(dn, 5)
+    return out
+
+
+def scenario(df, zs=None, zr=None, sym=""):
+    """Simulation plus Setups für eine Aktie (Teil von compute)."""
+    p = _prep(df)
+    if p is None:
+        return None
+    c = p[0]
+    try:
+        import backtest
+        F = backtest.features(df)
+    except Exception:
+        F = None
+    st, dr, used = setup_drift(F)
+    bt = _CTX["bt"]
+    base = 0.0
+    if bt and bt.get("base"):
+        base = float(np.log1p(bt["base"]["60"][0] / 100.0)) / HSIM     # mittlere Aktie an beliebigen Tagen
+    up, dn = targets(float(c.iloc[-1]), zs, zr)
+    import zlib
+    seed = zlib.crc32((sym + str(c.index[-1].date())).encode())
+    m = simulate(c.values, up, dn, base + dr, seed=seed)
+    if not m:
+        return None
+    m["dr"], m["db"] = round(dr * HSIM * 100, 2), round(base * HSIM * 100, 2)   # Vorteil der Setups / üblicher Anstieg
+    m["st"] = st
+    m["su"] = used or []
+    m["ph"] = _CTX["phase"]
+    m["n"] = NSIM
+    return m

@@ -501,6 +501,39 @@ def main():
     except Exception as e:  # noqa: BLE001
         ok &= check("Prognose-Bausteine", False, repr(e))
 
+    # Rückrechnung (backtest.py) und Simulation (prognose.simulate)
+    try:
+        import backtest as BT
+        import prognose as PG
+        rng = np.random.default_rng(11)
+        idx = pd.bdate_range("2012-01-02", periods=1500)
+        w = 100 * np.exp(np.cumsum(rng.normal(0.0003, 0.017, 1500)))
+        dfb = pd.DataFrame({"Close": w, "High": w * 1.01, "Low": w * 0.99, "Volume": rng.lognormal(10, 0.4, 1500)}, index=idx)
+        F1 = BT.features(dfb)
+        dfc = dfb.copy()
+        dfc.iloc[1000:, :] = dfc.iloc[1000:, :] * 3          # Zukunft verändern
+        F2 = BT.features(dfc)
+        same = np.allclose(F1.iloc[:1000].fillna(-9).values, F2.iloc[:1000].fillna(-9).values)
+        ok &= check("Rückrechnung: Merkmale ohne Vorwegnahme (spätere Kurse ändern frühere Merkmale nicht)", same)
+        ok &= check("Rückrechnung: Setup-Erkennung", BT.setups_of({"d52h": -0.01, "rsi": 80, "trend": 1.0}) [:2] == ["hoch52", "ueberhitzt"])
+        pr = {}
+        for i in range(40):
+            ww = 100 * np.exp(np.cumsum(rng.normal(0.0003, 0.02, 1500)))
+            pr["S%d" % i] = pd.DataFrame({"Close": ww, "High": ww * 1.01, "Low": ww * 0.99, "Volume": rng.lognormal(10, 0.5, 1500)}, index=idx)
+        Pn = BT.panel(pr)
+        res = BT.analyse(Pn)
+        ok &= check("Rückrechnung: Zufallskurse ergeben kein bewährtes Setup", all(e["ok"] == 0 for e in res["set"].values()),
+                    {k: e["ok"] for k, e in res["set"].items()})
+        mc = PG.simulate(w, up=w[-1] * 1.08, dn=w[-1] / 1.08, drift=0.0, seed=1)
+        ok &= check("Simulation: gleich weite Ziele ohne Richtung ergeben etwa gleiche Wahrscheinlichkeiten",
+                    mc and abs(mc["pu"] - mc["pd"]) < 6 and abs(mc["p60"] - 50) < 4 and mc["q"][-1] == sorted(mc["q"][-1]), mc)
+        mc2 = PG.simulate(w, up=w[-1] * 1.08, dn=w[-1] / 1.08, drift=0.002, seed=1)
+        ok &= check("Simulation: positive Richtung erhöht die Wahrscheinlichkeit für das Ziel", mc2["pu"] > mc["pu"] + 5, mc2)
+        ok &= check("Simulation: gleicher Startwert ergibt gleiches Ergebnis", PG.simulate(w, seed=1)["q"] == PG.simulate(w, seed=1)["q"])
+        ok &= check("Simulation: Ziel/Stopp wie im Ausblick", PG.targets(100, [[90, 95, ["a"], -5]], [[101, 104, ["b"], 1], [110, 112, ["c"], 10]]) == (110.0, 89.1))
+    except Exception as e:  # noqa: BLE001
+        ok &= check("Rückrechnung und Simulation", False, repr(e))
+
     try:
         import json
         json.dumps([r, down, weak, none])
