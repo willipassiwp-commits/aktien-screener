@@ -285,9 +285,13 @@ def simulate(c, up=None, dn=None, drift=0.0, seed=0, n=NSIM, h=HSIM):
     sig = np.sqrt(np.maximum(var, 1e-10))
     z = lr / sig
     z = (z - z.mean()) / (z.std() or 1.0)
-    s_now = float(np.sqrt(lam * var[-1] + (1 - lam) * lr[-1] ** 2))
+    # heutige Schwankung: halb kurzfristig (EWMA, reagiert auf die letzten Tage), halb 60 Tage, begrenzt auf das
+    # 0,6- bis 1,6-Fache der Jahresschwankung (einzelne Extremtage sollen den Fächer nicht aufblähen)
+    v_ew = lam * var[-1] + (1 - lam) * lr[-1] ** 2
+    v_60 = float(np.var(lr[-60:]))
+    s_now = float(np.sqrt(0.5 * v_ew + 0.5 * v_60))
     s_year = float(np.std(lr[-252:]))
-    s_now = float(np.clip(s_now, 0.5 * s_year, 2.0 * s_year))
+    s_now = float(np.clip(s_now, 0.6 * s_year, 1.6 * s_year))
     rng = np.random.default_rng(seed)
     nb = -(-h // BLOCK)
     starts = rng.integers(0, len(z) - BLOCK, size=(n, nb))
